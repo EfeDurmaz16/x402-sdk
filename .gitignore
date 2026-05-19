@@ -7,3 +7,4 @@ typescript/packages/x402/coverage
 typescript/packages/x402/dist
 __pycache__
 *.pyc
+tests/interop/interop-*.json
