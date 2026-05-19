@@ -111,7 +111,9 @@ def main() -> int:
         ),
         scheme=os.environ.get("X402_INTEROP_SCHEME", "exact"),
     )
+    intent = os.environ.get("X402_INTEROP_INTENT")
     scheme = os.environ.get("X402_INTEROP_SCHEME", "exact")
+    error_domain = intent or scheme
 
     _emit(
         {
@@ -122,7 +124,7 @@ def main() -> int:
             "status": status,
             "responseHeaders": headers,
             "responseBody": {
-                "error": f"python_{scheme}_client_not_implemented",
+                "error": f"python_{error_domain}_client_not_implemented",
                 "challengeStatus": status,
                 "challengeBody": body,
                 "selectedRequirement": selected_requirement,

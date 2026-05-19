@@ -22,6 +22,7 @@ selected_requirement = X402SDK::Interop::Client.select_svm_requirement(
   scheme: ENV.fetch("X402_INTEROP_SCHEME", "exact")
 )
 scheme = ENV.fetch("X402_INTEROP_SCHEME", "exact")
+error_domain = ENV.fetch("X402_INTEROP_INTENT", scheme)
 
 puts JSON.generate(
   type: "result",
@@ -31,7 +32,7 @@ puts JSON.generate(
   status: response.code.to_i,
   responseHeaders: headers,
   responseBody: {
-    error: "ruby_#{scheme}_client_not_implemented",
+    error: "ruby_#{error_domain}_client_not_implemented",
     challengeStatus: response.code.to_i,
     challengeBody: response.body,
     selectedRequirement: selected_requirement

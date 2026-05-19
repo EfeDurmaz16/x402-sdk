@@ -118,6 +118,7 @@ func main() {
 		readEnvWithDefault("X402_INTEROP_SCHEME", "exact"),
 	)
 	scheme := readEnvWithDefault("X402_INTEROP_SCHEME", "exact")
+	errorDomain := readEnvWithDefault("X402_INTEROP_INTENT", scheme)
 
 	payload := map[string]any{
 		"type":            "result",
@@ -127,7 +128,7 @@ func main() {
 		"status":          response.StatusCode,
 		"responseHeaders": headers,
 		"responseBody": map[string]any{
-			"error":               fmt.Sprintf("go_%s_client_not_implemented", scheme),
+			"error":               fmt.Sprintf("go_%s_client_not_implemented", errorDomain),
 			"challengeStatus":     response.StatusCode,
 			"challengeBody":       string(body),
 			"selectedRequirement": selectedRequirement,

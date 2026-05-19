@@ -37,6 +37,14 @@ const plannedUptoChallengeBody = JSON.stringify({
   x402Version: 2,
   accepts: [plannedUptoClientRequirement],
 });
+const plannedSessionChallengeBody = JSON.stringify({
+  intent: "session",
+  payee: "session-payee",
+  mint: plannedClientRequirement.asset,
+  suggestedDeposit: "10000",
+  unitPrice: "25",
+  unitType: "llm_token",
+});
 
 function hasCommand(command: string): boolean {
   const result = spawnSync("sh", ["-c", `command -v ${command}`], { stdio: "ignore" });
@@ -155,6 +163,41 @@ describe("planned client adapter process contract", () => {
           challengeStatus: 402,
           challengeBody: plannedUptoChallengeBody,
           selectedRequirement: plannedUptoClientRequirement,
+        },
+        settlement: null,
+      });
+    });
+
+    it(`${id} client reports the planned session failure shape after reading a session 402 challenge`, async () => {
+      const implementation = clientImplementations.find(client => client.id === id);
+      expect(implementation, `missing ${id} client implementation`).toBeDefined();
+
+      if (!implementation) {
+        return;
+      }
+
+      const command = implementation.command[0];
+      const { url } = await startChallengeServer(plannedSessionChallengeBody);
+      if (!hasCommand(command)) {
+        await expect(
+          runClient(implementation, url, { X402_INTEROP_INTENT: "session" }),
+        ).rejects.toThrow(new RegExp(`Failed to start adapter command: spawn ${command} ENOENT`));
+        return;
+      }
+
+      await expect(
+        runClient(implementation, url, { X402_INTEROP_INTENT: "session" }),
+      ).resolves.toMatchObject({
+        type: "result",
+        implementation: id,
+        role: "client",
+        ok: false,
+        status: 402,
+        responseBody: {
+          error: `${id}_session_client_not_implemented`,
+          challengeStatus: 402,
+          challengeBody: plannedSessionChallengeBody,
+          selectedRequirement: null,
         },
         settlement: null,
       });
