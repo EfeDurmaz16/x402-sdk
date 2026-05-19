@@ -117,11 +117,11 @@ describe("SDK scaffold diagnostics", () => {
     expect(getSdkScaffoldStatus()).toContainEqual(
       expect.objectContaining({
         language: "php",
-        rootExists: false,
-        manifestExists: false,
+        rootExists: true,
+        manifestExists: true,
         serverOnly: true,
         runtimeClientAdapter: false,
-        runtimeServerAdapter: false,
+        runtimeServerAdapter: true,
       }),
     );
   });
@@ -158,6 +158,7 @@ describe("SDK scaffold diagnostics", () => {
 
     expect(runtimeReady).toEqual([
       { language: "go", client: true, server: true },
+      { language: "php", client: false, server: true },
       { language: "python", client: true, server: true },
       { language: "rust", client: true, server: true },
       { language: "typescript", client: true, server: true },

@@ -247,21 +247,6 @@ describe("interop implementation metadata", () => {
         },
         expected: /lua missing \.\.\/\.\.\/lua\/x402-sdk-svm\.rockspec/,
       },
-      {
-        envName: "X402_INTEROP_SERVERS",
-        implementation: {
-          id: "php",
-          label: "PHP HTTP server",
-          role: "server" as const,
-          command: ["php", "bin/interop-server.php"],
-          cwd: "../../php",
-          requiredManifest: "../../php/composer.json",
-          enabled: true,
-          runtimeSchemes: ["exact" as const],
-          runtimeIntents: [],
-        },
-        expected: /php missing \.\.\/\.\.\/php\/composer\.json/,
-      },
     ];
 
     for (const selection of plannedSelections) {
