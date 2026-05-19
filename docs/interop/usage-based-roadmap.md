@@ -142,7 +142,7 @@ PRs.
 | 10 | Ruby `upto` adapter support. | planned |
 | 11 | Lua `upto` server adapter support. | planned |
 | 12 | PHP `upto` server adapter support. | planned |
-| 12a | Solana `upto` vs `batch-settlement` authorization design note. | next |
+| 12a | Solana `upto` vs `batch-settlement` authorization design note. | staged |
 | 13 | Session detection fixtures. | staged |
 | 14 | Session experimental scenario contract. | staged |
 | 15 | Python session adapter support. | planned |
@@ -156,6 +156,8 @@ PRs.
 | 23 | Maintainer runbook for one language, one pair, and one scheme. | staged |
 | 24 | Experimental CI opt-in flags. | staged |
 | 25 | Final cleanup of planned/missing capability reporting. | staged |
+| 26 | Planned Python/Go/Ruby client/server and Lua/PHP server scaffold probes. | staged |
+| 27 | Usage boundary probes for `upto` and `session` fail-fast diagnostics. | staged |
 
 ## Current staging guardrails
 
@@ -173,6 +175,14 @@ PRs.
   can inspect each language/role status without parsing summary text.
 - `pnpm scaffold` reports planned SDK roots, expected package manifests, and
   current runtime adapter availability for monorepo readiness checks.
+- `pnpm run test:planned-adapters` checks planned adapter process contracts:
+  Python/Go/Ruby client scaffold failures and Python/Go/Ruby/Lua/PHP server
+  readiness, health, and explicit not-implemented responses.
+- `pnpm run test:probe:planned-syntax` checks Python, Go, Ruby, and PHP
+  scaffold syntax/build health in one local command.
+- `pnpm run test:probe:upto-boundary` and
+  `pnpm run test:probe:session-boundary` intentionally fail fast with
+  capability diagnostics while those runtime scenarios remain disabled.
 - Split-payment semantics are not modeled in the current exact SVM contract;
   keep them out of runtime claims until an x402 requirements shape exists.
 
