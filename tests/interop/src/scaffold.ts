@@ -126,18 +126,19 @@ export function getSdkScaffoldStatus(
   cwd: string = process.cwd(),
 ): SdkScaffoldStatus[] {
   return sdkScaffoldDefinitions.map(definition => {
-    const runtimeClientAdapter = clientImplementations.some(
-      implementation => implementation.id === definition.language,
-    );
-    const runtimeServerAdapter = serverImplementations.some(
-      implementation => implementation.id === definition.language,
-    );
     const rootPath = join(cwd, definition.root);
+    const manifestExists = existsSync(join(rootPath, definition.manifest));
+    const runtimeClientAdapter =
+      manifestExists &&
+      clientImplementations.some(implementation => implementation.id === definition.language);
+    const runtimeServerAdapter =
+      manifestExists &&
+      serverImplementations.some(implementation => implementation.id === definition.language);
 
     return {
       ...definition,
       rootExists: existsSync(rootPath),
-      manifestExists: existsSync(join(rootPath, definition.manifest)),
+      manifestExists,
       runtimeClientAdapter,
       runtimeServerAdapter,
     };

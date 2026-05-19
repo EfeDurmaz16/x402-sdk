@@ -236,4 +236,21 @@ If no filter is set, all stable adapters are enabled by default:
 - clients: `typescript,rust`
 - servers: `typescript,rust`
 
+Planned adapters are registered but disabled by default:
+
+- clients: `python,go`
+- servers: `python,go,lua,php`
+
+Selecting one of these before its SDK scaffold exists fails fast with a
+manifest-specific diagnostic instead of silently falling back to the stable
+Rust/TypeScript matrix. For example:
+
+```bash
+X402_INTEROP_CLIENTS=python pnpm test:smoke
+X402_INTEROP_SERVERS=php pnpm test:smoke
+```
+
+PHP linting should be added as a separate PHP scaffold gate once PHP files
+exist; the runtime interop command remains `php bin/interop-server.php`.
+
 The suite performs a local socket-bind preflight. If the current environment forbids opening loopback ports, the e2e test is skipped instead of failing. In CI, where loopback sockets are available, the matrix runs normally.

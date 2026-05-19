@@ -1,3 +1,5 @@
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 import type { InteropRuntimeScheme } from "./contracts";
 
 export type ImplementationDefinition = {
@@ -5,6 +7,8 @@ export type ImplementationDefinition = {
   label: string;
   role: "client" | "server";
   command: string[];
+  cwd?: string;
+  requiredManifest?: string;
   enabled: boolean;
   runtimeSchemes: InteropRuntimeScheme[];
   runtimeIntents: string[];
@@ -51,6 +55,30 @@ export function validateImplementationSelection(
   }
 }
 
+export function validateSelectedImplementationScaffolds(
+  implementations: ImplementationDefinition[],
+  envName: string,
+  cwd: string = process.cwd(),
+): void {
+  const missing = implementations.filter(implementation => {
+    if (!implementation.enabled || !implementation.requiredManifest) {
+      return false;
+    }
+
+    return !existsSync(join(cwd, implementation.requiredManifest));
+  });
+
+  if (missing.length === 0) {
+    return;
+  }
+
+  throw new Error(
+    `${envName} selected adapter(s) without SDK scaffold: ${missing
+      .map(implementation => `${implementation.id} missing ${implementation.requiredManifest}`)
+      .join("; ")}`,
+  );
+}
+
 export const clientImplementations: ImplementationDefinition[] = [
   {
     id: "typescript",
@@ -75,6 +103,28 @@ export const clientImplementations: ImplementationDefinition[] = [
       "interop_client",
     ],
     enabled: isEnabled("rust", "X402_INTEROP_CLIENTS", true),
+    runtimeSchemes: ["exact"],
+    runtimeIntents: [],
+  },
+  {
+    id: "python",
+    label: "Python HTTP client",
+    role: "client",
+    command: ["python", "-m", "x402_sdk.interop.client"],
+    cwd: "../../python",
+    requiredManifest: "../../python/pyproject.toml",
+    enabled: isEnabled("python", "X402_INTEROP_CLIENTS", false),
+    runtimeSchemes: ["exact"],
+    runtimeIntents: [],
+  },
+  {
+    id: "go",
+    label: "Go HTTP client",
+    role: "client",
+    command: ["go", "run", "./cmd/interop-client"],
+    cwd: "../../go",
+    requiredManifest: "../../go/go.mod",
+    enabled: isEnabled("go", "X402_INTEROP_CLIENTS", false),
     runtimeSchemes: ["exact"],
     runtimeIntents: [],
   },
@@ -107,7 +157,53 @@ export const serverImplementations: ImplementationDefinition[] = [
     runtimeSchemes: ["exact"],
     runtimeIntents: [],
   },
+  {
+    id: "python",
+    label: "Python HTTP server",
+    role: "server",
+    command: ["python", "-m", "x402_sdk.interop.server"],
+    cwd: "../../python",
+    requiredManifest: "../../python/pyproject.toml",
+    enabled: isEnabled("python", "X402_INTEROP_SERVERS", false),
+    runtimeSchemes: ["exact"],
+    runtimeIntents: [],
+  },
+  {
+    id: "go",
+    label: "Go HTTP server",
+    role: "server",
+    command: ["go", "run", "./cmd/interop-server"],
+    cwd: "../../go",
+    requiredManifest: "../../go/go.mod",
+    enabled: isEnabled("go", "X402_INTEROP_SERVERS", false),
+    runtimeSchemes: ["exact"],
+    runtimeIntents: [],
+  },
+  {
+    id: "lua",
+    label: "Lua HTTP server",
+    role: "server",
+    command: ["lua", "bin/interop-server.lua"],
+    cwd: "../../lua",
+    requiredManifest: "../../lua/x402-sdk-svm.rockspec",
+    enabled: isEnabled("lua", "X402_INTEROP_SERVERS", false),
+    runtimeSchemes: ["exact"],
+    runtimeIntents: [],
+  },
+  {
+    id: "php",
+    label: "PHP HTTP server",
+    role: "server",
+    command: ["php", "bin/interop-server.php"],
+    cwd: "../../php",
+    requiredManifest: "../../php/composer.json",
+    enabled: isEnabled("php", "X402_INTEROP_SERVERS", false),
+    runtimeSchemes: ["exact"],
+    runtimeIntents: [],
+  },
 ];
 
 validateImplementationSelection(clientImplementations, "X402_INTEROP_CLIENTS");
 validateImplementationSelection(serverImplementations, "X402_INTEROP_SERVERS");
+validateSelectedImplementationScaffolds(clientImplementations, "X402_INTEROP_CLIENTS");
+validateSelectedImplementationScaffolds(serverImplementations, "X402_INTEROP_SERVERS");
