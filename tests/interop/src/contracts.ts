@@ -1,7 +1,11 @@
+import { formatCapabilitySummary } from "./capabilities";
+
 export type AdapterKind = "client" | "server";
 
+export type InteropRuntimeScheme = "exact";
+
 export type InteropScenario = {
-  scheme: "exact";
+  scheme: InteropRuntimeScheme;
   network: string;
   price: string;
   asset: string;
@@ -38,3 +42,20 @@ export const interopScenario: InteropScenario = {
   resourcePath: "/protected",
   settlementHeader: "x-fixture-settlement",
 };
+
+export function resolveInteropScenario(
+  env: Record<string, string | undefined> = process.env,
+): InteropScenario {
+  const requestedScheme = env.X402_INTEROP_SCHEME?.trim() || "exact";
+  if (requestedScheme === "exact") {
+    return interopScenario;
+  }
+
+  throw new Error(
+    [
+      `X402_INTEROP_SCHEME=${requestedScheme} is not enabled for runtime interop yet.`,
+      "Capability summary:",
+      ...formatCapabilitySummary(),
+    ].join("\n"),
+  );
+}

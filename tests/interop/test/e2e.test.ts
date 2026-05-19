@@ -2,7 +2,7 @@ import net from "node:net";
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
 import { createSolanaRpc } from "@solana/kit";
 import { Surfnet } from "surfpool-sdk";
-import { interopScenario } from "../src/contracts";
+import { resolveInteropScenario } from "../src/contracts";
 import { clientImplementations, serverImplementations } from "../src/implementations";
 import { selectInteropPairs } from "../src/matrix";
 import { runClient, startServer, stopServer } from "../src/process";
@@ -11,6 +11,7 @@ type RunningServer = Awaited<ReturnType<typeof startServer>>;
 
 const TOKEN_PROGRAM = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA";
 const MINT_ACCOUNT_SIZE = 82;
+const interopScenario = resolveInteropScenario();
 
 const runningServers: RunningServer[] = [];
 
