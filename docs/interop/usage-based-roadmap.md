@@ -29,16 +29,16 @@ x402 usage-based work should start with native x402 scheme boundaries:
   on-chain redemption.
 
 Current public x402 references describe `upto` as maximum-authorization
-semantics and currently document it for EVM. Solana `exact` payments are signed
-SPL transfer transactions with a fixed amount, so Solana `upto` must not be
-treated as a simple scheme rename over `exact`. The staging harness tracks
+semantics and currently document it for EVM Permit2. Solana `exact` payments are
+signed SPL transfer transactions with a fixed amount, so Solana `upto` must not
+be treated as a simple scheme rename over `exact`. The staging harness tracks
 Solana `upto` as `requires-design` until the authorization and settlement model
 is explicit.
 
 Reference check on 2026-05-19:
 
 - x402 seller docs describe Solana examples for `exact`, while the `upto`
-  examples use EVM schemes.
+  examples use EVM schemes and `setSettlementOverrides`.
 - the same docs state `upto` is currently available on EVM networks only in
   TypeScript, Go, and Python SDKs.
 - network docs describe Solana transfer support as SPL or Token-2022 transfer,
@@ -78,9 +78,16 @@ shared scenario contract locally and in CI.
 Solana `upto` runtime support also needs explicit decisions for the
 authorization primitive, single-use replay model, actual settlement authority,
 zero-settlement behavior, recipient ATA policy, and over-maximum enforcement.
-The interop fixtures also lock the planned language roles so PHP and Lua stay
-server-only while Rust, TypeScript, Python, Go, and Ruby track both client and
-server support.
+Until those decisions are made, client support is design-gated: a Solana client
+must not sign a fixed transfer for the maximum amount and call it `upto`, because
+that would charge the cap instead of the actual usage. The interop fixtures also
+lock the planned language roles so PHP and Lua stay server-only while Rust,
+TypeScript, Python, Go, and Ruby track both client and server support.
+
+The most likely next design candidate for Solana variable usage is closer to
+the documented `batch-settlement` shape than to the current EVM-only `upto`
+shape: per-request maximums, off-chain usage authorization, and a settlement
+path that can redeem the actual amount without rewriting a signed SPL transfer.
 
 ## Session compatibility boundary
 
@@ -126,7 +133,7 @@ PRs.
 | 2 | Interop capability matrix surfaced in runner diagnostics. | staged |
 | 3 | `upto` scenario fixtures and negative cases. | staged |
 | 4 | TypeScript `upto` server support. | staged as experimental |
-| 5 | TypeScript `upto` client support. | next |
+| 5 | TypeScript `upto` client support. | design-gated |
 | 6 | Rust `upto` server support. | staged as experimental |
 | 7 | Rust `upto` client support. | planned |
 | 8 | Python `upto` adapter support. | planned |
@@ -134,6 +141,7 @@ PRs.
 | 10 | Ruby `upto` adapter support. | planned |
 | 11 | Lua `upto` server adapter support. | planned |
 | 12 | PHP `upto` server adapter support. | planned |
+| 12a | Solana `upto` vs `batch-settlement` authorization design note. | next |
 | 13 | Session detection fixtures. | staged |
 | 14 | Session experimental scenario contract. | staged |
 | 15 | Python session adapter support. | planned |
