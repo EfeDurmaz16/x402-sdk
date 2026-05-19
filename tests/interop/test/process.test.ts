@@ -49,6 +49,25 @@ describe("interop process harness", () => {
     );
   });
 
+  it("includes malformed server readiness payloads in the failure", async () => {
+    const command = [
+      process.execPath,
+      "-e",
+      [
+        "console.log(JSON.stringify({",
+        "type: 'ready',",
+        "implementation: 'expected',",
+        "role: 'server'",
+        "}));",
+        "setInterval(() => {}, 1000);",
+      ].join(""),
+    ];
+
+    await expect(startServer(implementation(command, "server"))).rejects.toThrow(
+      'Unexpected server readiness payload from expected: {"type":"ready","implementation":"expected","role":"server"}',
+    );
+  });
+
   it("rejects a client adapter that reports a different implementation id", async () => {
     const command = [
       process.execPath,
@@ -100,6 +119,25 @@ describe("interop process harness", () => {
 
     await expect(runClient(implementation(command, "client"), "http://127.0.0.1")).rejects.toThrow(
       "Client adapter exited with code 3\nAdapter stderr:\nclient post-result failed",
+    );
+  });
+
+  it("includes malformed client result payloads in the failure", async () => {
+    const command = [
+      process.execPath,
+      "-e",
+      [
+        "console.log(JSON.stringify({",
+        "type: 'ready',",
+        "implementation: 'expected',",
+        "role: 'server',",
+        "port: 1234",
+        "}));",
+      ].join(""),
+    ];
+
+    await expect(runClient(implementation(command, "client"), "http://127.0.0.1")).rejects.toThrow(
+      'Unexpected client result payload from expected: {"type":"ready","implementation":"expected","role":"server","port":1234}',
     );
   });
 });

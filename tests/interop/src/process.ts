@@ -26,6 +26,10 @@ function stderrDetails(adapter: AdapterProcess): string {
   return `\nAdapter stderr:\n${stderr.slice(-MAX_STDERR_CHARS)}`;
 }
 
+function formatPayload(payload: AdapterMessage): string {
+  return JSON.stringify(payload);
+}
+
 async function waitForJsonMessage<T extends AdapterMessage>(
   implementation: ImplementationDefinition,
   adapter: AdapterProcess,
@@ -121,7 +125,9 @@ export async function startServer(
 
   if (ready.type !== "ready" || ready.role !== "server" || !ready.port) {
     adapter.child.kill("SIGTERM");
-    throw new Error(`Unexpected server readiness payload from ${implementation.id}`);
+    throw new Error(
+      `Unexpected server readiness payload from ${implementation.id}: ${formatPayload(ready)}`,
+    );
   }
 
   if (ready.implementation !== implementation.id) {
@@ -161,7 +167,9 @@ export async function runClient(
   });
 
   if (result.type !== "result" || result.role !== "client") {
-    throw new Error(`Unexpected client result payload from ${implementation.id}`);
+    throw new Error(
+      `Unexpected client result payload from ${implementation.id}: ${formatPayload(result)}`,
+    );
   }
 
   if (result.implementation !== implementation.id) {
