@@ -161,6 +161,7 @@ PRs.
 | 25 | Final cleanup of planned/missing capability reporting. | staged |
 | 26 | Planned Python/Go/Ruby client/server and Lua/PHP server scaffold probes. | staged |
 | 27 | Usage boundary probes for `upto` and `session` fail-fast diagnostics. | staged |
+| 28 | Lua server-only static scaffold probe without local Lua toolchain. | staged |
 
 ## Promotion checklist
 
@@ -210,6 +211,8 @@ Use this checklist when splitting the staging branch into upstream PRs:
 - `pnpm run test:probe:planned-syntax` checks Python and Ruby syntax plus
   parser units, Go build health, and PHP server-only syntax plus HTTP contract
   health in one local command.
+- `pnpm run test:probe:lua-static` checks the Lua server-only scaffold contract
+  without requiring a local Lua or `luac` binary.
 - `pnpm run test:probe:upto-boundary` and
   `pnpm run test:probe:session-boundary` intentionally fail fast with
   capability diagnostics while those runtime scenarios remain disabled.

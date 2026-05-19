@@ -270,6 +270,7 @@ pnpm run test:probe:ruby-syntax
 pnpm run test:probe:ruby-unit
 pnpm run test:probe:php-syntax
 pnpm run test:probe:php-unit
+pnpm run test:probe:lua-static
 ```
 
 Use these runtime smoke probes to reproduce the expected-red boundary before a

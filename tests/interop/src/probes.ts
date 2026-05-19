@@ -16,7 +16,7 @@ export const interopProbes: ProbeDefinition[] = [
   },
   {
     script: "test:probe:staging",
-    command: "pnpm test:probe:planned-syntax && pnpm test:probe:usage-boundaries && pnpm test:planned-adapters",
+    command: "pnpm test:probe:planned-syntax && pnpm test:probe:lua-static && pnpm test:probe:usage-boundaries && pnpm test:planned-adapters",
     status: "green",
     reason: "Green staging gate for planned scaffold syntax and non-runtime contracts.",
   },
@@ -79,6 +79,12 @@ export const interopProbes: ProbeDefinition[] = [
     command: "php ../../php/tests/interop_server_test.php",
     status: "green",
     reason: "PHP server-only scaffold readiness and HTTP response contract.",
+  },
+  {
+    script: "test:probe:lua-static",
+    command: "vitest run test/lua-scaffold.test.ts",
+    status: "green",
+    reason: "Lua server-only scaffold contract without requiring a local Lua toolchain.",
   },
   {
     script: "test:probe:upto-boundary",

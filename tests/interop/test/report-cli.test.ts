@@ -61,6 +61,10 @@ describe("interop report CLIs", () => {
           command: "php ../../php/tests/interop_server_test.php",
         }),
         expect.objectContaining({
+          script: "test:probe:lua-static",
+          command: "vitest run test/lua-scaffold.test.ts",
+        }),
+        expect.objectContaining({
           script: "test:probe:python-unit",
           command: "cd ../../python && PYTHONPATH=src python3 -m unittest discover -s tests",
         }),
