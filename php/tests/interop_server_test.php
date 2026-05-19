@@ -84,6 +84,18 @@ try {
     ]) {
         fail('unexpected PHP interop server protected response: ' . json_encode($protected));
     }
+
+    $upto = request_json($port, '/upto');
+    if ($upto !== [
+        'status' => 501,
+        'body' => [
+            'ok' => false,
+            'paid' => false,
+            'error' => 'php_upto_server_not_implemented',
+        ],
+    ]) {
+        fail('unexpected PHP interop server upto response: ' . json_encode($upto));
+    }
 } finally {
     proc_terminate($process);
     proc_close($process);

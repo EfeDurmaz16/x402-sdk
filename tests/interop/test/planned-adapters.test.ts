@@ -119,7 +119,7 @@ describe("planned client adapter process contract", () => {
 
 describe("planned server adapter process contract", () => {
   for (const id of plannedServerIds) {
-    it(`${id} server exposes readiness, health, and scaffold failure shape`, async () => {
+    it(`${id} server exposes readiness, health, and scaffold failure shapes`, async () => {
       const implementation = serverImplementations.find(server => server.id === id);
       expect(implementation, `missing ${id} server implementation`).toBeDefined();
 
@@ -157,6 +157,15 @@ describe("planned server adapter process contract", () => {
           ok: false,
           paid: false,
           error: `${id}_exact_server_not_implemented`,
+        },
+      });
+
+      await expect(getJson(`${baseUrl}/upto`)).resolves.toEqual({
+        status: 501,
+        body: {
+          ok: false,
+          paid: false,
+          error: `${id}_upto_server_not_implemented`,
         },
       });
     });

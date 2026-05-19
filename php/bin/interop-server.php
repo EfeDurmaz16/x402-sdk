@@ -56,13 +56,21 @@ while ($running) {
     }
 
     $status = $path === '/health' ? 200 : 501;
-    $body = $path === '/health'
-        ? ['ok' => true]
-        : [
+    if ($path === '/health') {
+        $body = ['ok' => true];
+    } elseif ($path === '/upto') {
+        $body = [
+            'ok' => false,
+            'paid' => false,
+            'error' => 'php_upto_server_not_implemented',
+        ];
+    } else {
+        $body = [
             'ok' => false,
             'paid' => false,
             'error' => 'php_exact_server_not_implemented',
         ];
+    }
     $encoded = json_encode($body, JSON_THROW_ON_ERROR);
     $reason = $status === 200 ? 'OK' : 'Not Implemented';
 

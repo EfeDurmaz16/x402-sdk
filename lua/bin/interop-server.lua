@@ -52,13 +52,22 @@ while true do
 
     local status = path == "/health" and 200 or 501
     local reason = status == 200 and "OK" or "Not Implemented"
-    local body = path == "/health"
-      and json_object({ { "ok", true } })
-      or json_object({
+    local body
+    if path == "/health" then
+      body = json_object({ { "ok", true } })
+    elseif path == "/upto" then
+      body = json_object({
+        { "ok", false },
+        { "paid", false },
+        { "error", "lua_upto_server_not_implemented" }
+      })
+    else
+      body = json_object({
         { "ok", false },
         { "paid", false },
         { "error", "lua_exact_server_not_implemented" }
       })
+    end
 
     client:send(
       "HTTP/1.1 " .. status .. " " .. reason .. "\r\n" ..

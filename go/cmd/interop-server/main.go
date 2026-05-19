@@ -23,6 +23,13 @@ func main() {
 	mux.HandleFunc("/health", func(response http.ResponseWriter, _ *http.Request) {
 		writeJSON(response, http.StatusOK, map[string]any{"ok": true})
 	})
+	mux.HandleFunc("/upto", func(response http.ResponseWriter, _ *http.Request) {
+		writeJSON(response, http.StatusNotImplemented, map[string]any{
+			"ok":    false,
+			"paid":  false,
+			"error": "go_upto_server_not_implemented",
+		})
+	})
 	mux.HandleFunc("/", func(response http.ResponseWriter, _ *http.Request) {
 		writeJSON(response, http.StatusNotImplemented, map[string]any{
 			"ok":    false,

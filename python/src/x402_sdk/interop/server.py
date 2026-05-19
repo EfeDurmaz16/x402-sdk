@@ -12,6 +12,17 @@ class InteropHandler(BaseHTTPRequestHandler):
             self._write_json(200, {"ok": True})
             return
 
+        if self.path == "/upto":
+            self._write_json(
+                501,
+                {
+                    "ok": False,
+                    "paid": False,
+                    "error": "python_upto_server_not_implemented",
+                },
+            )
+            return
+
         self._write_json(
             501,
             {

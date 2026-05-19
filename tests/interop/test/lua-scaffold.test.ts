@@ -16,6 +16,11 @@ describe("Lua server-only scaffold", () => {
     expect(server).toContain("lua_exact_server_not_implemented");
   });
 
+  it("keeps planned upto server behavior explicit", () => {
+    expect(server).toContain('path == "/upto"');
+    expect(server).toContain("lua_upto_server_not_implemented");
+  });
+
   it("declares the Lua socket runtime dependency", () => {
     expect(rockspec).toContain('"lua >= 5.4"');
     expect(rockspec).toContain('"luasocket"');
