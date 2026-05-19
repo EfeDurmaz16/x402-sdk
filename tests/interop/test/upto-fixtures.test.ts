@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  uptoAuthorizationCandidates,
   uptoLanguageRoleFixtures,
   uptoScenarioFixtures,
   uptoSolanaDesignGate,
@@ -66,6 +67,58 @@ describe("upto scenario fixtures", () => {
         "over-maximum-enforcement",
       ],
     });
+  });
+
+  it("defines non-runtime authorization candidates before client implementation", () => {
+    expect(uptoAuthorizationCandidates).toEqual([
+      {
+        id: "signed-message-authorization",
+        runtimeEligible: false,
+        authorizationPrimitive: "signed-message",
+        settlementModel: "facilitator-built-transfer",
+        requiredFields: [
+          "payer",
+          "payee",
+          "mint",
+          "maximumAmount",
+          "resource",
+          "paymentId",
+          "expiration",
+          "nonce",
+        ],
+        blocker: "missing-delegated-token-authority",
+      },
+      {
+        id: "escrow-channel-authorization",
+        runtimeEligible: false,
+        authorizationPrimitive: "escrow-channel",
+        settlementModel: "escrow-redemption",
+        requiredFields: [
+          "payer",
+          "payee",
+          "mint",
+          "depositAmount",
+          "channelId",
+          "cumulativeAmount",
+          "expiration",
+          "nonce",
+        ],
+        blocker: "requires-escrow-program-design",
+      },
+    ]);
+  });
+
+  it("keeps fixed signed transfers out of Solana upto authorization candidates", () => {
+    expect(
+      uptoAuthorizationCandidates.some(
+        candidate => candidate.authorizationPrimitive === "signed-message",
+      ),
+    ).toBe(true);
+    expect(
+      uptoAuthorizationCandidates.every(
+        candidate => candidate.authorizationPrimitive !== "signed-transfer",
+      ),
+    ).toBe(true);
   });
 
   it("keeps PHP and Lua server-only for upto while other planned SDKs track both roles", () => {

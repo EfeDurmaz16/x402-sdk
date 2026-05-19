@@ -105,6 +105,8 @@ The current staging branch should keep:
 - `X402_INTEROP_SCHEME=upto` failing fast with capability diagnostics.
 - `upto` fixtures covering maximum, actual, zero, over-maximum, missing
   override, and wrong-scheme cases without enabling runtime settlement.
+- Non-runtime authorization candidate fixtures for signed-message and
+  escrow/channel shapes, including exact required field names and blockers.
 - Session and batch-settlement shaped fixtures separate from native `upto`
   runtime until the target protocol surface is stable.
 
@@ -117,4 +119,3 @@ Add a small protocol design PR before adding any Solana `upto` client:
 3. Add non-runtime fixtures for the chosen authorization envelope.
 4. Only then add TypeScript client/facilitator code behind explicit
    experimental selectors.
-

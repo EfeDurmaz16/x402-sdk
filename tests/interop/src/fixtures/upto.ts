@@ -28,6 +28,17 @@ export type UptoSolanaDesignGate = {
   >;
 };
 
+export type UptoAuthorizationCandidate = {
+  id: "signed-message-authorization" | "escrow-channel-authorization";
+  runtimeEligible: false;
+  authorizationPrimitive: "signed-message" | "escrow-channel";
+  settlementModel: "facilitator-built-transfer" | "escrow-redemption";
+  requiredFields: string[];
+  blocker:
+    | "missing-delegated-token-authority"
+    | "requires-escrow-program-design";
+};
+
 export type UptoLanguageRoleFixture = {
   language: "rust" | "typescript" | "python" | "go" | "ruby" | "lua" | "php";
   clientRole: "planned" | "missing";
@@ -55,6 +66,43 @@ export const uptoSolanaDesignGate: UptoSolanaDesignGate = {
     "over-maximum-enforcement",
   ],
 };
+
+export const uptoAuthorizationCandidates: UptoAuthorizationCandidate[] = [
+  {
+    id: "signed-message-authorization",
+    runtimeEligible: false,
+    authorizationPrimitive: "signed-message",
+    settlementModel: "facilitator-built-transfer",
+    requiredFields: [
+      "payer",
+      "payee",
+      "mint",
+      "maximumAmount",
+      "resource",
+      "paymentId",
+      "expiration",
+      "nonce",
+    ],
+    blocker: "missing-delegated-token-authority",
+  },
+  {
+    id: "escrow-channel-authorization",
+    runtimeEligible: false,
+    authorizationPrimitive: "escrow-channel",
+    settlementModel: "escrow-redemption",
+    requiredFields: [
+      "payer",
+      "payee",
+      "mint",
+      "depositAmount",
+      "channelId",
+      "cumulativeAmount",
+      "expiration",
+      "nonce",
+    ],
+    blocker: "requires-escrow-program-design",
+  },
+];
 
 export const uptoScenarioFixtures: UptoScenarioFixture[] = [
   {
