@@ -193,3 +193,18 @@ If no filter is set, all stable adapters are enabled by default:
 - servers: `typescript,rust`
 
 The suite performs a local socket-bind preflight. If the current environment forbids opening loopback ports, the e2e test is skipped instead of failing. In CI, where loopback sockets are available, the matrix runs normally.
+
+## Troubleshooting
+
+- `Unknown X402_INTEROP_CLIENTS adapter id(s)` or
+  `Unknown X402_INTEROP_SERVERS adapter id(s)`: check the selected IDs against
+  `tests/interop/src/implementations.ts`.
+- `Unexpected ... payload`: the adapter wrote a JSON object that does not match
+  the process contract. Keep logs on stderr and reserve stdout for the single
+  `ready` or `result` message.
+- `Adapter stderr:` in a failure: the harness captured stderr from the child
+  adapter and attached the tail to the thrown error.
+- `Timed out waiting for ...`: the adapter started but did not emit the expected
+  stdout message before the harness timeout.
+- TypeScript package resolution errors usually mean `@solana/x402` needs to be
+  rebuilt in `typescript` before reinstalling `tests/interop`.
