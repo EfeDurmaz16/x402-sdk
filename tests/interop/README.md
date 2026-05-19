@@ -228,6 +228,9 @@ Use these environment variables to filter the active matrix:
 - `X402_INTEROP_PROFILE=reference-spine|full`
 - `X402_INTEROP_REFERENCE=rust`
 
+Unknown client or server adapter IDs fail fast instead of producing an empty
+matrix.
+
 If no filter is set, all stable adapters are enabled by default:
 
 - clients: `typescript,rust`
