@@ -27,6 +27,18 @@ describe("promotion plan", () => {
       .map(([id, title, status]) => ({ id, title, status }));
   }
 
+  function commandScriptName(command: string): string | null {
+    if (command.startsWith("pnpm run ")) {
+      return command.slice("pnpm run ".length);
+    }
+
+    if (command.startsWith("pnpm ")) {
+      return command.slice("pnpm ".length);
+    }
+
+    return null;
+  }
+
   it("keeps the staged branch split into reviewable promotion slices", () => {
     expect(promotionSlices.map(slice => slice.id)).toEqual([
       "1",
@@ -65,6 +77,19 @@ describe("promotion plan", () => {
       "pnpm run test:probe:upto-fixtures",
       "pnpm run test:probe:session-fixtures",
     ]));
+  });
+
+  it("keeps promotion verification commands resolvable from package scripts", () => {
+    const packageJson = JSON.parse(readFileSync("package.json", "utf8")) as {
+      scripts: Record<string, string>;
+    };
+
+    const scriptNames = promotionSlices
+      .flatMap(slice => slice.verification)
+      .map(commandScriptName)
+      .filter((script): script is string => script !== null);
+
+    expect(scriptNames.every(script => script in packageJson.scripts)).toBe(true);
   });
 
   it("keeps promotion slice IDs aligned with the roadmap table", () => {
