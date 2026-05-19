@@ -11,7 +11,7 @@
     "test": "vitest run",
     "test:boundaries": "vitest run test/boundary.test.ts test/exact-fixtures.test.ts",
     "test:ci": "pnpm typecheck && X402_INTEROP_PROFILE=reference-spine X402_INTEROP_REFERENCE=rust pnpm test:smoke && X402_INTEROP_PROFILE=reference-spine X402_INTEROP_REFERENCE=rust pnpm test:boundaries",
-    "test:experimental": "vitest run test/capabilities.test.ts test/contracts.test.ts test/report-cli.test.ts test/scaffold.test.ts test/upto-fixtures.test.ts test/batch-settlement-fixtures.test.ts test/session-fixtures.test.ts test/subscription-fixtures.test.ts",
+    "test:experimental": "vitest run test/capabilities.test.ts test/contracts.test.ts test/report-cli.test.ts test/scaffold.test.ts test/upto-fixtures.test.ts test/batch-settlement-fixtures.test.ts test/session-fixtures.test.ts test/subscription-fixtures.test.ts test/planned-adapters.test.ts",
     "test:language:rust": "X402_INTEROP_CLIENTS=rust X402_INTEROP_SERVERS=rust vitest run test/e2e.test.ts",
     "test:language:typescript": "X402_INTEROP_CLIENTS=typescript X402_INTEROP_SERVERS=typescript vitest run test/e2e.test.ts",
     "test:pair:rust-ts": "X402_INTEROP_CLIENTS=rust X402_INTEROP_SERVERS=typescript vitest run test/e2e.test.ts",
