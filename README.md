@@ -30,6 +30,9 @@ The interop harness uses the canonical TypeScript client and server against a lo
 Usage-based interop work is planned separately from the current `exact`
 baseline. See [Usage-Based Interop Roadmap](docs/interop/usage-based-roadmap.md)
 for the proposed boundary between x402 `upto` and session compatibility work.
+TypeScript and Rust currently expose experimental server-side `upto` challenge
+builders only; client payload construction and facilitator settlement are not
+runtime-enabled.
 
 ## Rust quick start
 
