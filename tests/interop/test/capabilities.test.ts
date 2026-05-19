@@ -137,7 +137,7 @@ describe("interop capability roadmap", () => {
       "tsx src/print-capabilities.ts --json",
     );
     expect(packageJson.scripts["test:experimental"]).toBe(
-      "vitest run test/capabilities.test.ts test/contracts.test.ts test/upto-fixtures.test.ts test/session-fixtures.test.ts test/subscription-fixtures.test.ts",
+      "vitest run test/capabilities.test.ts test/contracts.test.ts test/scaffold.test.ts test/upto-fixtures.test.ts test/session-fixtures.test.ts test/subscription-fixtures.test.ts",
     );
     expect(packageJson.scripts["test:ci"]).toBe(
       "pnpm typecheck && X402_INTEROP_PROFILE=reference-spine X402_INTEROP_REFERENCE=rust pnpm test:smoke && X402_INTEROP_PROFILE=reference-spine X402_INTEROP_REFERENCE=rust pnpm test:boundaries",

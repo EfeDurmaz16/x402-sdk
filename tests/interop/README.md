@@ -105,6 +105,14 @@ pnpm capabilities
 pnpm capabilities:json
 ```
 
+To inspect planned SDK roots, expected package manifests, and current runtime
+adapter availability:
+
+```bash
+pnpm scaffold
+pnpm scaffold:json
+```
+
 Domain-specific scenarios can stay selectable through Vitest filters. For
 example, the current smoke script selects the exact-payment tests by matching
 `client pays`, while the multi-currency vectors remain available in the full
