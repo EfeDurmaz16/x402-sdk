@@ -256,10 +256,13 @@ payment implementations yet. Use the probe scripts to reproduce the current
 red interop boundary while keeping default CI green:
 
 ```bash
+pnpm run test:probe:python-syntax
 pnpm run test:probe:python-client
 pnpm run test:probe:python-server
+pnpm run test:probe:go-build
 pnpm run test:probe:go-client
 pnpm run test:probe:go-server
+pnpm run test:probe:ruby-syntax
 pnpm run test:probe:ruby-client
 pnpm run test:probe:ruby-server
 pnpm run test:probe:php-syntax
@@ -268,8 +271,7 @@ pnpm run test:probe:lua-server
 ```
 
 `test:probe:lua-server` currently fails at the scaffold/toolchain boundary on
-machines without Lua. `test:probe:php-syntax` runs `php -l` against the
-server-only PHP adapter before the runtime interop command starts
-`php bin/interop-server.php`.
+machines without Lua. Syntax/build probes run before runtime probes when a
+language has a local scaffold but is not a green payment implementation yet.
 
 The suite performs a local socket-bind preflight. If the current environment forbids opening loopback ports, the e2e test is skipped instead of failing. In CI, where loopback sockets are available, the matrix runs normally.

@@ -191,11 +191,20 @@ describe("interop capability roadmap", () => {
     expect(packageJson.scripts["test:planned-adapters"]).toBe(
       "vitest run test/planned-adapters.test.ts",
     );
+    expect(packageJson.scripts["test:probe:python-syntax"]).toBe(
+      "cd ../../python && python3 -m compileall -q src",
+    );
     expect(packageJson.scripts["test:probe:python-client"]).toBe(
       "X402_INTEROP_CLIENTS=python X402_INTEROP_SERVERS=rust pnpm test:smoke",
     );
+    expect(packageJson.scripts["test:probe:go-build"]).toBe(
+      "cd ../../go && go test ./...",
+    );
     expect(packageJson.scripts["test:probe:go-server"]).toBe(
       "X402_INTEROP_CLIENTS=typescript X402_INTEROP_SERVERS=go pnpm test:smoke",
+    );
+    expect(packageJson.scripts["test:probe:ruby-syntax"]).toBe(
+      "cd ../../ruby && ruby -c bin/interop-client && ruby -c bin/interop-server",
     );
     expect(packageJson.scripts["test:probe:ruby-client"]).toBe(
       "X402_INTEROP_CLIENTS=ruby X402_INTEROP_SERVERS=rust pnpm test:smoke",
