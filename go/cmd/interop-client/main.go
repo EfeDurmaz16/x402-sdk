@@ -1,12 +1,92 @@
 package main
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
+	"strings"
 )
+
+type paymentEnvelope struct {
+	Accepts []paymentRequirement `json:"accepts"`
+}
+
+type paymentRequirement struct {
+	Scheme  string `json:"scheme"`
+	Network string `json:"network"`
+	Asset   string `json:"asset"`
+	Amount  string `json:"amount"`
+}
+
+func headerValue(headers map[string]string, name string) string {
+	for key, value := range headers {
+		if strings.EqualFold(key, name) {
+			return value
+		}
+	}
+	return ""
+}
+
+func loadPaymentRequiredHeader(headers map[string]string) *paymentEnvelope {
+	encoded := headerValue(headers, "PAYMENT-REQUIRED")
+	if encoded == "" {
+		return nil
+	}
+
+	decoded, err := base64.StdEncoding.DecodeString(encoded)
+	if err != nil {
+		return nil
+	}
+
+	var envelope paymentEnvelope
+	if err := json.Unmarshal(decoded, &envelope); err != nil {
+		return nil
+	}
+	return &envelope
+}
+
+func loadPaymentRequiredBody(body string) *paymentEnvelope {
+	if body == "" {
+		return nil
+	}
+
+	var envelope paymentEnvelope
+	if err := json.Unmarshal([]byte(body), &envelope); err != nil {
+		return nil
+	}
+	return &envelope
+}
+
+func selectSVMRequirement(headers map[string]string, body string, network string) *paymentRequirement {
+	envelopes := []*paymentEnvelope{
+		loadPaymentRequiredHeader(headers),
+		loadPaymentRequiredBody(body),
+	}
+
+	for _, envelope := range envelopes {
+		if envelope == nil {
+			continue
+		}
+		for _, requirement := range envelope.Accepts {
+			if requirement.Scheme != "exact" {
+				continue
+			}
+			if requirement.Network != network {
+				continue
+			}
+			if requirement.Asset == "" || requirement.Amount == "" {
+				continue
+			}
+			selected := requirement
+			return &selected
+		}
+	}
+
+	return nil
+}
 
 func main() {
 	targetURL := os.Getenv("X402_INTEROP_TARGET_URL")
@@ -31,6 +111,11 @@ func main() {
 			headers[key] = values[0]
 		}
 	}
+	selectedRequirement := selectSVMRequirement(
+		headers,
+		string(body),
+		readEnvWithDefault("X402_INTEROP_NETWORK", "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1"),
+	)
 
 	payload := map[string]any{
 		"type":            "result",
@@ -40,9 +125,10 @@ func main() {
 		"status":          response.StatusCode,
 		"responseHeaders": headers,
 		"responseBody": map[string]any{
-			"error":           "go_exact_client_not_implemented",
-			"challengeStatus": response.StatusCode,
-			"challengeBody":   string(body),
+			"error":               "go_exact_client_not_implemented",
+			"challengeStatus":     response.StatusCode,
+			"challengeBody":       string(body),
+			"selectedRequirement": selectedRequirement,
 		},
 		"settlement": nil,
 	}
@@ -52,4 +138,12 @@ func main() {
 		panic(err)
 	}
 	fmt.Println(string(encoded))
+}
+
+func readEnvWithDefault(name string, fallback string) string {
+	value := os.Getenv(name)
+	if value == "" {
+		return fallback
+	}
+	return value
 }
