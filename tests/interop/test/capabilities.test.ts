@@ -291,13 +291,17 @@ describe("interop capability roadmap", () => {
     );
   });
 
-  it("keeps capability JSON available as a CI artifact", () => {
+  it("keeps interop JSON reports available as CI artifacts", () => {
     const workflow = readFileSync("../../.github/workflows/ci.yml", "utf8");
 
     expect(workflow).toContain("pnpm --silent capabilities:json > interop-capabilities.json");
     expect(workflow).toContain("name: interop-capabilities");
     expect(workflow).toContain("pnpm --silent scaffold:json > interop-scaffold.json");
     expect(workflow).toContain("name: interop-scaffold");
+    expect(workflow).toContain("pnpm --silent probes:json > interop-probes.json");
+    expect(workflow).toContain("name: interop-probes");
+    expect(workflow).toContain("pnpm --silent promotion:json > interop-promotion.json");
+    expect(workflow).toContain("name: interop-promotion");
     expect(workflow).toContain("pnpm test:multi-currency");
     expect(workflow).toContain("pnpm test:boundaries");
     expect(workflow).toContain("vars.X402_INTEROP_EXPERIMENTAL == 'true'");

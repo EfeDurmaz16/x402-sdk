@@ -69,6 +69,12 @@ jobs:
       - name: Write SDK scaffold report
         run: pnpm --silent scaffold:json > interop-scaffold.json
         working-directory: tests/interop
+      - name: Write interop probe report
+        run: pnpm --silent probes:json > interop-probes.json
+        working-directory: tests/interop
+      - name: Write promotion plan report
+        run: pnpm --silent promotion:json > interop-promotion.json
+        working-directory: tests/interop
       - name: Upload interop capability report
         uses: actions/upload-artifact@v4
         with:
@@ -79,6 +85,16 @@ jobs:
         with:
           name: interop-scaffold
           path: tests/interop/interop-scaffold.json
+      - name: Upload interop probe report
+        uses: actions/upload-artifact@v4
+        with:
+          name: interop-probes
+          path: tests/interop/interop-probes.json
+      - name: Upload promotion plan report
+        uses: actions/upload-artifact@v4
+        with:
+          name: interop-promotion
+          path: tests/interop/interop-promotion.json
       - name: Run reference-spine interop smoke
         run: pnpm test:smoke
         working-directory: tests/interop
