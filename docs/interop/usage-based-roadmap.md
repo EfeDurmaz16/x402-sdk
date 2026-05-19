@@ -162,6 +162,27 @@ PRs.
 | 26 | Planned Python/Go/Ruby client/server and Lua/PHP server scaffold probes. | staged |
 | 27 | Usage boundary probes for `upto` and `session` fail-fast diagnostics. | staged |
 
+## Promotion checklist
+
+Use this checklist when splitting the staging branch into upstream PRs:
+
+1. Keep default CI focused on `exact` Rust/TypeScript reference-spine coverage:
+   `pnpm test:ci`.
+2. For docs, metadata, fixture, scaffold, and planned-adapter PRs, run:
+   `pnpm run test:probe:staging`.
+3. For capability or scaffold reporting changes, also run:
+   `pnpm capabilities` and `pnpm scaffold`.
+4. For language scaffold PRs, run the language-specific syntax/build probe and
+   the matching planned adapter process probe.
+5. For `upto` or `session` boundary PRs, run:
+   `pnpm run test:probe:usage-boundaries`.
+6. Treat `test:probe:upto-boundary`, `test:probe:session-boundary`, Lua syntax,
+   and planned runtime adapter smoke probes as expected-red commands unless the
+   PR explicitly implements that runtime path.
+7. Do not promote `upto` client/facilitator or session runtime support from
+   `planned` to `experimental` until its PR includes local interop evidence and
+   updates capability metadata in the same slice.
+
 ## Current staging guardrails
 
 - Runtime interop is still `exact` only.
