@@ -5,6 +5,7 @@ import {
   getSdkScaffoldStatus,
   sdkScaffoldDefinitions,
 } from "../src/scaffold";
+import { interopCapabilities } from "../src/capabilities";
 
 describe("SDK scaffold diagnostics", () => {
   it("tracks the planned language roots and manifests", () => {
@@ -99,5 +100,46 @@ describe("SDK scaffold diagnostics", () => {
 
     expect(packageJson.scripts.scaffold).toBe("tsx src/print-scaffold.ts");
     expect(packageJson.scripts["scaffold:json"]).toBe("tsx src/print-scaffold.ts --json");
+  });
+
+  it("keeps runtime adapters aligned with implemented exact capabilities", () => {
+    const runtimeReady = getSdkScaffoldStatus()
+      .filter(status => status.runtimeClientAdapter || status.runtimeServerAdapter)
+      .map(status => ({
+        language: status.language,
+        client: status.runtimeClientAdapter,
+        server: status.runtimeServerAdapter,
+      }))
+      .sort((left, right) => left.language.localeCompare(right.language));
+
+    const implementedExact = Object.entries(interopCapabilities.schemes.exact.languages)
+      .map(([language, roles]) => ({
+        language,
+        client: roles.client === "implemented",
+        server: roles.server === "implemented",
+      }))
+      .sort((left, right) => left.language.localeCompare(right.language));
+
+    expect(runtimeReady).toEqual(implementedExact);
+  });
+
+  it("keeps server-only scaffold policy aligned with usage-based capability gaps", () => {
+    const serverOnlyLanguages = getSdkScaffoldStatus()
+      .filter(status => status.serverOnly)
+      .map(status => status.language)
+      .sort();
+
+    for (const capability of [
+      interopCapabilities.schemes.upto,
+      interopCapabilities.intents.session,
+      interopCapabilities.intents.subscription,
+    ]) {
+      const missingClients = Object.entries(capability.languages)
+        .filter(([, roles]) => roles.client === "missing" && roles.server === "planned")
+        .map(([language]) => language)
+        .sort();
+
+      expect(missingClients).toEqual(serverOnlyLanguages);
+    }
   });
 });
