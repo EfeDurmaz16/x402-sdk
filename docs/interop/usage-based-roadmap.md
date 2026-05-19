@@ -1,9 +1,9 @@
 # Usage-Based Interop Roadmap
 
-This roadmap defines the pre-implementation boundary for `upto` and `session`
-interop work. It is intentionally limited to planning and harness capability
-metadata. Payment implementation work should start in later PRs after these
-expectations are reviewed.
+This roadmap defines the staged boundary for `upto`, `session`, and
+`subscription` interop work. It starts with planning and harness capability
+metadata, then moves runtime support forward only when the semantics are
+explicit and locally verified.
 
 ## Current baseline
 
@@ -95,37 +95,53 @@ before adding Composer metadata.
 
 ## Candidate PR stack
 
-1. Scheme and intent boundary docs plus capability metadata tests.
-2. Interop capability matrix surfaced in runner diagnostics.
-3. `upto` scenario fixtures and negative cases.
-4. TypeScript `upto` server support.
-5. TypeScript `upto` client support.
-6. Rust `upto` server support.
-7. Rust `upto` client support.
-8. Python `upto` adapter support.
-9. Go `upto` adapter support.
-10. Ruby `upto` adapter support.
-11. Lua `upto` server adapter support.
-12. PHP `upto` server adapter support.
-13. Session detection fixtures.
-14. Session experimental scenario contract.
-15. Python session adapter support.
-16. Go session adapter support.
-17. Ruby session adapter support.
-18. Lua session server adapter support.
-19. PHP session server adapter support.
-20. Subscription boundary docs and detection fixtures.
-21. Subscription experimental diagnostics.
-22. Matrix report artifacts.
-23. Maintainer runbook for one language, one pair, and one scheme.
-24. Experimental CI opt-in flags.
-25. Final cleanup of planned/missing capability reporting.
+Status reflects the current staging branch, not necessarily merged upstream
+PRs.
 
-## Non-goals for this PR
+| # | Slice | Status |
+| --- | --- | --- |
+| 1 | Scheme and intent boundary docs plus capability metadata tests. | staged |
+| 2 | Interop capability matrix surfaced in runner diagnostics. | staged |
+| 3 | `upto` scenario fixtures and negative cases. | staged |
+| 4 | TypeScript `upto` server support. | staged as experimental |
+| 5 | TypeScript `upto` client support. | next |
+| 6 | Rust `upto` server support. | planned |
+| 7 | Rust `upto` client support. | planned |
+| 8 | Python `upto` adapter support. | planned |
+| 9 | Go `upto` adapter support. | planned |
+| 10 | Ruby `upto` adapter support. | planned |
+| 11 | Lua `upto` server adapter support. | planned |
+| 12 | PHP `upto` server adapter support. | planned |
+| 13 | Session detection fixtures. | staged |
+| 14 | Session experimental scenario contract. | staged |
+| 15 | Python session adapter support. | planned |
+| 16 | Go session adapter support. | planned |
+| 17 | Ruby session adapter support. | planned |
+| 18 | Lua session server adapter support. | planned |
+| 19 | PHP session server adapter support. | planned |
+| 20 | Subscription boundary docs and detection fixtures. | staged |
+| 21 | Subscription experimental diagnostics. | staged |
+| 22 | Matrix report artifacts. | partial |
+| 23 | Maintainer runbook for one language, one pair, and one scheme. | planned |
+| 24 | Experimental CI opt-in flags. | partial |
+| 25 | Final cleanup of planned/missing capability reporting. | partial |
 
-- Do not implement `upto`.
-- Do not implement `session`.
-- Do not add PHP, Ruby, Lua, Python, or Go adapters.
-- Do not add new runtime dependencies.
-- Do not change the default interop matrix.
-- Do not make experimental scenarios block CI.
+## Current staging guardrails
+
+- Runtime interop is still `exact` only.
+- `X402_INTEROP_SCHEME=upto` fails fast with capability diagnostics instead of
+  silently running `exact`.
+- `X402_INTEROP_INTENT=session` and `X402_INTEROP_INTENT=subscription` fail
+  fast until runtime scenarios exist.
+- TypeScript `upto` server support is marked `experimental` because Solana
+  maximum-authorization settlement still requires an explicit design.
+- Planned and server-only roles are visible through `pnpm capabilities`.
+
+## Current staging non-goals
+
+- Do not mark `upto` default-CI eligible yet.
+- Do not claim Solana `upto` client/facilitator settlement is implemented.
+- Do not add PHP, Ruby, Lua, Python, or Go runtime adapters without dedicated
+  adapter PRs and local interop verification.
+- Do not make session or subscription scenarios block CI before their specs and
+  state requirements stabilize.
