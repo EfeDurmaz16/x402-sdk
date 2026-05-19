@@ -2,11 +2,16 @@ export type ExactNegativeFixture = {
   id:
     | "rejects-network-mismatch"
     | "rejects-unsupported-scheme"
-    | "rejects-missing-fee-payer";
+    | "rejects-missing-fee-payer"
+    | "rejects-missing-recipient-ata";
   scheme: "exact" | "unsupported";
   acceptedNetwork: string;
   requiredNetwork: string;
-  expectedReason: "network_mismatch" | "unsupported_scheme" | "missing_fee_payer";
+  expectedReason:
+    | "network_mismatch"
+    | "unsupported_scheme"
+    | "missing_fee_payer"
+    | "missing_recipient_ata";
   requiresSignedTransaction: boolean;
 };
 
@@ -37,5 +42,13 @@ export const exactNegativeFixtures: ExactNegativeFixture[] = [
     requiredNetwork: SOLANA_DEVNET_CAIP2,
     expectedReason: "missing_fee_payer",
     requiresSignedTransaction: false,
+  },
+  {
+    id: "rejects-missing-recipient-ata",
+    scheme: "exact",
+    acceptedNetwork: SOLANA_DEVNET_CAIP2,
+    requiredNetwork: SOLANA_DEVNET_CAIP2,
+    expectedReason: "missing_recipient_ata",
+    requiresSignedTransaction: true,
   },
 ];

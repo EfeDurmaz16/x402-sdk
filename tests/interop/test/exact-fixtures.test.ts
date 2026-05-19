@@ -11,6 +11,7 @@ describe("exact negative fixtures", () => {
       "rejects-network-mismatch",
       "rejects-unsupported-scheme",
       "rejects-missing-fee-payer",
+      "rejects-missing-recipient-ata",
     ]);
   });
 
@@ -29,6 +30,24 @@ describe("exact negative fixtures", () => {
   });
 
   it("does not require generated transactions for early facilitator rejections", () => {
-    expect(exactNegativeFixtures.every(fixture => !fixture.requiresSignedTransaction)).toBe(true);
+    const earlyRejections = exactNegativeFixtures.filter(
+      fixture => fixture.id !== "rejects-missing-recipient-ata",
+    );
+
+    expect(earlyRejections.every(fixture => !fixture.requiresSignedTransaction)).toBe(true);
+  });
+
+  it("tracks missing recipient ATA as a settlement-time rejection", () => {
+    const fixture = exactNegativeFixtures.find(
+      candidate => candidate.id === "rejects-missing-recipient-ata",
+    );
+
+    expect(fixture).toMatchObject({
+      scheme: "exact",
+      acceptedNetwork: SOLANA_DEVNET_CAIP2,
+      requiredNetwork: SOLANA_DEVNET_CAIP2,
+      expectedReason: "missing_recipient_ata",
+      requiresSignedTransaction: true,
+    });
   });
 });

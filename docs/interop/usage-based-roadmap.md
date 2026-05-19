@@ -139,6 +139,8 @@ PRs.
 - Planned and server-only roles are visible through `pnpm capabilities`.
 - CI uploads the JSON capability report and can run experimental contract tests
   by setting `X402_INTEROP_EXPERIMENTAL=true`.
+- Split-payment semantics are not modeled in the current exact SVM contract;
+  keep them out of runtime claims until an x402 requirements shape exists.
 
 ## Current staging non-goals
 
