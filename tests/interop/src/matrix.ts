@@ -6,6 +6,14 @@ export type InteropPair = {
 };
 
 export type InteropProfile = "full" | "reference-spine";
+export type RuntimeScheme = ImplementationDefinition["runtimeSchemes"][number];
+
+export function supportsRuntimeScheme(
+  implementation: ImplementationDefinition,
+  scheme: RuntimeScheme | string,
+): boolean {
+  return implementation.runtimeSchemes.includes(scheme as RuntimeScheme);
+}
 
 export function getInteropProfile(): InteropProfile {
   const profile = process.env.X402_INTEROP_PROFILE?.trim();

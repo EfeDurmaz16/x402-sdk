@@ -1,13 +1,29 @@
 import { describe, expect, it } from "vitest";
 import type { ImplementationDefinition } from "../src/implementations";
-import { selectInteropPairs } from "../src/matrix";
+import { selectInteropPairs, supportsRuntimeScheme } from "../src/matrix";
 
 function client(id: string): ImplementationDefinition {
-  return { id, label: id, role: "client", command: ["true"], enabled: true };
+  return {
+    id,
+    label: id,
+    role: "client",
+    command: ["true"],
+    enabled: true,
+    runtimeSchemes: ["exact"],
+    runtimeIntents: [],
+  };
 }
 
 function server(id: string): ImplementationDefinition {
-  return { id, label: id, role: "server", command: ["true"], enabled: true };
+  return {
+    id,
+    label: id,
+    role: "server",
+    command: ["true"],
+    enabled: true,
+    runtimeSchemes: ["exact"],
+    runtimeIntents: [],
+  };
 }
 
 describe("interop matrix selection", () => {
@@ -48,5 +64,17 @@ describe("interop matrix selection", () => {
     expect(pairs.map(pair => `${pair.client.id}->${pair.server.id}`)).toEqual([
       "typescript->typescript",
     ]);
+  });
+
+  it("checks adapter runtime scheme support before pairing future scenarios", () => {
+    const exactClient = client("typescript");
+    const plannedUptoServer = {
+      ...server("typescript"),
+      runtimeSchemes: [],
+    };
+
+    expect(supportsRuntimeScheme(exactClient, "exact")).toBe(true);
+    expect(supportsRuntimeScheme(exactClient, "upto")).toBe(false);
+    expect(supportsRuntimeScheme(plannedUptoServer, "exact")).toBe(false);
   });
 });

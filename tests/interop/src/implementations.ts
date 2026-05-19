@@ -1,9 +1,13 @@
+import type { InteropRuntimeScheme } from "./contracts";
+
 export type ImplementationDefinition = {
   id: string;
   label: string;
   role: "client" | "server";
   command: string[];
   enabled: boolean;
+  runtimeSchemes: InteropRuntimeScheme[];
+  runtimeIntents: string[];
 };
 
 function isEnabled(id: string, envName: string, defaultEnabled: boolean): boolean {
@@ -26,6 +30,8 @@ export const clientImplementations: ImplementationDefinition[] = [
     role: "client",
     command: ["pnpm", "exec", "node", "--import", "tsx", "src/fixtures/typescript/client.ts"],
     enabled: isEnabled("typescript", "X402_INTEROP_CLIENTS", true),
+    runtimeSchemes: ["exact"],
+    runtimeIntents: [],
   },
   {
     id: "rust",
@@ -41,6 +47,8 @@ export const clientImplementations: ImplementationDefinition[] = [
       "interop_client",
     ],
     enabled: isEnabled("rust", "X402_INTEROP_CLIENTS", true),
+    runtimeSchemes: ["exact"],
+    runtimeIntents: [],
   },
 ];
 
@@ -51,6 +59,8 @@ export const serverImplementations: ImplementationDefinition[] = [
     role: "server",
     command: ["pnpm", "exec", "node", "--import", "tsx", "src/fixtures/typescript/server.ts"],
     enabled: isEnabled("typescript", "X402_INTEROP_SERVERS", true),
+    runtimeSchemes: ["exact"],
+    runtimeIntents: [],
   },
   {
     id: "rust",
@@ -66,5 +76,7 @@ export const serverImplementations: ImplementationDefinition[] = [
       "interop_server",
     ],
     enabled: isEnabled("rust", "X402_INTEROP_SERVERS", true),
+    runtimeSchemes: ["exact"],
+    runtimeIntents: [],
   },
 ];
