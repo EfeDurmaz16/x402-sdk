@@ -264,6 +264,7 @@ pnpm run test:probe:staging
 pnpm run test:probe:planned-syntax
 pnpm run test:probe:usage-boundaries
 pnpm run test:probe:python-syntax
+pnpm run test:probe:python-unit
 pnpm run test:probe:go-build
 pnpm run test:probe:ruby-syntax
 pnpm run test:probe:php-syntax

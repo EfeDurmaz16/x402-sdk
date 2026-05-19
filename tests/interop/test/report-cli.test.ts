@@ -56,6 +56,10 @@ describe("interop report CLIs", () => {
           script: "test:probe:php-syntax",
           command: "php -l ../../php/bin/interop-server.php",
         }),
+        expect.objectContaining({
+          script: "test:probe:python-unit",
+          command: "cd ../../python && PYTHONPATH=src python3 -m unittest discover -s tests",
+        }),
       ]),
       expectedRed: expect.arrayContaining([
         expect.objectContaining({

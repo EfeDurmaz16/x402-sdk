@@ -22,9 +22,9 @@ export const interopProbes: ProbeDefinition[] = [
   },
   {
     script: "test:probe:planned-syntax",
-    command: "pnpm test:probe:python-syntax && pnpm test:probe:go-build && pnpm test:probe:ruby-syntax && pnpm test:probe:php-syntax",
+    command: "pnpm test:probe:python-syntax && pnpm test:probe:python-unit && pnpm test:probe:go-build && pnpm test:probe:ruby-syntax && pnpm test:probe:php-syntax",
     status: "green",
-    reason: "Python, Go, Ruby, and PHP scaffold syntax/build health.",
+    reason: "Python, Go, Ruby, and PHP scaffold syntax/build plus Python parser unit health.",
   },
   {
     script: "test:probe:usage-boundaries",
@@ -43,6 +43,12 @@ export const interopProbes: ProbeDefinition[] = [
     command: "cd ../../python && python3 -m compileall -q src",
     status: "green",
     reason: "Python scaffold syntax check.",
+  },
+  {
+    script: "test:probe:python-unit",
+    command: "cd ../../python && PYTHONPATH=src python3 -m unittest discover -s tests",
+    status: "green",
+    reason: "Python interop parser unit tests.",
   },
   {
     script: "test:probe:go-build",

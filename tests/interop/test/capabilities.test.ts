@@ -203,7 +203,7 @@ describe("interop capability roadmap", () => {
       "pnpm capabilities && pnpm capabilities:json && pnpm scaffold && pnpm scaffold:json && pnpm probes && pnpm probes:json",
     );
     expect(packageJson.scripts["test:probe:planned-syntax"]).toBe(
-      "pnpm test:probe:python-syntax && pnpm test:probe:go-build && pnpm test:probe:ruby-syntax && pnpm test:probe:php-syntax",
+      "pnpm test:probe:python-syntax && pnpm test:probe:python-unit && pnpm test:probe:go-build && pnpm test:probe:ruby-syntax && pnpm test:probe:php-syntax",
     );
     expect(packageJson.scripts["test:probe:usage-boundaries"]).toBe(
       "vitest run test/contracts.test.ts test/upto-fixtures.test.ts test/session-fixtures.test.ts",
@@ -216,6 +216,9 @@ describe("interop capability roadmap", () => {
     );
     expect(packageJson.scripts["test:probe:python-syntax"]).toBe(
       "cd ../../python && python3 -m compileall -q src",
+    );
+    expect(packageJson.scripts["test:probe:python-unit"]).toBe(
+      "cd ../../python && PYTHONPATH=src python3 -m unittest discover -s tests",
     );
     expect(packageJson.scripts["test:probe:python-client"]).toBe(
       "X402_INTEROP_CLIENTS=python X402_INTEROP_SERVERS=rust pnpm test:smoke",
