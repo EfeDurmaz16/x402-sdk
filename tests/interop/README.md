@@ -268,11 +268,13 @@ pnpm run test:probe:ruby-client
 pnpm run test:probe:ruby-server
 pnpm run test:probe:php-syntax
 pnpm run test:probe:php-server
+pnpm run test:probe:lua-syntax
 pnpm run test:probe:lua-server
 ```
 
-`test:probe:lua-server` currently fails at the scaffold/toolchain boundary on
-machines without Lua. Syntax/build probes run before runtime probes when a
-language has a local scaffold but is not a green payment implementation yet.
+`test:probe:lua-syntax` and `test:probe:lua-server` currently fail at the
+scaffold/toolchain boundary on machines without Lua. Syntax/build probes run
+before runtime probes when a language has a local scaffold but is not a green
+payment implementation yet.
 
 The suite performs a local socket-bind preflight. If the current environment forbids opening loopback ports, the e2e test is skipped instead of failing. In CI, where loopback sockets are available, the matrix runs normally.

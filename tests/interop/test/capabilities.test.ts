@@ -218,6 +218,9 @@ describe("interop capability roadmap", () => {
     expect(packageJson.scripts["test:probe:php-server"]).toBe(
       "X402_INTEROP_CLIENTS=typescript X402_INTEROP_SERVERS=php pnpm test:smoke",
     );
+    expect(packageJson.scripts["test:probe:lua-syntax"]).toBe(
+      "cd ../../lua && if command -v luac >/dev/null 2>&1; then luac -p bin/interop-server.lua; elif command -v lua >/dev/null 2>&1; then lua -e 'assert(loadfile(\"bin/interop-server.lua\"))'; else echo 'Lua toolchain not found; install lua or luac to run this probe' >&2; exit 127; fi",
+    );
     expect(packageJson.scripts["test:probe:lua-server"]).toBe(
       "X402_INTEROP_CLIENTS=typescript X402_INTEROP_SERVERS=lua pnpm test:smoke",
     );

@@ -29,6 +29,7 @@
     "test:probe:ruby-server": "X402_INTEROP_CLIENTS=typescript X402_INTEROP_SERVERS=ruby pnpm test:smoke",
     "test:probe:php-syntax": "php -l ../../php/bin/interop-server.php",
     "test:probe:php-server": "X402_INTEROP_CLIENTS=typescript X402_INTEROP_SERVERS=php pnpm test:smoke",
+    "test:probe:lua-syntax": "cd ../../lua && if command -v luac >/dev/null 2>&1; then luac -p bin/interop-server.lua; elif command -v lua >/dev/null 2>&1; then lua -e 'assert(loadfile(\"bin/interop-server.lua\"))'; else echo 'Lua toolchain not found; install lua or luac to run this probe' >&2; exit 127; fi",
     "test:probe:lua-server": "X402_INTEROP_CLIENTS=typescript X402_INTEROP_SERVERS=lua pnpm test:smoke",
     "test:smoke": "vitest run test/e2e.test.ts --testNamePattern \"client pays\"",
     "test:watch": "vitest",
