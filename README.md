@@ -59,3 +59,9 @@ cd ../tests/interop
 pnpm install
 pnpm test
 ```
+
+To mirror the default interop CI job locally:
+
+```bash
+pnpm test:ci
+```
