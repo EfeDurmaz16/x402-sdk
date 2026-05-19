@@ -68,6 +68,27 @@ describe("interop process harness", () => {
     );
   });
 
+  it("rejects JSON stdout messages before server readiness", async () => {
+    const command = [
+      process.execPath,
+      "-e",
+      [
+        "console.log(JSON.stringify({type: 'log', message: 'booting'}));",
+        "console.log(JSON.stringify({",
+        "type: 'ready',",
+        "implementation: 'expected',",
+        "role: 'server',",
+        "port: 1234",
+        "}));",
+        "setInterval(() => {}, 1000);",
+      ].join(""),
+    ];
+
+    await expect(startServer(implementation(command, "server"))).rejects.toThrow(
+      'Unexpected server readiness payload from expected: {"type":"log","message":"booting"}',
+    );
+  });
+
   it("rejects a client adapter that reports a different implementation id", async () => {
     const command = [
       process.execPath,
@@ -138,6 +159,29 @@ describe("interop process harness", () => {
 
     await expect(runClient(implementation(command, "client"), "http://127.0.0.1")).rejects.toThrow(
       'Unexpected client result payload from expected: {"type":"ready","implementation":"expected","role":"server","port":1234}',
+    );
+  });
+
+  it("rejects JSON stdout messages before client results", async () => {
+    const command = [
+      process.execPath,
+      "-e",
+      [
+        "console.log(JSON.stringify({type: 'log', message: 'paying'}));",
+        "console.log(JSON.stringify({",
+        "type: 'result',",
+        "implementation: 'expected',",
+        "role: 'client',",
+        "ok: true,",
+        "status: 200,",
+        "responseHeaders: {},",
+        "responseBody: {}",
+        "}));",
+      ].join(""),
+    ];
+
+    await expect(runClient(implementation(command, "client"), "http://127.0.0.1")).rejects.toThrow(
+      'Unexpected client result payload from expected: {"type":"log","message":"paying"}',
     );
   });
 });
