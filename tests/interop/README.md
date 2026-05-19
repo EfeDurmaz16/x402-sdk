@@ -51,6 +51,16 @@ To run the full Cartesian client/server smoke matrix:
 X402_INTEROP_PROFILE=full pnpm test:smoke
 ```
 
+Boundary and negative vectors are kept outside the default CI smoke profile:
+
+```bash
+pnpm test:boundaries
+```
+
+The first boundary suite mutates the client payment envelope's
+`accepted.network` after a valid payment is built. Servers must reject that
+payment and must not emit a settlement header.
+
 Domain-specific scenarios can stay selectable through Vitest filters. For
 example, the current smoke script selects the exact-payment tests by matching
 `client pays`, while the multi-currency vectors remain available in the full
