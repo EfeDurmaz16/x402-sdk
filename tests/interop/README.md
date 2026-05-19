@@ -56,6 +56,17 @@ example, the current smoke script selects the exact-payment tests by matching
 `client pays`, while the multi-currency vectors remain available in the full
 test suite.
 
+Run one client/server pair while debugging an adapter:
+
+```bash
+X402_INTEROP_CLIENTS=typescript X402_INTEROP_SERVERS=rust pnpm test
+X402_INTEROP_CLIENTS=rust X402_INTEROP_SERVERS=typescript pnpm test
+```
+
+The selectors must match adapter IDs from
+`tests/interop/src/implementations.ts`. Unknown IDs fail before the matrix runs
+so typos do not silently reduce coverage.
+
 If the TypeScript adapter cannot resolve `@solana/x402/...` subpaths, rebuild
 the local package and refresh the interop package install:
 
