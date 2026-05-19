@@ -116,7 +116,7 @@ describe("upto scenario fixtures", () => {
     ).toBe(true);
     expect(
       uptoAuthorizationCandidates.every(
-        candidate => candidate.authorizationPrimitive !== "signed-transfer",
+        candidate => String(candidate.authorizationPrimitive) !== "signed-transfer",
       ),
     ).toBe(true);
   });
