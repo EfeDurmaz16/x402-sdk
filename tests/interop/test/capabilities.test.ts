@@ -206,7 +206,19 @@ describe("interop capability roadmap", () => {
       "pnpm test:probe:python-syntax && pnpm test:probe:python-unit && pnpm test:probe:go-build && pnpm test:probe:ruby-syntax && pnpm test:probe:ruby-unit && pnpm test:probe:php-syntax && pnpm test:probe:php-unit",
     );
     expect(packageJson.scripts["test:probe:usage-boundaries"]).toBe(
-      "vitest run test/contracts.test.ts test/upto-fixtures.test.ts test/session-fixtures.test.ts",
+      "pnpm test:probe:upto-fixtures && pnpm test:probe:batch-settlement-fixtures && pnpm test:probe:session-fixtures && pnpm test:probe:subscription-fixtures && vitest run test/contracts.test.ts",
+    );
+    expect(packageJson.scripts["test:probe:upto-fixtures"]).toBe(
+      "vitest run test/upto-fixtures.test.ts",
+    );
+    expect(packageJson.scripts["test:probe:batch-settlement-fixtures"]).toBe(
+      "vitest run test/batch-settlement-fixtures.test.ts",
+    );
+    expect(packageJson.scripts["test:probe:session-fixtures"]).toBe(
+      "vitest run test/session-fixtures.test.ts",
+    );
+    expect(packageJson.scripts["test:probe:subscription-fixtures"]).toBe(
+      "vitest run test/subscription-fixtures.test.ts",
     );
     expect(packageJson.scripts["test:probe:upto-boundary"]).toBe(
       "X402_INTEROP_SCHEME=upto pnpm test:smoke",

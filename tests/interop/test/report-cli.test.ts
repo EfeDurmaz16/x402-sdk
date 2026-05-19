@@ -61,6 +61,14 @@ describe("interop report CLIs", () => {
           command: "php ../../php/tests/interop_server_test.php",
         }),
         expect.objectContaining({
+          script: "test:probe:upto-fixtures",
+          command: "vitest run test/upto-fixtures.test.ts",
+        }),
+        expect.objectContaining({
+          script: "test:probe:session-fixtures",
+          command: "vitest run test/session-fixtures.test.ts",
+        }),
+        expect.objectContaining({
           script: "test:probe:lua-static",
           command: "vitest run test/lua-scaffold.test.ts",
         }),

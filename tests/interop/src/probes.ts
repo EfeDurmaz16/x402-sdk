@@ -28,9 +28,33 @@ export const interopProbes: ProbeDefinition[] = [
   },
   {
     script: "test:probe:usage-boundaries",
-    command: "vitest run test/contracts.test.ts test/upto-fixtures.test.ts test/session-fixtures.test.ts",
+    command: "pnpm test:probe:upto-fixtures && pnpm test:probe:batch-settlement-fixtures && pnpm test:probe:session-fixtures && pnpm test:probe:subscription-fixtures && vitest run test/contracts.test.ts",
     status: "green",
     reason: "Green aggregate for disabled runtime boundaries and usage-based fixtures.",
+  },
+  {
+    script: "test:probe:upto-fixtures",
+    command: "vitest run test/upto-fixtures.test.ts",
+    status: "green",
+    reason: "Solana upto maximum-authorization fixture contract without runtime settlement.",
+  },
+  {
+    script: "test:probe:batch-settlement-fixtures",
+    command: "vitest run test/batch-settlement-fixtures.test.ts",
+    status: "green",
+    reason: "Batch-settlement voucher fixture contract without runtime settlement.",
+  },
+  {
+    script: "test:probe:session-fixtures",
+    command: "vitest run test/session-fixtures.test.ts",
+    status: "green",
+    reason: "Session compatibility lifecycle fixture contract without runtime support.",
+  },
+  {
+    script: "test:probe:subscription-fixtures",
+    command: "vitest run test/subscription-fixtures.test.ts",
+    status: "green",
+    reason: "Subscription compatibility fixture contract without runtime support.",
   },
   {
     script: "test:probe:reports",

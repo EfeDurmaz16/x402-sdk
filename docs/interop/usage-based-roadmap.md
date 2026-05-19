@@ -169,6 +169,7 @@ PRs.
 | 27 | Usage boundary probes for `upto` and `session` fail-fast diagnostics. | staged |
 | 28 | Lua server-only static scaffold probe without local Lua toolchain. | staged |
 | 29 | Session lifecycle required-field fixtures. | staged |
+| 30 | One-scheme and one-intent fixture probe scripts. | staged |
 
 ## Promotion checklist
 
@@ -186,6 +187,9 @@ Use this checklist when splitting the staging branch into upstream PRs:
    the matching planned adapter process probe.
 5. For `upto` or `session` boundary PRs, run:
    `pnpm run test:probe:usage-boundaries`.
+   For a narrower check, use `pnpm run test:probe:upto-fixtures`,
+   `pnpm run test:probe:session-fixtures`, or the matching
+   batch-settlement/subscription fixture probe.
 6. Treat `test:probe:upto-boundary`, `test:probe:session-boundary`, Lua syntax,
    and planned runtime adapter smoke probes as expected-red commands unless the
    PR explicitly implements that runtime path.

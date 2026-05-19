@@ -271,6 +271,10 @@ pnpm run test:probe:ruby-unit
 pnpm run test:probe:php-syntax
 pnpm run test:probe:php-unit
 pnpm run test:probe:lua-static
+pnpm run test:probe:upto-fixtures
+pnpm run test:probe:batch-settlement-fixtures
+pnpm run test:probe:session-fixtures
+pnpm run test:probe:subscription-fixtures
 ```
 
 The PHP scaffold also exposes the same server-only checks from its package
