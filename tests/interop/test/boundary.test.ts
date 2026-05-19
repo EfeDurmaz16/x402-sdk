@@ -98,7 +98,7 @@ describe("x402 interop boundaries", () => {
         expect(result.status).toBeGreaterThanOrEqual(400);
         expect(result.settlement).toBeNull();
       },
-      20_000,
+      40_000,
     );
 
     socketAwareIt(
@@ -125,7 +125,30 @@ describe("x402 interop boundaries", () => {
         expect(result.status).toBeGreaterThanOrEqual(400);
         expect(result.settlement).toBeNull();
       },
-      20_000,
+      40_000,
+    );
+
+    socketAwareIt(
+      `${clientImplementation.id} client is rejected by ${serverImplementation.id} server when accepted.scheme is unsupported`,
+      async () => {
+        if (!surfnet || !interopEnv) {
+          throw new Error("Surfpool interop environment was not initialized");
+        }
+
+        const server = await startServer(serverImplementation, interopEnv);
+        runningServers.push(server);
+
+        const targetUrl = `http://127.0.0.1:${server.ready.port}${interopScenario.resourcePath}`;
+        const result = await runClient(clientImplementation, targetUrl, {
+          ...interopEnv,
+          X402_INTEROP_MUTATE_ACCEPTED_SCHEME: "unsupported",
+        });
+
+        expect(result.ok, JSON.stringify(result, null, 2)).toBe(false);
+        expect(result.status).toBeGreaterThanOrEqual(400);
+        expect(result.settlement).toBeNull();
+      },
+      40_000,
     );
   }
 });

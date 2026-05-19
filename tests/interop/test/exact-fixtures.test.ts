@@ -30,6 +30,20 @@ describe("exact negative fixtures", () => {
     });
   });
 
+  it("tracks unsupported scheme as a facilitator rejection", () => {
+    const fixture = exactNegativeFixtures.find(
+      candidate => candidate.id === "rejects-unsupported-scheme",
+    );
+
+    expect(fixture).toMatchObject({
+      scheme: "unsupported",
+      acceptedNetwork: SOLANA_DEVNET_CAIP2,
+      requiredNetwork: SOLANA_DEVNET_CAIP2,
+      expectedReason: "unsupported_scheme",
+      requiresSignedTransaction: false,
+    });
+  });
+
   it("does not require generated transactions for early facilitator rejections", () => {
     const earlyRejections = exactNegativeFixtures.filter(
       fixture => fixture.id !== "rejects-missing-recipient-ata",

@@ -64,21 +64,28 @@ function makeCurrencySelector(preferred: string[], network: string) {
 
 function applyPaymentPayloadMutations(paymentPayload: unknown): void {
   const acceptedNetwork = process.env.X402_INTEROP_MUTATE_ACCEPTED_NETWORK?.trim();
-  if (!acceptedNetwork) {
+  const acceptedScheme = process.env.X402_INTEROP_MUTATE_ACCEPTED_SCHEME?.trim();
+  if (!acceptedNetwork && !acceptedScheme) {
     return;
   }
 
   const payload = paymentPayload as {
     accepted?: {
       network?: string;
+      scheme?: string;
     };
   };
 
   if (!payload.accepted) {
-    throw new Error("Cannot mutate accepted.network because payment payload has no accepted field");
+    throw new Error("Cannot mutate accepted fields because payment payload has no accepted field");
   }
 
-  payload.accepted.network = acceptedNetwork;
+  if (acceptedNetwork) {
+    payload.accepted.network = acceptedNetwork;
+  }
+  if (acceptedScheme) {
+    payload.accepted.scheme = acceptedScheme;
+  }
 }
 
 async function main() {

@@ -53,7 +53,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let rpc = RpcClient::new(rpc_url);
     let mut payment_header = build_payment_header(&signer, &rpc, &requirements).await?;
     if let Ok(network) = env::var("X402_INTEROP_MUTATE_ACCEPTED_NETWORK") {
-        payment_header = mutate_accepted_network(&payment_header, network.trim())?;
+        payment_header = mutate_accepted_field(&payment_header, "network", network.trim())?;
+    }
+    if let Ok(scheme) = env::var("X402_INTEROP_MUTATE_ACCEPTED_SCHEME") {
+        payment_header = mutate_accepted_field(&payment_header, "scheme", scheme.trim())?;
     }
 
     let paid_response = http
@@ -111,11 +114,12 @@ fn headers_to_map(headers: Vec<(String, String)>) -> HashMap<String, String> {
     headers.into_iter().collect()
 }
 
-fn mutate_accepted_network(
+fn mutate_accepted_field(
     payment_header: &str,
-    network: &str,
+    field: &str,
+    value: &str,
 ) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
-    if network.is_empty() {
+    if value.is_empty() {
         return Ok(payment_header.to_string());
     }
 
@@ -125,7 +129,7 @@ fn mutate_accepted_network(
         .get_mut("accepted")
         .and_then(serde_json::Value::as_object_mut)
         .ok_or("payment envelope has no accepted object")?;
-    accepted.insert("network".to_string(), serde_json::Value::String(network.to_string()));
+    accepted.insert(field.to_string(), serde_json::Value::String(value.to_string()));
 
     let mutated = serde_json::to_vec(&envelope)?;
     Ok(base64::engine::general_purpose::STANDARD.encode(mutated))
