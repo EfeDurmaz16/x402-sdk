@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  exactCoverageGapFixtures,
   exactNegativeFixtures,
   SOLANA_DEVNET_CAIP2,
   SOLANA_MAINNET_CAIP2,
@@ -49,5 +50,26 @@ describe("exact negative fixtures", () => {
       expectedReason: "missing_recipient_ata",
       requiresSignedTransaction: true,
     });
+  });
+
+  it("keeps maintainer-requested coverage gaps visible before runtime support lands", () => {
+    expect(exactCoverageGapFixtures).toEqual([
+      {
+        id: "tracks-split-payments",
+        requestedBy: "maintainer",
+        currentStatus: "missing-runtime-contract",
+        expectedHarnessAction: "add-fixture-before-runtime",
+        notes:
+          "No SVM exact split-payment wire contract is exposed yet; keep this visible before adding runtime assertions.",
+      },
+      {
+        id: "tracks-ata-creation-required",
+        requestedBy: "maintainer",
+        currentStatus: "covered-by-runtime-boundary",
+        expectedHarnessAction: "promote-existing-boundary",
+        notes:
+          "Missing recipient ATA is already covered as a settlement-time rejection; promote to an explicit ataCreationRequired contract once the field is defined.",
+      },
+    ]);
   });
 });

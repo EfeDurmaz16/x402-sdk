@@ -142,6 +142,12 @@ example, the current smoke script selects the exact-payment tests by matching
 `client pays`, while the multi-currency vectors remain available in the full
 test suite.
 
+The exact fixture suite keeps maintainer-requested coverage visible even before
+every runtime contract exists. Network mismatch and missing recipient ATA are
+covered by runtime boundary tests today; split payments and an explicit
+`ataCreationRequired` field remain tracked as fixture-level gaps until their
+wire contract is defined.
+
 If the TypeScript adapter cannot resolve `@solana/x402/...` subpaths, rebuild
 the local package and refresh the interop package install:
 
