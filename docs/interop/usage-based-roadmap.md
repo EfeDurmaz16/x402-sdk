@@ -129,7 +129,7 @@ PRs.
 | 22 | Matrix report artifacts. | staged |
 | 23 | Maintainer runbook for one language, one pair, and one scheme. | staged |
 | 24 | Experimental CI opt-in flags. | staged |
-| 25 | Final cleanup of planned/missing capability reporting. | partial |
+| 25 | Final cleanup of planned/missing capability reporting. | staged |
 
 ## Current staging guardrails
 
@@ -143,6 +143,8 @@ PRs.
 - Planned and server-only roles are visible through `pnpm capabilities`.
 - CI uploads the JSON capability report and can run experimental contract tests
   by setting `X402_INTEROP_EXPERIMENTAL=true`.
+- The JSON capability report includes a flat `roles` list so CI and reviewers
+  can inspect each language/role status without parsing summary text.
 - Split-payment semantics are not modeled in the current exact SVM contract;
   keep them out of runtime claims until an x402 requirements shape exists.
 

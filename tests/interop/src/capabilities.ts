@@ -24,6 +24,15 @@ export type IntentCapability = {
   languages: LanguageCapabilityMap;
 };
 
+export type CapabilityRoleEntry = {
+  domain: "scheme" | "intent";
+  name: string;
+  language: string;
+  role: "client" | "server";
+  status: CapabilityStatus;
+  runtimeEligible: boolean;
+};
+
 export const interopCapabilities = {
   schemes: {
     exact: {
@@ -171,14 +180,50 @@ export function formatCapabilitySummary(): string[] {
   ];
 }
 
+function collectRoleEntries(
+  domain: CapabilityRoleEntry["domain"],
+  capabilities: typeof interopCapabilities.schemes | typeof interopCapabilities.intents,
+): CapabilityRoleEntry[] {
+  return Object.entries(capabilities).flatMap(([name, capability]) => {
+    const languages = capability.languages as LanguageCapabilityMap;
+
+    return Object.entries(languages).flatMap(([language, roles]) => {
+      return (["client", "server"] as const).map(role => ({
+        domain,
+        name,
+        language,
+        role,
+        status: roles[role],
+        runtimeEligible: capability.defaultCi && roles[role] === "implemented",
+      }));
+    });
+  });
+}
+
+export function formatCapabilityRoles(): CapabilityRoleEntry[] {
+  return [
+    ...collectRoleEntries("scheme", interopCapabilities.schemes),
+    ...collectRoleEntries("intent", interopCapabilities.intents),
+  ].sort((left, right) => {
+    return (
+      left.domain.localeCompare(right.domain) ||
+      left.name.localeCompare(right.name) ||
+      left.language.localeCompare(right.language) ||
+      left.role.localeCompare(right.role)
+    );
+  });
+}
+
 export function formatCapabilityJson(): {
   version: 1;
   summary: string[];
+  roles: CapabilityRoleEntry[];
   capabilities: typeof interopCapabilities;
 } {
   return {
     version: 1,
     summary: formatCapabilitySummary(),
+    roles: formatCapabilityRoles(),
     capabilities: interopCapabilities,
   };
 }

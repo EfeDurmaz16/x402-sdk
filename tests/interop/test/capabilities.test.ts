@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import {
   formatCapabilityJson,
   formatCapabilityReport,
+  formatCapabilityRoles,
   formatCapabilitySummary,
   interopCapabilities,
 } from "../src/capabilities";
@@ -92,7 +93,35 @@ describe("interop capability roadmap", () => {
     expect(formatCapabilityJson()).toEqual({
       version: 1,
       summary: formatCapabilitySummary(),
+      roles: formatCapabilityRoles(),
       capabilities: interopCapabilities,
+    });
+  });
+
+  it("flattens role capabilities for CI artifact consumers", () => {
+    expect(formatCapabilityRoles()).toContainEqual({
+      domain: "scheme",
+      name: "exact",
+      language: "rust",
+      role: "client",
+      status: "implemented",
+      runtimeEligible: true,
+    });
+    expect(formatCapabilityRoles()).toContainEqual({
+      domain: "scheme",
+      name: "upto",
+      language: "typescript",
+      role: "server",
+      status: "experimental",
+      runtimeEligible: false,
+    });
+    expect(formatCapabilityRoles()).toContainEqual({
+      domain: "intent",
+      name: "session",
+      language: "php",
+      role: "client",
+      status: "missing",
+      runtimeEligible: false,
     });
   });
 
