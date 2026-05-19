@@ -246,32 +246,24 @@ describe("interop implementation metadata", () => {
     ).toThrowError(/X402_INTEROP_SERVERS contains unknown adapter id\(s\): perl/);
   });
 
-  it("fails selected planned adapters with scaffold-specific diagnostics", () => {
-    const plannedSelections = [
-      {
-        envName: "X402_INTEROP_SERVERS",
-        implementation: {
-          id: "lua",
-          label: "Lua HTTP server",
-          role: "server" as const,
-          command: ["lua", "bin/interop-server.lua"],
-          cwd: "../../lua",
-          requiredManifest: "../../lua/x402-sdk-svm.rockspec",
-          enabled: true,
-          runtimeSchemes: ["exact" as const],
-          runtimeIntents: [],
-        },
-        expected: /lua missing \.\.\/\.\.\/lua\/x402-sdk-svm\.rockspec/,
-      },
-    ];
-
-    for (const selection of plannedSelections) {
-      expect(() =>
-        validateSelectedImplementationScaffolds(
-          [selection.implementation],
-          selection.envName,
-        ),
-      ).toThrowError(selection.expected);
-    }
+  it("does not fail selected planned adapters once their scaffold manifest exists", () => {
+    expect(() =>
+      validateSelectedImplementationScaffolds(
+        [
+          {
+            id: "lua",
+            label: "Lua HTTP server",
+            role: "server" as const,
+            command: ["lua", "bin/interop-server.lua"],
+            cwd: "../../lua",
+            requiredManifest: "../../lua/x402-sdk-svm.rockspec",
+            enabled: true,
+            runtimeSchemes: ["exact" as const],
+            runtimeIntents: [],
+          },
+        ],
+        "X402_INTEROP_SERVERS",
+      ),
+    ).not.toThrow();
   });
 });

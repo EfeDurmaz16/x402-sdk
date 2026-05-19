@@ -116,6 +116,16 @@ describe("SDK scaffold diagnostics", () => {
     );
     expect(getSdkScaffoldStatus()).toContainEqual(
       expect.objectContaining({
+        language: "lua",
+        rootExists: true,
+        manifestExists: true,
+        serverOnly: true,
+        runtimeClientAdapter: false,
+        runtimeServerAdapter: true,
+      }),
+    );
+    expect(getSdkScaffoldStatus()).toContainEqual(
+      expect.objectContaining({
         language: "php",
         rootExists: true,
         manifestExists: true,
@@ -131,7 +141,7 @@ describe("SDK scaffold diagnostics", () => {
       "language:typescript root:present manifest:present(package.json)",
     );
     expect(formatSdkScaffoldReport()).toContain(
-      "language:lua root:missing manifest:missing(x402-sdk-svm.rockspec) server-only:true",
+      "language:lua root:present manifest:present(x402-sdk-svm.rockspec) server-only:true",
     );
     expect(formatSdkScaffoldReport()).toContain("expected-client:none");
     expect(formatSdkScaffoldReport()).toContain("expected-server:php bin/interop-server.php");
@@ -158,6 +168,7 @@ describe("SDK scaffold diagnostics", () => {
 
     expect(runtimeReady).toEqual([
       { language: "go", client: true, server: true },
+      { language: "lua", client: false, server: true },
       { language: "php", client: false, server: true },
       { language: "python", client: true, server: true },
       { language: "ruby", client: true, server: true },
