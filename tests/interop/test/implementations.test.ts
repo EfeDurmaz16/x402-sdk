@@ -5,6 +5,7 @@ import {
   serverImplementations,
   validateImplementationSelection,
 } from "../src/implementations";
+import { formatCapabilityRoles } from "../src/capabilities";
 
 describe("interop implementation metadata", () => {
   it("marks current runtime adapters as exact-only", () => {
@@ -51,6 +52,34 @@ describe("interop implementation metadata", () => {
         implementation => implementation.runtimeSchemes,
       ),
     ).not.toContain("upto");
+  });
+
+  it("keeps experimental upto servers out of the runtime adapter matrix", () => {
+    expect(formatCapabilityRoles()).toContainEqual({
+      domain: "scheme",
+      name: "upto",
+      language: "rust",
+      role: "server",
+      status: "experimental",
+      runtimeEligible: false,
+    });
+    expect(formatCapabilityRoles()).toContainEqual({
+      domain: "scheme",
+      name: "upto",
+      language: "typescript",
+      role: "server",
+      status: "experimental",
+      runtimeEligible: false,
+    });
+    expect(
+      serverImplementations.map(implementation => ({
+        id: implementation.id,
+        runtimeSchemes: implementation.runtimeSchemes,
+      })),
+    ).toEqual([
+      { id: "typescript", runtimeSchemes: ["exact"] },
+      { id: "rust", runtimeSchemes: ["exact"] },
+    ]);
   });
 
   it("parses comma-separated implementation filters", () => {
