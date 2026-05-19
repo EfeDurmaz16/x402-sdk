@@ -10,6 +10,20 @@ export type SubscriptionIntentFixture = {
   amountPerPeriod?: string;
 };
 
+export type SubscriptionLanguageRoleFixture = {
+  language: "python" | "go" | "ruby" | "lua" | "php";
+  clientRole: "planned" | "missing";
+  serverRole: "planned";
+};
+
+export const subscriptionLanguageRoleFixtures: SubscriptionLanguageRoleFixture[] = [
+  { language: "python", clientRole: "planned", serverRole: "planned" },
+  { language: "go", clientRole: "planned", serverRole: "planned" },
+  { language: "ruby", clientRole: "planned", serverRole: "planned" },
+  { language: "lua", clientRole: "missing", serverRole: "planned" },
+  { language: "php", clientRole: "missing", serverRole: "planned" },
+];
+
 export const subscriptionIntentFixtures: SubscriptionIntentFixture[] = [
   {
     action: "challenge",
