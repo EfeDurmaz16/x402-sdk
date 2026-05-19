@@ -233,21 +233,6 @@ describe("interop implementation metadata", () => {
   it("fails selected planned adapters with scaffold-specific diagnostics", () => {
     const plannedSelections = [
       {
-        envName: "X402_INTEROP_CLIENTS",
-        implementation: {
-          id: "go",
-          label: "Go HTTP client",
-          role: "client" as const,
-          command: ["go", "run", "./cmd/interop-client"],
-          cwd: "../../go",
-          requiredManifest: "../../go/go.mod",
-          enabled: true,
-          runtimeSchemes: ["exact" as const],
-          runtimeIntents: [],
-        },
-        expected: /go missing \.\.\/\.\.\/go\/go\.mod/,
-      },
-      {
         envName: "X402_INTEROP_SERVERS",
         implementation: {
           id: "lua",

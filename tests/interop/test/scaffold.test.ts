@@ -157,6 +157,7 @@ describe("SDK scaffold diagnostics", () => {
       .sort((left, right) => left.language.localeCompare(right.language));
 
     expect(runtimeReady).toEqual([
+      { language: "go", client: true, server: true },
       { language: "python", client: true, server: true },
       { language: "rust", client: true, server: true },
       { language: "typescript", client: true, server: true },
