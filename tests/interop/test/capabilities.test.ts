@@ -294,6 +294,7 @@ describe("interop capability roadmap", () => {
     expect(workflow).toContain("name: interop-capabilities");
     expect(workflow).toContain("pnpm --silent scaffold:json > interop-scaffold.json");
     expect(workflow).toContain("name: interop-scaffold");
+    expect(workflow).toContain("pnpm test:multi-currency");
     expect(workflow).toContain("pnpm test:boundaries");
     expect(workflow).toContain("vars.X402_INTEROP_EXPERIMENTAL == 'true'");
     expect(workflow).toContain("pnpm test:experimental");

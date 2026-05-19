@@ -85,6 +85,12 @@ jobs:
         env:
           X402_INTEROP_PROFILE: reference-spine
           X402_INTEROP_REFERENCE: rust
+      - name: Run reference-spine multi-currency interop
+        run: pnpm test:multi-currency
+        working-directory: tests/interop
+        env:
+          X402_INTEROP_PROFILE: reference-spine
+          X402_INTEROP_REFERENCE: rust
       - name: Run interop boundary checks
         run: pnpm test:boundaries
         working-directory: tests/interop
