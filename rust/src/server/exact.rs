@@ -13,6 +13,7 @@ use crate::{
         PaymentProof, PaymentRequiredEnvelope, PaymentRequirements, PaymentSignatureEnvelope,
         EXACT_SCHEME,
     },
+    protocol::schemes::upto::UPTO_SCHEME,
     PAYMENT_REQUIRED_HEADER, PAYMENT_SIGNATURE_HEADER, X402_VERSION_V1, X402_VERSION_V2,
 };
 
@@ -186,6 +187,42 @@ impl X402 {
             error: None,
             extensions: None,
         })
+    }
+
+    /// Build a server-side `upto` challenge using exact's SVM amount parsing.
+    ///
+    /// This intentionally does not enable Solana client payload construction or
+    /// facilitator settlement. The returned amount is the maximum authorization
+    /// amount advertised to the client.
+    pub fn upto(&self, maximum_amount: &str) -> Result<PaymentRequiredEnvelope, Error> {
+        self.upto_with_options(maximum_amount, ExactOptions::default())
+    }
+
+    /// Build a server-side `upto` challenge with presentation overrides.
+    pub fn upto_with_options(
+        &self,
+        maximum_amount: &str,
+        options: ExactOptions<'_>,
+    ) -> Result<PaymentRequiredEnvelope, Error> {
+        let requirements = self.upto_requirements(maximum_amount, options)?;
+        Ok(PaymentRequiredEnvelope {
+            x402_version: X402_VERSION_V2,
+            resource: requirements.resource_info(),
+            accepts: vec![requirements],
+            error: None,
+            extensions: None,
+        })
+    }
+
+    /// Build server-side `upto` payment requirements.
+    pub fn upto_requirements(
+        &self,
+        maximum_amount: &str,
+        options: ExactOptions<'_>,
+    ) -> Result<PaymentRequirements, Error> {
+        let mut requirements = self.exact_requirements(maximum_amount, options)?;
+        requirements.accepted = Some(upto_accepted_value(&requirements));
+        Ok(requirements)
     }
 
     pub fn exact_requirements(
@@ -631,6 +668,17 @@ impl X402 {
     }
 }
 
+fn upto_accepted_value(requirements: &PaymentRequirements) -> serde_json::Value {
+    let mut value = requirements.to_accepted_value();
+    if let Some(object) = value.as_object_mut() {
+        object.insert(
+            "scheme".to_string(),
+            serde_json::Value::String(UPTO_SCHEME.to_string()),
+        );
+    }
+    value
+}
+
 /// Surfpool localnet validators stamp every blockhash with this prefix so
 /// servers configured for any non-`localnet` cluster can detect a
 /// wrong-RPC client mistake before broadcast.
@@ -785,6 +833,49 @@ mod tests {
         assert_eq!(req.currency, "USDC");
         assert_eq!(req.network, SOLANA_DEVNET);
         assert_eq!(req.resource, "/fortune");
+    }
+
+    #[test]
+    fn upto_builds_server_side_payment_required_envelope() {
+        let x402 = X402::new(config()).unwrap();
+        let envelope = x402.upto("1.25").unwrap();
+        let req = &envelope.accepts[0];
+        let accepted = serde_json::to_value(req).unwrap();
+
+        assert_eq!(envelope.x402_version, X402_VERSION_V2);
+        assert_eq!(
+            envelope.resource.as_ref().map(|r| r.url.as_str()),
+            Some("/fortune")
+        );
+        assert_eq!(req.amount, "1250000");
+        assert_eq!(accepted["scheme"], UPTO_SCHEME);
+        assert_eq!(accepted["amount"], "1250000");
+        assert_eq!(accepted["asset"], "USDC");
+        assert_eq!(accepted["payTo"], config().recipient);
+    }
+
+    #[test]
+    fn upto_with_options_overrides_defaults() {
+        let x402 = X402::new(config()).unwrap();
+        let envelope = x402
+            .upto_with_options(
+                "2.0",
+                ExactOptions {
+                    description: Some("Upto Override"),
+                    resource: Some("/upto"),
+                    max_age: Some(120),
+                },
+            )
+            .unwrap();
+        let req = &envelope.accepts[0];
+        let accepted = serde_json::to_value(req).unwrap();
+
+        assert_eq!(req.amount, "2000000");
+        assert_eq!(req.description.as_deref(), Some("Upto Override"));
+        assert_eq!(req.resource, "/upto");
+        assert_eq!(req.max_age, Some(120));
+        assert_eq!(accepted["scheme"], UPTO_SCHEME);
+        assert_eq!(accepted["maxTimeoutSeconds"], 120);
     }
 
     #[test]

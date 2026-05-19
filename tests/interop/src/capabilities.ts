@@ -54,7 +54,7 @@ export const interopCapabilities = {
       defaultCi: false,
       languages: {
         typescript: { client: "planned", server: "experimental" },
-        rust: { client: "planned", server: "planned" },
+        rust: { client: "planned", server: "experimental" },
         python: { client: "planned", server: "planned" },
         go: { client: "planned", server: "planned" },
         ruby: { client: "planned", server: "planned" },

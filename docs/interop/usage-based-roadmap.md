@@ -127,7 +127,7 @@ PRs.
 | 3 | `upto` scenario fixtures and negative cases. | staged |
 | 4 | TypeScript `upto` server support. | staged as experimental |
 | 5 | TypeScript `upto` client support. | next |
-| 6 | Rust `upto` server support. | planned |
+| 6 | Rust `upto` server support. | staged as experimental |
 | 7 | Rust `upto` client support. | planned |
 | 8 | Python `upto` adapter support. | planned |
 | 9 | Go `upto` adapter support. | planned |
@@ -155,7 +155,7 @@ PRs.
   silently running `exact`.
 - `X402_INTEROP_INTENT=session` and `X402_INTEROP_INTENT=subscription` fail
   fast until runtime scenarios exist.
-- TypeScript `upto` server support is marked `experimental` because Solana
+- TypeScript and Rust `upto` server support are marked `experimental` because Solana
   maximum-authorization settlement still requires an explicit design.
 - Planned and server-only roles are visible through `pnpm capabilities`.
 - CI uploads the JSON capability report and can run experimental contract tests

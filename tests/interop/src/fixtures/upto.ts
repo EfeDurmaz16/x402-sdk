@@ -35,7 +35,7 @@ export type UptoLanguageRoleFixture = {
 };
 
 export const uptoLanguageRoleFixtures: UptoLanguageRoleFixture[] = [
-  { language: "rust", clientRole: "planned", serverRole: "planned" },
+  { language: "rust", clientRole: "planned", serverRole: "experimental" },
   { language: "typescript", clientRole: "planned", serverRole: "experimental" },
   { language: "python", clientRole: "planned", serverRole: "planned" },
   { language: "go", clientRole: "planned", serverRole: "planned" },

@@ -70,7 +70,7 @@ describe("upto scenario fixtures", () => {
 
   it("keeps PHP and Lua server-only for upto while other planned SDKs track both roles", () => {
     expect(uptoLanguageRoleFixtures).toEqual([
-      { language: "rust", clientRole: "planned", serverRole: "planned" },
+      { language: "rust", clientRole: "planned", serverRole: "experimental" },
       { language: "typescript", clientRole: "planned", serverRole: "experimental" },
       { language: "python", clientRole: "planned", serverRole: "planned" },
       { language: "go", clientRole: "planned", serverRole: "planned" },

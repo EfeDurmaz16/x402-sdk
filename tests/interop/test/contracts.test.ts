@@ -17,7 +17,7 @@ describe("interop scenario selection", () => {
       resolveInteropScenario({
         X402_INTEROP_SCHEME: "upto",
       }),
-    ).toThrowError(/experimental: upto server typescript/);
+    ).toThrowError(/experimental: upto server rust,typescript/);
   });
 
   it("rejects compatibility intents until runtime scenarios exist", () => {
