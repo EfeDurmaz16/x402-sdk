@@ -96,6 +96,12 @@ export const promotionSlices: PromotionSlice[] = [
     status: "staged",
     verification: ["pnpm run test:probe:staging"],
   },
+  {
+    id: "31",
+    title: "Machine-readable promotion plan for splitting staging into PRs.",
+    status: "staged",
+    verification: ["pnpm promotion", "pnpm promotion:json"],
+  },
 ];
 
 export function getPromotionPlan() {
