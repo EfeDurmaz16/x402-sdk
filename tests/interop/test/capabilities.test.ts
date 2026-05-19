@@ -177,6 +177,7 @@ describe("interop capability roadmap", () => {
     expect(packageJson.scripts["reports:artifacts"]).toBe(
       "pnpm --silent capabilities:json > interop-capabilities.json && pnpm --silent scaffold:json > interop-scaffold.json && pnpm --silent probes:json > interop-probes.json && pnpm --silent promotion:json > interop-promotion.json",
     );
+    expect(packageJson.scripts["reports:check"]).toBe("tsx src/verify-report-artifacts.ts --keep");
     expect(packageJson.scripts["reports:verify"]).toBe(
       "pnpm reports:artifacts && tsx src/verify-report-artifacts.ts",
     );
@@ -300,7 +301,7 @@ describe("interop capability roadmap", () => {
   it("keeps interop JSON reports available as CI artifacts", () => {
     const workflow = readFileSync("../../.github/workflows/ci.yml", "utf8");
 
-    expect(workflow).toContain("pnpm reports:artifacts");
+    expect(workflow).toContain("pnpm reports:artifacts && pnpm reports:check");
     expect(workflow).toContain("name: interop-capabilities");
     expect(workflow).toContain("name: interop-scaffold");
     expect(workflow).toContain("name: interop-probes");

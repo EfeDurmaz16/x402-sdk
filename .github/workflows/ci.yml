@@ -64,7 +64,7 @@ jobs:
         run: pnpm typecheck
         working-directory: tests/interop
       - name: Write interop JSON reports
-        run: pnpm reports:artifacts
+        run: pnpm reports:artifacts && pnpm reports:check
         working-directory: tests/interop
       - name: Upload interop capability report
         uses: actions/upload-artifact@v4

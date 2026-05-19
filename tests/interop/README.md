@@ -109,6 +109,7 @@ pnpm probes:json
 pnpm promotion
 pnpm promotion:json
 pnpm reports:artifacts
+pnpm reports:check
 pnpm reports:verify
 pnpm run test:probe:reports
 ```

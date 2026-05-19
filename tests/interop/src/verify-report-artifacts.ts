@@ -7,6 +7,8 @@ const artifactFiles = [
   "interop-promotion.json",
 ] as const;
 
+const keepArtifacts = process.argv.includes("--keep");
+
 try {
   for (const file of artifactFiles) {
     const artifact = JSON.parse(readFileSync(file, "utf8")) as { version?: unknown };
@@ -15,7 +17,9 @@ try {
     }
   }
 } finally {
-  for (const file of artifactFiles) {
-    rmSync(file, { force: true });
+  if (!keepArtifacts) {
+    for (const file of artifactFiles) {
+      rmSync(file, { force: true });
+    }
   }
 }
