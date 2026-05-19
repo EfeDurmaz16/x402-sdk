@@ -52,3 +52,16 @@ export function selectInteropPairs(
       client.id === referenceImplementation || server.id === referenceImplementation,
   );
 }
+
+export function selectRuntimeInteropPairs(
+  clients: ImplementationDefinition[],
+  servers: ImplementationDefinition[],
+  scheme: RuntimeScheme | string,
+  profile: InteropProfile = getInteropProfile(),
+  referenceImplementation: string = getReferenceImplementation(),
+): InteropPair[] {
+  const runtimeClients = clients.filter(client => supportsRuntimeScheme(client, scheme));
+  const runtimeServers = servers.filter(server => supportsRuntimeScheme(server, scheme));
+
+  return selectInteropPairs(runtimeClients, runtimeServers, profile, referenceImplementation);
+}

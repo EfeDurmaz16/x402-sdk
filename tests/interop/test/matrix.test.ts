@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ImplementationDefinition } from "../src/implementations";
-import { selectInteropPairs, supportsRuntimeScheme } from "../src/matrix";
+import { selectInteropPairs, selectRuntimeInteropPairs, supportsRuntimeScheme } from "../src/matrix";
 
 function client(id: string): ImplementationDefinition {
   return {
@@ -76,5 +76,24 @@ describe("interop matrix selection", () => {
     expect(supportsRuntimeScheme(exactClient, "exact")).toBe(true);
     expect(supportsRuntimeScheme(exactClient, "upto")).toBe(false);
     expect(supportsRuntimeScheme(plannedUptoServer, "exact")).toBe(false);
+  });
+
+  it("filters pairs by runtime scheme before applying the profile", () => {
+    const exactClient = client("typescript");
+    const unsupportedClient = { ...client("python"), runtimeSchemes: [] };
+    const exactServer = server("rust");
+    const unsupportedServer = { ...server("go"), runtimeSchemes: [] };
+
+    const pairs = selectRuntimeInteropPairs(
+      [exactClient, unsupportedClient],
+      [exactServer, unsupportedServer],
+      "exact",
+      "full",
+      "rust",
+    );
+
+    expect(pairs.map(pair => `${pair.client.id}->${pair.server.id}`)).toEqual([
+      "typescript->rust",
+    ]);
   });
 });

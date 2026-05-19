@@ -4,7 +4,7 @@ import { createSolanaRpc } from "@solana/kit";
 import { Surfnet } from "surfpool-sdk";
 import { resolveInteropScenario } from "../src/contracts";
 import { clientImplementations, serverImplementations } from "../src/implementations";
-import { selectInteropPairs } from "../src/matrix";
+import { selectRuntimeInteropPairs } from "../src/matrix";
 import { runClient, startServer, stopServer } from "../src/process";
 
 type RunningServer = Awaited<ReturnType<typeof startServer>>;
@@ -88,7 +88,7 @@ afterEach(async () => {
 describe("x402 interop", () => {
   const activeServers = serverImplementations.filter(implementation => implementation.enabled);
   const activeClients = clientImplementations.filter(implementation => implementation.enabled);
-  const activePairs = selectInteropPairs(activeClients, activeServers);
+  const activePairs = selectRuntimeInteropPairs(activeClients, activeServers, interopScenario.scheme);
   const socketAwareIt = socketSupport ? it : it.skip;
 
   for (const { client: clientImplementation, server: serverImplementation } of activePairs) {
@@ -144,7 +144,7 @@ describe("x402 interop multi-currency", () => {
   const socketAwareIt = socketSupport ? it : it.skip;
   const activeServers = serverImplementations.filter(implementation => implementation.enabled);
   const activeClients = clientImplementations.filter(implementation => implementation.enabled);
-  const activePairs = selectInteropPairs(activeClients, activeServers);
+  const activePairs = selectRuntimeInteropPairs(activeClients, activeServers, interopScenario.scheme);
 
   async function setupPyusdMint(): Promise<string> {
     if (!surfnet || !interopEnv) {
