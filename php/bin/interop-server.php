@@ -64,6 +64,12 @@ while ($running) {
             'paid' => false,
             'error' => 'php_upto_server_not_implemented',
         ];
+    } elseif ($path === '/session') {
+        $body = [
+            'ok' => false,
+            'paid' => false,
+            'error' => 'php_session_server_not_implemented',
+        ];
     } else {
         $body = [
             'ok' => false,

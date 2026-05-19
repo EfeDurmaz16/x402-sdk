@@ -30,6 +30,13 @@ func main() {
 			"error": "go_upto_server_not_implemented",
 		})
 	})
+	mux.HandleFunc("/session", func(response http.ResponseWriter, _ *http.Request) {
+		writeJSON(response, http.StatusNotImplemented, map[string]any{
+			"ok":    false,
+			"paid":  false,
+			"error": "go_session_server_not_implemented",
+		})
+	})
 	mux.HandleFunc("/", func(response http.ResponseWriter, _ *http.Request) {
 		writeJSON(response, http.StatusNotImplemented, map[string]any{
 			"ok":    false,

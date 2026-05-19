@@ -61,6 +61,12 @@ while true do
         { "paid", false },
         { "error", "lua_upto_server_not_implemented" }
       })
+    elseif path == "/session" then
+      body = json_object({
+        { "ok", false },
+        { "paid", false },
+        { "error", "lua_session_server_not_implemented" }
+      })
     else
       body = json_object({
         { "ok", false },

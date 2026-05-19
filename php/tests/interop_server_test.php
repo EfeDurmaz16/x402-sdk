@@ -96,6 +96,18 @@ try {
     ]) {
         fail('unexpected PHP interop server upto response: ' . json_encode($upto));
     }
+
+    $session = request_json($port, '/session');
+    if ($session !== [
+        'status' => 501,
+        'body' => [
+            'ok' => false,
+            'paid' => false,
+            'error' => 'php_session_server_not_implemented',
+        ],
+    ]) {
+        fail('unexpected PHP interop server session response: ' . json_encode($session));
+    }
 } finally {
     proc_terminate($process);
     proc_close($process);

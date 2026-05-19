@@ -23,6 +23,17 @@ class InteropHandler(BaseHTTPRequestHandler):
             )
             return
 
+        if self.path == "/session":
+            self._write_json(
+                501,
+                {
+                    "ok": False,
+                    "paid": False,
+                    "error": "python_session_server_not_implemented",
+                },
+            )
+            return
+
         self._write_json(
             501,
             {

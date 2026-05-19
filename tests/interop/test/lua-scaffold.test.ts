@@ -21,6 +21,11 @@ describe("Lua server-only scaffold", () => {
     expect(server).toContain("lua_upto_server_not_implemented");
   });
 
+  it("keeps planned session server behavior explicit", () => {
+    expect(server).toContain('path == "/session"');
+    expect(server).toContain("lua_session_server_not_implemented");
+  });
+
   it("declares the Lua socket runtime dependency", () => {
     expect(rockspec).toContain('"lua >= 5.4"');
     expect(rockspec).toContain('"luasocket"');

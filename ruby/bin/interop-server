@@ -30,6 +30,17 @@ server.mount_proc "/" do |request, response|
     next
   end
 
+  if request.path == "/session"
+    response.status = 501
+    response["content-type"] = "application/json"
+    response.body = JSON.generate(
+      ok: false,
+      paid: false,
+      error: "ruby_session_server_not_implemented"
+    )
+    next
+  end
+
   response.status = 501
   response["content-type"] = "application/json"
   response.body = JSON.generate(

@@ -168,6 +168,15 @@ describe("planned server adapter process contract", () => {
           error: `${id}_upto_server_not_implemented`,
         },
       });
+
+      await expect(getJson(`${baseUrl}/session`)).resolves.toEqual({
+        status: 501,
+        body: {
+          ok: false,
+          paid: false,
+          error: `${id}_session_server_not_implemented`,
+        },
+      });
     });
   }
 });
