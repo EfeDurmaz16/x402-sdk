@@ -211,8 +211,9 @@ Use this checklist when splitting the staging branch into upstream PRs:
 - TypeScript and Rust `upto` server support are marked `experimental` because Solana
   maximum-authorization settlement still requires an explicit design.
 - Planned and server-only roles are visible through `pnpm capabilities`.
-- CI uploads the JSON capability report and can run experimental contract tests
-  by setting `X402_INTEROP_EXPERIMENTAL=true`.
+- CI uploads JSON reports for capabilities, scaffold readiness, probe planning,
+  and promotion planning. It can also run experimental contract tests by setting
+  `X402_INTEROP_EXPERIMENTAL=true`.
 - The JSON capability report includes a flat `roles` list so CI and reviewers
   can inspect each language/role status without parsing summary text.
 - `pnpm scaffold` reports planned SDK roots, expected package manifests, and
@@ -222,6 +223,8 @@ Use this checklist when splitting the staging branch into upstream PRs:
   mistaken for green runtime support.
 - `pnpm probes` reports which local probes are green gates and which are
   expected-red runtime boundaries before planned adapters are implemented.
+- `pnpm promotion` and `pnpm promotion:json` report the reviewable PR slices and
+  the local verification gates expected for each slice.
 - `pnpm run test:planned-adapters` checks planned adapter process contracts:
   Python/Go/Ruby client scaffold failures after selecting a Solana `exact`
   requirement from a real x402 `accepts` challenge, plus Python/Go/Ruby/Lua/PHP

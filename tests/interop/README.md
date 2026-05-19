@@ -111,6 +111,13 @@ pnpm promotion:json
 pnpm run test:probe:reports
 ```
 
+CI uploads the same machine-readable reports as artifacts:
+
+- `interop-capabilities`
+- `interop-scaffold`
+- `interop-probes`
+- `interop-promotion`
+
 To inspect planned SDK roots, expected package manifests, and current runtime
 adapter availability:
 
