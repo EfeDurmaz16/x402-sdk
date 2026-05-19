@@ -257,6 +257,7 @@ payment implementations yet. Use the probe scripts to reproduce the current
 red interop boundary while keeping default CI green:
 
 ```bash
+pnpm run test:probe:local
 pnpm run test:probe:staging
 pnpm run test:probe:planned-syntax
 pnpm run test:probe:usage-boundaries

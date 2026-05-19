@@ -168,6 +168,8 @@ Use this checklist when splitting the staging branch into upstream PRs:
 
 1. Keep default CI focused on `exact` Rust/TypeScript reference-spine coverage:
    `pnpm test:ci`.
+   Use `pnpm run test:probe:local` when a local branch needs the full default,
+   staging, and report verification set.
 2. For docs, metadata, fixture, scaffold, and planned-adapter PRs, run:
    `pnpm run test:probe:staging`.
 3. For capability or scaffold reporting changes, also run:

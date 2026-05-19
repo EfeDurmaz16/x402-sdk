@@ -191,6 +191,9 @@ describe("interop capability roadmap", () => {
     expect(packageJson.scripts["test:planned-adapters"]).toBe(
       "vitest run test/planned-adapters.test.ts",
     );
+    expect(packageJson.scripts["test:probe:local"]).toBe(
+      "pnpm test:ci && pnpm test:probe:staging && pnpm test:probe:reports",
+    );
     expect(packageJson.scripts["test:probe:staging"]).toBe(
       "pnpm test:probe:planned-syntax && pnpm test:probe:usage-boundaries && pnpm test:planned-adapters",
     );
