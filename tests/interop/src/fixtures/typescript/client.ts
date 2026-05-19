@@ -62,6 +62,25 @@ function makeCurrencySelector(preferred: string[], network: string) {
   };
 }
 
+function applyPaymentPayloadMutations(paymentPayload: unknown): void {
+  const acceptedNetwork = process.env.X402_INTEROP_MUTATE_ACCEPTED_NETWORK?.trim();
+  if (!acceptedNetwork) {
+    return;
+  }
+
+  const payload = paymentPayload as {
+    accepted?: {
+      network?: string;
+    };
+  };
+
+  if (!payload.accepted) {
+    throw new Error("Cannot mutate accepted.network because payment payload has no accepted field");
+  }
+
+  payload.accepted.network = acceptedNetwork;
+}
+
 async function main() {
   const targetUrl = process.env.X402_INTEROP_TARGET_URL;
   if (!targetUrl) {
@@ -90,6 +109,7 @@ async function main() {
   const firstResponse = await fetch(targetUrl);
   const paymentRequired = client.getPaymentRequiredResponse(name => firstResponse.headers.get(name));
   const paymentPayload = await client.createPaymentPayload(paymentRequired);
+  applyPaymentPayloadMutations(paymentPayload);
   const paymentHeaders = client.encodePaymentSignatureHeader(paymentPayload);
 
   const paidResponse = await fetch(targetUrl, {
