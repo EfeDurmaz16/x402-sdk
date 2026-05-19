@@ -61,6 +61,20 @@ export type SessionFixtureValidationResult =
         | "voucher-cumulative-amount-must-increase";
     };
 
+export type SessionLanguageRoleFixture = {
+  language: "python" | "go" | "ruby" | "lua" | "php";
+  clientRole: "planned" | "missing";
+  serverRole: "planned";
+};
+
+export const sessionLanguageRoleFixtures: SessionLanguageRoleFixture[] = [
+  { language: "python", clientRole: "planned", serverRole: "planned" },
+  { language: "go", clientRole: "planned", serverRole: "planned" },
+  { language: "ruby", clientRole: "planned", serverRole: "planned" },
+  { language: "lua", clientRole: "missing", serverRole: "planned" },
+  { language: "php", clientRole: "missing", serverRole: "planned" },
+];
+
 export function validateSessionIntentFixtures(
   fixtures: SessionIntentFixture[],
 ): SessionFixtureValidationResult {

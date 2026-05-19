@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   sessionIntentFixtures,
+  sessionLanguageRoleFixtures,
   validateSessionIntentFixtures,
 } from "../src/fixtures/session";
 
@@ -68,5 +69,15 @@ describe("session intent fixtures", () => {
       ok: false,
       reason: "voucher-cumulative-amount-must-increase",
     });
+  });
+
+  it("keeps PHP and Lua server-only while Python, Go, and Ruby plan both roles", () => {
+    expect(sessionLanguageRoleFixtures).toEqual([
+      { language: "python", clientRole: "planned", serverRole: "planned" },
+      { language: "go", clientRole: "planned", serverRole: "planned" },
+      { language: "ruby", clientRole: "planned", serverRole: "planned" },
+      { language: "lua", clientRole: "missing", serverRole: "planned" },
+      { language: "php", clientRole: "missing", serverRole: "planned" },
+    ]);
   });
 });
