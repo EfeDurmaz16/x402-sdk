@@ -6,6 +6,7 @@ export type ImplementationDefinition = {
   id: string;
   label: string;
   role: "client" | "server";
+  adapterStatus: "implemented" | "scaffold";
   command: string[];
   cwd?: string;
   env?: Record<string, string>;
@@ -85,6 +86,7 @@ export const clientImplementations: ImplementationDefinition[] = [
     id: "typescript",
     label: "TypeScript HTTP client",
     role: "client",
+    adapterStatus: "implemented",
     command: ["pnpm", "exec", "node", "--import", "tsx", "src/fixtures/typescript/client.ts"],
     enabled: isEnabled("typescript", "X402_INTEROP_CLIENTS", true),
     runtimeSchemes: ["exact"],
@@ -94,6 +96,7 @@ export const clientImplementations: ImplementationDefinition[] = [
     id: "rust",
     label: "Rust HTTP client",
     role: "client",
+    adapterStatus: "implemented",
     command: [
       "cargo",
       "run",
@@ -111,6 +114,7 @@ export const clientImplementations: ImplementationDefinition[] = [
     id: "python",
     label: "Python HTTP client",
     role: "client",
+    adapterStatus: "scaffold",
     command: ["python3", "-m", "x402_sdk.interop.client"],
     cwd: "../../python",
     env: { PYTHONPATH: "src" },
@@ -123,6 +127,7 @@ export const clientImplementations: ImplementationDefinition[] = [
     id: "go",
     label: "Go HTTP client",
     role: "client",
+    adapterStatus: "scaffold",
     command: ["go", "run", "./cmd/interop-client"],
     cwd: "../../go",
     requiredManifest: "../../go/go.mod",
@@ -134,6 +139,7 @@ export const clientImplementations: ImplementationDefinition[] = [
     id: "ruby",
     label: "Ruby HTTP client",
     role: "client",
+    adapterStatus: "scaffold",
     command: ["ruby", "bin/interop-client"],
     cwd: "../../ruby",
     requiredManifest: "../../ruby/Gemfile",
@@ -148,6 +154,7 @@ export const serverImplementations: ImplementationDefinition[] = [
     id: "typescript",
     label: "TypeScript HTTP server",
     role: "server",
+    adapterStatus: "implemented",
     command: ["pnpm", "exec", "node", "--import", "tsx", "src/fixtures/typescript/server.ts"],
     enabled: isEnabled("typescript", "X402_INTEROP_SERVERS", true),
     runtimeSchemes: ["exact"],
@@ -157,6 +164,7 @@ export const serverImplementations: ImplementationDefinition[] = [
     id: "rust",
     label: "Rust HTTP server",
     role: "server",
+    adapterStatus: "implemented",
     command: [
       "cargo",
       "run",
@@ -174,6 +182,7 @@ export const serverImplementations: ImplementationDefinition[] = [
     id: "python",
     label: "Python HTTP server",
     role: "server",
+    adapterStatus: "scaffold",
     command: ["python3", "-m", "x402_sdk.interop.server"],
     cwd: "../../python",
     env: { PYTHONPATH: "src" },
@@ -186,6 +195,7 @@ export const serverImplementations: ImplementationDefinition[] = [
     id: "go",
     label: "Go HTTP server",
     role: "server",
+    adapterStatus: "scaffold",
     command: ["go", "run", "./cmd/interop-server"],
     cwd: "../../go",
     requiredManifest: "../../go/go.mod",
@@ -197,6 +207,7 @@ export const serverImplementations: ImplementationDefinition[] = [
     id: "ruby",
     label: "Ruby HTTP server",
     role: "server",
+    adapterStatus: "scaffold",
     command: ["ruby", "bin/interop-server"],
     cwd: "../../ruby",
     requiredManifest: "../../ruby/Gemfile",
@@ -208,6 +219,7 @@ export const serverImplementations: ImplementationDefinition[] = [
     id: "lua",
     label: "Lua HTTP server",
     role: "server",
+    adapterStatus: "scaffold",
     command: ["lua", "bin/interop-server.lua"],
     cwd: "../../lua",
     requiredManifest: "../../lua/x402-sdk-svm.rockspec",
@@ -219,6 +231,7 @@ export const serverImplementations: ImplementationDefinition[] = [
     id: "php",
     label: "PHP HTTP server",
     role: "server",
+    adapterStatus: "scaffold",
     command: ["php", "bin/interop-server.php"],
     cwd: "../../php",
     requiredManifest: "../../php/composer.json",

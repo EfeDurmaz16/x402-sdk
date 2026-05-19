@@ -112,6 +112,8 @@ describe("SDK scaffold diagnostics", () => {
         manifestExists: true,
         runtimeClientAdapter: true,
         runtimeServerAdapter: true,
+        implementedClientAdapter: true,
+        implementedServerAdapter: true,
       }),
     );
     expect(getSdkScaffoldStatus()).toContainEqual(
@@ -122,6 +124,8 @@ describe("SDK scaffold diagnostics", () => {
         serverOnly: true,
         runtimeClientAdapter: false,
         runtimeServerAdapter: true,
+        implementedClientAdapter: false,
+        implementedServerAdapter: false,
       }),
     );
     expect(getSdkScaffoldStatus()).toContainEqual(
@@ -132,6 +136,8 @@ describe("SDK scaffold diagnostics", () => {
         serverOnly: true,
         runtimeClientAdapter: false,
         runtimeServerAdapter: true,
+        implementedClientAdapter: false,
+        implementedServerAdapter: false,
       }),
     );
   });
@@ -145,6 +151,7 @@ describe("SDK scaffold diagnostics", () => {
     );
     expect(formatSdkScaffoldReport()).toContain("expected-client:none");
     expect(formatSdkScaffoldReport()).toContain("expected-server:php bin/interop-server.php");
+    expect(formatSdkScaffoldReport()).toContain("implemented-client:false");
   });
 
   it("exposes scaffold diagnostics as package scripts", () => {
@@ -192,6 +199,22 @@ describe("SDK scaffold diagnostics", () => {
       rust: { client: "implemented", server: "implemented" },
       typescript: { client: "implemented", server: "implemented" },
     });
+  });
+
+  it("keeps scaffold adapters separate from implemented adapters", () => {
+    const implemented = getSdkScaffoldStatus()
+      .filter(status => status.implementedClientAdapter || status.implementedServerAdapter)
+      .map(status => ({
+        language: status.language,
+        client: status.implementedClientAdapter,
+        server: status.implementedServerAdapter,
+      }))
+      .sort((left, right) => left.language.localeCompare(right.language));
+
+    expect(implemented).toEqual([
+      { language: "rust", client: true, server: true },
+      { language: "typescript", client: true, server: true },
+    ]);
   });
 
   it("keeps server-only scaffold policy aligned with usage-based capability gaps", () => {

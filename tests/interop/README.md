@@ -122,6 +122,9 @@ pnpm scaffold:json
 The scaffold report also records the expected future adapter commands. Lua and
 PHP intentionally omit client commands because they are server-side only in the
 current roadmap.
+It also separates registered adapter commands from implemented exact adapters,
+so planned Python, Go, Ruby, Lua, and PHP scaffolds remain visible without being
+reported as production-ready runtime support.
 
 Domain-specific scenarios can stay selectable through Vitest filters. For
 example, the current smoke script selects the exact-payment tests by matching

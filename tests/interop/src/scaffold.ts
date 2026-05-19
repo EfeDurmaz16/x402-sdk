@@ -26,6 +26,8 @@ export type SdkScaffoldStatus = SdkScaffoldDefinition & {
   manifestExists: boolean;
   runtimeClientAdapter: boolean;
   runtimeServerAdapter: boolean;
+  implementedClientAdapter: boolean;
+  implementedServerAdapter: boolean;
 };
 
 export const sdkScaffoldDefinitions: SdkScaffoldDefinition[] = [
@@ -134,6 +136,20 @@ export function getSdkScaffoldStatus(
     const runtimeServerAdapter =
       manifestExists &&
       serverImplementations.some(implementation => implementation.id === definition.language);
+    const implementedClientAdapter =
+      manifestExists &&
+      clientImplementations.some(
+        implementation =>
+          implementation.id === definition.language &&
+          implementation.adapterStatus === "implemented",
+      );
+    const implementedServerAdapter =
+      manifestExists &&
+      serverImplementations.some(
+        implementation =>
+          implementation.id === definition.language &&
+          implementation.adapterStatus === "implemented",
+      );
 
     return {
       ...definition,
@@ -141,6 +157,8 @@ export function getSdkScaffoldStatus(
       manifestExists,
       runtimeClientAdapter,
       runtimeServerAdapter,
+      implementedClientAdapter,
+      implementedServerAdapter,
     };
   });
 }
@@ -155,6 +173,8 @@ export function formatSdkScaffoldReport(statuses = getSdkScaffoldStatus()): stri
         `server-only:${status.serverOnly}`,
         `runtime-client:${status.runtimeClientAdapter}`,
         `runtime-server:${status.runtimeServerAdapter}`,
+        `implemented-client:${status.implementedClientAdapter}`,
+        `implemented-server:${status.implementedServerAdapter}`,
         `expected-client:${status.expectedClientCommand?.join(" ") ?? "none"}`,
         `expected-server:${status.expectedServerCommand.join(" ")}`,
       ].join(" ");

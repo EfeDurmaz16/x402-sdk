@@ -217,6 +217,9 @@ Use this checklist when splitting the staging branch into upstream PRs:
   can inspect each language/role status without parsing summary text.
 - `pnpm scaffold` reports planned SDK roots, expected package manifests, and
   current runtime adapter availability for monorepo readiness checks.
+- Scaffold diagnostics distinguish registered adapter commands from actually
+  implemented exact adapters, so Python/Go/Ruby/Lua/PHP scaffolds cannot be
+  mistaken for green runtime support.
 - `pnpm probes` reports which local probes are green gates and which are
   expected-red runtime boundaries before planned adapters are implemented.
 - `pnpm run test:planned-adapters` checks planned adapter process contracts:

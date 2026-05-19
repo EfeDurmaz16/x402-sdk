@@ -18,6 +18,7 @@ describe("interop implementation metadata", () => {
       implementations.map(implementation => ({
         id: implementation.id,
         role: implementation.role,
+        adapterStatus: implementation.adapterStatus,
         runtimeSchemes: implementation.runtimeSchemes,
         runtimeIntents: implementation.runtimeIntents,
       })),
@@ -25,24 +26,28 @@ describe("interop implementation metadata", () => {
       {
         id: "typescript",
         role: "client",
+        adapterStatus: "implemented",
         runtimeSchemes: ["exact"],
         runtimeIntents: [],
       },
       {
         id: "rust",
         role: "client",
+        adapterStatus: "implemented",
         runtimeSchemes: ["exact"],
         runtimeIntents: [],
       },
       {
         id: "typescript",
         role: "server",
+        adapterStatus: "implemented",
         runtimeSchemes: ["exact"],
         runtimeIntents: [],
       },
       {
         id: "rust",
         role: "server",
+        adapterStatus: "implemented",
         runtimeSchemes: ["exact"],
         runtimeIntents: [],
       },
@@ -89,6 +94,7 @@ describe("interop implementation metadata", () => {
     expect(
       clientImplementations.map(implementation => ({
         id: implementation.id,
+        adapterStatus: implementation.adapterStatus,
         enabled: implementation.enabled,
         command: implementation.command,
         cwd: implementation.cwd,
@@ -98,6 +104,7 @@ describe("interop implementation metadata", () => {
     ).toEqual([
       {
         id: "typescript",
+        adapterStatus: "implemented",
         enabled: true,
         command: ["pnpm", "exec", "node", "--import", "tsx", "src/fixtures/typescript/client.ts"],
         cwd: undefined,
@@ -106,6 +113,7 @@ describe("interop implementation metadata", () => {
       },
       {
         id: "rust",
+        adapterStatus: "implemented",
         enabled: true,
         command: [
           "cargo",
@@ -122,6 +130,7 @@ describe("interop implementation metadata", () => {
       },
       {
         id: "python",
+        adapterStatus: "scaffold",
         enabled: false,
         command: ["python3", "-m", "x402_sdk.interop.client"],
         cwd: "../../python",
@@ -130,6 +139,7 @@ describe("interop implementation metadata", () => {
       },
       {
         id: "go",
+        adapterStatus: "scaffold",
         enabled: false,
         command: ["go", "run", "./cmd/interop-client"],
         cwd: "../../go",
@@ -138,6 +148,7 @@ describe("interop implementation metadata", () => {
       },
       {
         id: "ruby",
+        adapterStatus: "scaffold",
         enabled: false,
         command: ["ruby", "bin/interop-client"],
         cwd: "../../ruby",
@@ -149,6 +160,7 @@ describe("interop implementation metadata", () => {
     expect(
       serverImplementations.map(implementation => ({
         id: implementation.id,
+        adapterStatus: implementation.adapterStatus,
         enabled: implementation.enabled,
         command: implementation.command,
         cwd: implementation.cwd,
@@ -158,6 +170,7 @@ describe("interop implementation metadata", () => {
     ).toEqual([
       {
         id: "typescript",
+        adapterStatus: "implemented",
         enabled: true,
         command: ["pnpm", "exec", "node", "--import", "tsx", "src/fixtures/typescript/server.ts"],
         cwd: undefined,
@@ -166,6 +179,7 @@ describe("interop implementation metadata", () => {
       },
       {
         id: "rust",
+        adapterStatus: "implemented",
         enabled: true,
         command: [
           "cargo",
@@ -182,6 +196,7 @@ describe("interop implementation metadata", () => {
       },
       {
         id: "python",
+        adapterStatus: "scaffold",
         enabled: false,
         command: ["python3", "-m", "x402_sdk.interop.server"],
         cwd: "../../python",
@@ -190,6 +205,7 @@ describe("interop implementation metadata", () => {
       },
       {
         id: "go",
+        adapterStatus: "scaffold",
         enabled: false,
         command: ["go", "run", "./cmd/interop-server"],
         cwd: "../../go",
@@ -198,6 +214,7 @@ describe("interop implementation metadata", () => {
       },
       {
         id: "ruby",
+        adapterStatus: "scaffold",
         enabled: false,
         command: ["ruby", "bin/interop-server"],
         cwd: "../../ruby",
@@ -206,6 +223,7 @@ describe("interop implementation metadata", () => {
       },
       {
         id: "lua",
+        adapterStatus: "scaffold",
         enabled: false,
         command: ["lua", "bin/interop-server.lua"],
         cwd: "../../lua",
@@ -214,6 +232,7 @@ describe("interop implementation metadata", () => {
       },
       {
         id: "php",
+        adapterStatus: "scaffold",
         enabled: false,
         command: ["php", "bin/interop-server.php"],
         cwd: "../../php",
@@ -254,6 +273,7 @@ describe("interop implementation metadata", () => {
             id: "lua",
             label: "Lua HTTP server",
             role: "server" as const,
+            adapterStatus: "scaffold" as const,
             command: ["lua", "bin/interop-server.lua"],
             cwd: "../../lua",
             requiredManifest: "../../lua/x402-sdk-svm.rockspec",
