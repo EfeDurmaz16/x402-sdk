@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { uptoScenarioFixtures } from "../src/fixtures/upto";
+import { uptoScenarioFixtures, uptoSolanaDesignGate } from "../src/fixtures/upto";
 
 describe("upto scenario fixtures", () => {
   it("defines the planned positive and negative cases before implementation", () => {
@@ -47,5 +47,19 @@ describe("upto scenario fixtures", () => {
         fixture => fixture.settlementSemantics === "maximum-authorization",
       ),
     ).toBe(true);
+  });
+
+  it("keeps Solana upto runtime behind explicit protocol decisions", () => {
+    expect(uptoSolanaDesignGate).toEqual({
+      runtimeEligible: false,
+      requiredDecisions: [
+        "authorization-primitive",
+        "single-use-replay-model",
+        "actual-settlement-authority",
+        "zero-settlement-behavior",
+        "recipient-ata-policy",
+        "over-maximum-enforcement",
+      ],
+    });
   });
 });

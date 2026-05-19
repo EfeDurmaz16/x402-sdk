@@ -16,6 +16,30 @@ export type UptoScenarioFixture = {
     | "wrong-scheme";
 };
 
+export type UptoSolanaDesignGate = {
+  runtimeEligible: false;
+  requiredDecisions: Array<
+    | "authorization-primitive"
+    | "single-use-replay-model"
+    | "actual-settlement-authority"
+    | "zero-settlement-behavior"
+    | "recipient-ata-policy"
+    | "over-maximum-enforcement"
+  >;
+};
+
+export const uptoSolanaDesignGate: UptoSolanaDesignGate = {
+  runtimeEligible: false,
+  requiredDecisions: [
+    "authorization-primitive",
+    "single-use-replay-model",
+    "actual-settlement-authority",
+    "zero-settlement-behavior",
+    "recipient-ata-policy",
+    "over-maximum-enforcement",
+  ],
+};
+
 export const uptoScenarioFixtures: UptoScenarioFixture[] = [
   {
     id: "settles-actual-below-maximum",

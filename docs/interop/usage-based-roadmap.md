@@ -64,6 +64,10 @@ The first `upto` test contract should cover:
 No adapter should be marked default-CI eligible for `upto` until it passes the
 shared scenario contract locally and in CI.
 
+Solana `upto` runtime support also needs explicit decisions for the
+authorization primitive, single-use replay model, actual settlement authority,
+zero-settlement behavior, recipient ATA policy, and over-maximum enforcement.
+
 ## Session compatibility boundary
 
 MPP-style `session` is a metered lifecycle, not the same thing as x402 `upto`:
