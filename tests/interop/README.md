@@ -257,6 +257,8 @@ red interop boundary while keeping default CI green:
 
 ```bash
 pnpm run test:probe:planned-syntax
+pnpm run test:probe:upto-boundary
+pnpm run test:probe:session-boundary
 pnpm run test:probe:python-syntax
 pnpm run test:probe:python-client
 pnpm run test:probe:python-server
@@ -276,5 +278,9 @@ pnpm run test:probe:lua-server
 scaffold/toolchain boundary on machines without Lua. Syntax/build probes run
 before runtime probes when a language has a local scaffold but is not a green
 payment implementation yet.
+
+`test:probe:upto-boundary` and `test:probe:session-boundary` are expected to
+fail until those runtime scenarios are enabled; they exercise the fail-fast
+capability diagnostics rather than payment settlement.
 
 The suite performs a local socket-bind preflight. If the current environment forbids opening loopback ports, the e2e test is skipped instead of failing. In CI, where loopback sockets are available, the matrix runs normally.
