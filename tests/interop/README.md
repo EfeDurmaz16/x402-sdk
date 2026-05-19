@@ -261,12 +261,14 @@ pnpm run test:probe:go-client
 pnpm run test:probe:go-server
 pnpm run test:probe:ruby-client
 pnpm run test:probe:ruby-server
+pnpm run test:probe:php-syntax
 pnpm run test:probe:php-server
 pnpm run test:probe:lua-server
 ```
 
 `test:probe:lua-server` currently fails at the scaffold/toolchain boundary on
-machines without Lua. PHP syntax is checked separately with `php -l`; the
-runtime interop command remains `php bin/interop-server.php`.
+machines without Lua. `test:probe:php-syntax` runs `php -l` against the
+server-only PHP adapter before the runtime interop command starts
+`php bin/interop-server.php`.
 
 The suite performs a local socket-bind preflight. If the current environment forbids opening loopback ports, the e2e test is skipped instead of failing. In CI, where loopback sockets are available, the matrix runs normally.

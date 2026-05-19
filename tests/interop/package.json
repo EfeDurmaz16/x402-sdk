@@ -22,6 +22,7 @@
     "test:probe:go-server": "X402_INTEROP_CLIENTS=typescript X402_INTEROP_SERVERS=go pnpm test:smoke",
     "test:probe:ruby-client": "X402_INTEROP_CLIENTS=ruby X402_INTEROP_SERVERS=rust pnpm test:smoke",
     "test:probe:ruby-server": "X402_INTEROP_CLIENTS=typescript X402_INTEROP_SERVERS=ruby pnpm test:smoke",
+    "test:probe:php-syntax": "php -l ../../php/bin/interop-server.php",
     "test:probe:php-server": "X402_INTEROP_CLIENTS=typescript X402_INTEROP_SERVERS=php pnpm test:smoke",
     "test:probe:lua-server": "X402_INTEROP_CLIENTS=typescript X402_INTEROP_SERVERS=lua pnpm test:smoke",
     "test:smoke": "vitest run test/e2e.test.ts --testNamePattern \"client pays\"",

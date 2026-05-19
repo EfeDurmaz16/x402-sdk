@@ -197,6 +197,9 @@ describe("interop capability roadmap", () => {
     expect(packageJson.scripts["test:probe:ruby-client"]).toBe(
       "X402_INTEROP_CLIENTS=ruby X402_INTEROP_SERVERS=rust pnpm test:smoke",
     );
+    expect(packageJson.scripts["test:probe:php-syntax"]).toBe(
+      "php -l ../../php/bin/interop-server.php",
+    );
     expect(packageJson.scripts["test:probe:php-server"]).toBe(
       "X402_INTEROP_CLIENTS=typescript X402_INTEROP_SERVERS=php pnpm test:smoke",
     );
