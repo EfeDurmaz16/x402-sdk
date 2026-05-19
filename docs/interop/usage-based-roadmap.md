@@ -204,8 +204,9 @@ Use this checklist when splitting the staging branch into upstream PRs:
 - `pnpm probes` reports which local probes are green gates and which are
   expected-red runtime boundaries before planned adapters are implemented.
 - `pnpm run test:planned-adapters` checks planned adapter process contracts:
-  Python/Go/Ruby client scaffold failures and Python/Go/Ruby/Lua/PHP server
-  readiness, health, and explicit not-implemented responses.
+  Python/Go/Ruby client scaffold failures after selecting a Solana `exact`
+  requirement from a real x402 `accepts` challenge, plus Python/Go/Ruby/Lua/PHP
+  server readiness, health, and explicit not-implemented responses.
 - `pnpm run test:probe:planned-syntax` checks Python and Ruby syntax plus
   parser units, plus Go and PHP scaffold syntax/build health in one local
   command.

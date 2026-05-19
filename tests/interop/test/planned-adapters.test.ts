@@ -11,6 +11,24 @@ const challengeServers: http.Server[] = [];
 
 const plannedClientIds = ["python", "go", "ruby"] as const;
 const plannedServerIds = ["python", "go", "ruby", "lua", "php"] as const;
+const plannedClientRequirement = {
+  scheme: "exact",
+  network: "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1",
+  asset: "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU",
+  amount: "1000",
+};
+const plannedChallengeBody = JSON.stringify({
+  x402Version: 2,
+  accepts: [
+    {
+      scheme: "exact",
+      network: "eip155:8453",
+      asset: "0x0000000000000000000000000000000000000000",
+      amount: "1000",
+    },
+    plannedClientRequirement,
+  ],
+});
 
 function hasCommand(command: string): boolean {
   const result = spawnSync("sh", ["-c", `command -v ${command}`], { stdio: "ignore" });
@@ -25,12 +43,11 @@ async function getJson(url: string): Promise<{ status: number; body: unknown }> 
 
 async function startChallengeServer(): Promise<{ server: http.Server; url: string }> {
   const server = http.createServer((_request, response) => {
-    const body = JSON.stringify({ error: "payment_required" });
     response.writeHead(402, {
       "content-type": "application/json",
-      "content-length": Buffer.byteLength(body),
+      "content-length": Buffer.byteLength(plannedChallengeBody),
     });
-    response.end(body);
+    response.end(plannedChallengeBody);
   });
 
   await new Promise<void>((resolve, reject) => {
@@ -91,7 +108,8 @@ describe("planned client adapter process contract", () => {
         responseBody: {
           error: `${id}_exact_client_not_implemented`,
           challengeStatus: 402,
-          challengeBody: JSON.stringify({ error: "payment_required" }),
+          challengeBody: plannedChallengeBody,
+          selectedRequirement: plannedClientRequirement,
         },
         settlement: null,
       });
