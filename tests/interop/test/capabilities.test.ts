@@ -194,6 +194,9 @@ describe("interop capability roadmap", () => {
     expect(packageJson.scripts["test:probe:staging"]).toBe(
       "pnpm test:probe:planned-syntax && pnpm test:probe:usage-boundaries && pnpm test:planned-adapters",
     );
+    expect(packageJson.scripts["test:probe:reports"]).toBe(
+      "pnpm capabilities && pnpm capabilities:json && pnpm scaffold && pnpm scaffold:json",
+    );
     expect(packageJson.scripts["test:probe:planned-syntax"]).toBe(
       "pnpm test:probe:python-syntax && pnpm test:probe:go-build && pnpm test:probe:ruby-syntax && pnpm test:probe:php-syntax",
     );

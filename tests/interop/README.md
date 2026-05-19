@@ -104,6 +104,7 @@ To inspect planned, experimental, server-only, and missing capability gaps:
 ```bash
 pnpm capabilities
 pnpm capabilities:json
+pnpm run test:probe:reports
 ```
 
 To inspect planned SDK roots, expected package manifests, and current runtime

@@ -171,7 +171,7 @@ Use this checklist when splitting the staging branch into upstream PRs:
 2. For docs, metadata, fixture, scaffold, and planned-adapter PRs, run:
    `pnpm run test:probe:staging`.
 3. For capability or scaffold reporting changes, also run:
-   `pnpm capabilities` and `pnpm scaffold`.
+   `pnpm run test:probe:reports`.
 4. For language scaffold PRs, run the language-specific syntax/build probe and
    the matching planned adapter process probe.
 5. For `upto` or `session` boundary PRs, run:
