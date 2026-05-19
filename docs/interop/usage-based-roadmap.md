@@ -113,6 +113,9 @@ enough and durable server-state requirements are tested.
 
 The session fixture contract locks Python, Go, and Ruby as planned client/server
 roles while Lua and PHP remain planned server-only roles.
+It also records the required operational safety checks before runtime support:
+durable accounting before service delivery, cumulative voucher monotonicity,
+top-up without channel reset, and cooperative plus forced close exit paths.
 
 ## PHP and Lua policy
 

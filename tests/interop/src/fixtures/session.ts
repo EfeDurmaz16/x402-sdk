@@ -61,6 +61,20 @@ export type SessionFixtureValidationResult =
         | "voucher-cumulative-amount-must-increase";
     };
 
+export type SessionSafetyRequirement = {
+  id:
+    | "durable-write-before-delivery"
+    | "cumulative-voucher-monotonicity"
+    | "top-up-without-channel-reset"
+    | "cooperative-and-forced-close";
+  required: true;
+  failureMode:
+    | "unpaid-service-after-crash"
+    | "voucher-replay-or-regression"
+    | "unnecessary-channel-close"
+    | "locked-funds-without-exit";
+};
+
 export type SessionLanguageRoleFixture = {
   language: "python" | "go" | "ruby" | "lua" | "php";
   clientRole: "planned" | "missing";
@@ -73,6 +87,29 @@ export const sessionLanguageRoleFixtures: SessionLanguageRoleFixture[] = [
   { language: "ruby", clientRole: "planned", serverRole: "planned" },
   { language: "lua", clientRole: "missing", serverRole: "planned" },
   { language: "php", clientRole: "missing", serverRole: "planned" },
+];
+
+export const sessionSafetyRequirements: SessionSafetyRequirement[] = [
+  {
+    id: "durable-write-before-delivery",
+    required: true,
+    failureMode: "unpaid-service-after-crash",
+  },
+  {
+    id: "cumulative-voucher-monotonicity",
+    required: true,
+    failureMode: "voucher-replay-or-regression",
+  },
+  {
+    id: "top-up-without-channel-reset",
+    required: true,
+    failureMode: "unnecessary-channel-close",
+  },
+  {
+    id: "cooperative-and-forced-close",
+    required: true,
+    failureMode: "locked-funds-without-exit",
+  },
 ];
 
 export function validateSessionIntentFixtures(

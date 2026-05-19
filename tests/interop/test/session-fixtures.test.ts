@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   sessionIntentFixtures,
   sessionLanguageRoleFixtures,
+  sessionSafetyRequirements,
   validateSessionIntentFixtures,
 } from "../src/fixtures/session";
 import { interopCapabilities } from "../src/capabilities";
@@ -70,6 +71,40 @@ describe("session intent fixtures", () => {
       ok: false,
       reason: "voucher-cumulative-amount-must-increase",
     });
+  });
+
+  it("locks operational safety requirements before runtime implementation", () => {
+    expect(sessionSafetyRequirements).toEqual([
+      {
+        id: "durable-write-before-delivery",
+        required: true,
+        failureMode: "unpaid-service-after-crash",
+      },
+      {
+        id: "cumulative-voucher-monotonicity",
+        required: true,
+        failureMode: "voucher-replay-or-regression",
+      },
+      {
+        id: "top-up-without-channel-reset",
+        required: true,
+        failureMode: "unnecessary-channel-close",
+      },
+      {
+        id: "cooperative-and-forced-close",
+        required: true,
+        failureMode: "locked-funds-without-exit",
+      },
+    ]);
+  });
+
+  it("requires durable accounting and a client exit path for session planning", () => {
+    expect(sessionSafetyRequirements.map(requirement => requirement.id)).toContain(
+      "durable-write-before-delivery",
+    );
+    expect(sessionSafetyRequirements.map(requirement => requirement.id)).toContain(
+      "cooperative-and-forced-close",
+    );
   });
 
   it("keeps PHP and Lua server-only while Python, Go, and Ruby plan both roles", () => {
