@@ -134,9 +134,9 @@ The `ready` message shape is:
 }
 ```
 
-The harness rejects a server adapter when `capabilities` does not include the
-active scenario scheme. This keeps future `upto` or `batch-settlement` adapters
-from accidentally running against an `exact` scenario.
+Adapters should report the active scenario scheme in `capabilities` so the
+harness can enforce scheme matching as new `upto` or `batch-settlement`
+scenarios are added.
 
 Client adapters must:
 
