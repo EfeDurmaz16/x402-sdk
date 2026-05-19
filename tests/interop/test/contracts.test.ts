@@ -19,4 +19,18 @@ describe("interop scenario selection", () => {
       }),
     ).toThrowError(/experimental: upto server typescript/);
   });
+
+  it("rejects compatibility intents until runtime scenarios exist", () => {
+    expect(() =>
+      resolveInteropScenario({
+        X402_INTEROP_INTENT: "session",
+      }),
+    ).toThrowError(/X402_INTEROP_INTENT=session is not enabled for runtime interop yet/);
+
+    expect(() =>
+      resolveInteropScenario({
+        X402_INTEROP_INTENT: "subscription",
+      }),
+    ).toThrowError(/planned: subscription client\/server go,python,ruby/);
+  });
 });

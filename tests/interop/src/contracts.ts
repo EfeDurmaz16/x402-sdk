@@ -46,6 +46,17 @@ export const interopScenario: InteropScenario = {
 export function resolveInteropScenario(
   env: Record<string, string | undefined> = process.env,
 ): InteropScenario {
+  const requestedIntent = env.X402_INTEROP_INTENT?.trim();
+  if (requestedIntent) {
+    throw new Error(
+      [
+        `X402_INTEROP_INTENT=${requestedIntent} is not enabled for runtime interop yet.`,
+        "Capability summary:",
+        ...formatCapabilitySummary(),
+      ].join("\n"),
+    );
+  }
+
   const requestedScheme = env.X402_INTEROP_SCHEME?.trim() || "exact";
   if (requestedScheme === "exact") {
     return interopScenario;
