@@ -41,6 +41,14 @@ describe("interop process harness", () => {
     );
   });
 
+  it("includes server stderr when readiness fails before output", async () => {
+    const command = [process.execPath, "-e", "console.error('server boot failed'); process.exit(2);"];
+
+    await expect(startServer(implementation(command, "server"))).rejects.toThrow(
+      "server adapter expected exited before server readiness (code 2)\nAdapter stderr:\nserver boot failed",
+    );
+  });
+
   it("rejects a client adapter that reports a different implementation id", async () => {
     const command = [
       process.execPath,
@@ -68,6 +76,30 @@ describe("interop process harness", () => {
 
     await expect(runClient(implementation(command, "client"), "http://127.0.0.1")).rejects.toThrow(
       "client adapter expected wrote invalid JSON while waiting for client result: not json",
+    );
+  });
+
+  it("includes client stderr when the adapter exits after writing a result", async () => {
+    const command = [
+      process.execPath,
+      "-e",
+      [
+        "console.log(JSON.stringify({",
+        "type: 'result',",
+        "implementation: 'expected',",
+        "role: 'client',",
+        "ok: true,",
+        "status: 200,",
+        "responseHeaders: {},",
+        "responseBody: {}",
+        "}));",
+        "console.error('client post-result failed');",
+        "process.exit(3);",
+      ].join(""),
+    ];
+
+    await expect(runClient(implementation(command, "client"), "http://127.0.0.1")).rejects.toThrow(
+      "Client adapter exited with code 3\nAdapter stderr:\nclient post-result failed",
     );
   });
 });
