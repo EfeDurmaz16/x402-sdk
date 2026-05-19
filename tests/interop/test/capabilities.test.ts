@@ -218,8 +218,14 @@ describe("interop capability roadmap", () => {
     expect(packageJson.scripts["test:probe:python-client"]).toBe(
       "X402_INTEROP_CLIENTS=python X402_INTEROP_SERVERS=rust pnpm test:smoke",
     );
+    expect(packageJson.scripts["test:probe:python-server"]).toBe(
+      "X402_INTEROP_CLIENTS=typescript X402_INTEROP_SERVERS=python pnpm test:smoke",
+    );
     expect(packageJson.scripts["test:probe:go-build"]).toBe(
       "cd ../../go && go test ./...",
+    );
+    expect(packageJson.scripts["test:probe:go-client"]).toBe(
+      "X402_INTEROP_CLIENTS=go X402_INTEROP_SERVERS=rust pnpm test:smoke",
     );
     expect(packageJson.scripts["test:probe:go-server"]).toBe(
       "X402_INTEROP_CLIENTS=typescript X402_INTEROP_SERVERS=go pnpm test:smoke",
@@ -229,6 +235,9 @@ describe("interop capability roadmap", () => {
     );
     expect(packageJson.scripts["test:probe:ruby-client"]).toBe(
       "X402_INTEROP_CLIENTS=ruby X402_INTEROP_SERVERS=rust pnpm test:smoke",
+    );
+    expect(packageJson.scripts["test:probe:ruby-server"]).toBe(
+      "X402_INTEROP_CLIENTS=typescript X402_INTEROP_SERVERS=ruby pnpm test:smoke",
     );
     expect(packageJson.scripts["test:probe:php-syntax"]).toBe(
       "php -l ../../php/bin/interop-server.php",

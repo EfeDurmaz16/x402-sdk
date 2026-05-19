@@ -252,27 +252,33 @@ X402_INTEROP_CLIENTS=python pnpm test:smoke
 X402_INTEROP_SERVERS=php pnpm test:smoke
 ```
 
-The current Python, Go, Ruby, and PHP scaffolds are intentionally not green
-payment implementations yet. Use the probe scripts to reproduce the current
-red interop boundary while keeping default CI green:
+The current Python, Go, Ruby, Lua, and PHP scaffolds are intentionally not
+green payment implementations yet. Use these green aggregate probes to verify
+the planned scaffold surface while keeping default CI green:
 
 ```bash
 pnpm run test:probe:local
 pnpm run test:probe:staging
 pnpm run test:probe:planned-syntax
 pnpm run test:probe:usage-boundaries
+pnpm run test:probe:python-syntax
+pnpm run test:probe:go-build
+pnpm run test:probe:ruby-syntax
+pnpm run test:probe:php-syntax
+```
+
+Use these runtime smoke probes to reproduce the expected-red boundary before a
+planned adapter is implemented:
+
+```bash
 pnpm run test:probe:upto-boundary
 pnpm run test:probe:session-boundary
-pnpm run test:probe:python-syntax
 pnpm run test:probe:python-client
 pnpm run test:probe:python-server
-pnpm run test:probe:go-build
 pnpm run test:probe:go-client
 pnpm run test:probe:go-server
-pnpm run test:probe:ruby-syntax
 pnpm run test:probe:ruby-client
 pnpm run test:probe:ruby-server
-pnpm run test:probe:php-syntax
 pnpm run test:probe:php-server
 pnpm run test:probe:lua-syntax
 pnpm run test:probe:lua-server
