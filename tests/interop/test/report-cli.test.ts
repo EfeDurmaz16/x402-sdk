@@ -50,7 +50,7 @@ describe("interop report CLIs", () => {
         }),
         expect.objectContaining({
           script: "test:probe:reports",
-          command: "pnpm capabilities && pnpm capabilities:json && pnpm scaffold && pnpm scaffold:json && pnpm probes && pnpm probes:json",
+          command: "pnpm capabilities && pnpm capabilities:json && pnpm scaffold && pnpm scaffold:json && pnpm probes && pnpm probes:json && pnpm promotion && pnpm promotion:json",
         }),
         expect.objectContaining({
           script: "test:probe:php-syntax",
@@ -89,6 +89,22 @@ describe("interop report CLIs", () => {
         expect.objectContaining({
           script: "test:probe:upto-boundary",
           reason: "Solana upto runtime remains disabled until maximum-authorization settlement is designed.",
+        }),
+      ]),
+    });
+  });
+
+  it("prints clean machine-readable promotion JSON", () => {
+    expect(runJsonReport("src/print-promotion.ts")).toMatchObject({
+      version: 1,
+      slices: expect.arrayContaining([
+        expect.objectContaining({
+          id: "1",
+          status: "staged",
+        }),
+        expect.objectContaining({
+          id: "15-19",
+          status: "planned",
         }),
       ]),
     });

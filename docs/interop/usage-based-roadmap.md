@@ -170,6 +170,7 @@ PRs.
 | 28 | Lua server-only static scaffold probe without local Lua toolchain. | staged |
 | 29 | Session lifecycle required-field fixtures. | staged |
 | 30 | One-scheme and one-intent fixture probe scripts. | staged |
+| 31 | Machine-readable promotion plan for splitting staging into PRs. | staged |
 
 ## Promotion checklist
 
@@ -183,6 +184,9 @@ Use this checklist when splitting the staging branch into upstream PRs:
    `pnpm run test:probe:staging`.
 3. For capability or scaffold reporting changes, also run:
    `pnpm run test:probe:reports`.
+   This also emits `pnpm promotion` and `pnpm promotion:json`, which map the
+   staging branch back to reviewable promotion slices and local verification
+   gates.
 4. For language scaffold PRs, run the language-specific syntax/build probe and
    the matching planned adapter process probe.
 5. For `upto` or `session` boundary PRs, run:

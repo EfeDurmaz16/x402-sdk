@@ -172,8 +172,10 @@ describe("interop capability roadmap", () => {
     );
     expect(packageJson.scripts.probes).toBe("tsx src/print-probes.ts");
     expect(packageJson.scripts["probes:json"]).toBe("tsx src/print-probes.ts --json");
+    expect(packageJson.scripts.promotion).toBe("tsx src/print-promotion.ts");
+    expect(packageJson.scripts["promotion:json"]).toBe("tsx src/print-promotion.ts --json");
     expect(packageJson.scripts["test:experimental"]).toBe(
-      "vitest run test/capabilities.test.ts test/contracts.test.ts test/report-cli.test.ts test/scaffold.test.ts test/lua-scaffold.test.ts test/upto-fixtures.test.ts test/batch-settlement-fixtures.test.ts test/session-fixtures.test.ts test/subscription-fixtures.test.ts test/planned-adapters.test.ts",
+      "vitest run test/capabilities.test.ts test/contracts.test.ts test/report-cli.test.ts test/scaffold.test.ts test/lua-scaffold.test.ts test/promotion.test.ts test/upto-fixtures.test.ts test/batch-settlement-fixtures.test.ts test/session-fixtures.test.ts test/subscription-fixtures.test.ts test/planned-adapters.test.ts",
     );
     expect(packageJson.scripts["test:ci"]).toBe(
       "pnpm typecheck && X402_INTEROP_PROFILE=reference-spine X402_INTEROP_REFERENCE=rust pnpm test:smoke && X402_INTEROP_PROFILE=reference-spine X402_INTEROP_REFERENCE=rust pnpm test:boundaries",
@@ -200,7 +202,7 @@ describe("interop capability roadmap", () => {
       "pnpm test:probe:planned-syntax && pnpm test:probe:lua-static && pnpm test:probe:usage-boundaries && pnpm test:planned-adapters",
     );
     expect(packageJson.scripts["test:probe:reports"]).toBe(
-      "pnpm capabilities && pnpm capabilities:json && pnpm scaffold && pnpm scaffold:json && pnpm probes && pnpm probes:json",
+      "pnpm capabilities && pnpm capabilities:json && pnpm scaffold && pnpm scaffold:json && pnpm probes && pnpm probes:json && pnpm promotion && pnpm promotion:json",
     );
     expect(packageJson.scripts["test:probe:planned-syntax"]).toBe(
       "pnpm test:probe:python-syntax && pnpm test:probe:python-unit && pnpm test:probe:go-build && pnpm test:probe:ruby-syntax && pnpm test:probe:ruby-unit && pnpm test:probe:php-syntax && pnpm test:probe:php-unit",

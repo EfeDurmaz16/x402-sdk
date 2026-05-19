@@ -58,9 +58,9 @@ export const interopProbes: ProbeDefinition[] = [
   },
   {
     script: "test:probe:reports",
-    command: "pnpm capabilities && pnpm capabilities:json && pnpm scaffold && pnpm scaffold:json && pnpm probes && pnpm probes:json",
+    command: "pnpm capabilities && pnpm capabilities:json && pnpm scaffold && pnpm scaffold:json && pnpm probes && pnpm probes:json && pnpm promotion && pnpm promotion:json",
     status: "green",
-    reason: "Capability, scaffold, and probe-plan output stays readable and machine-readable.",
+    reason: "Capability, scaffold, probe-plan, and promotion-plan output stays readable and machine-readable.",
   },
   {
     script: "test:probe:python-syntax",

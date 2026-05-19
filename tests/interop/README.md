@@ -106,6 +106,8 @@ pnpm capabilities
 pnpm capabilities:json
 pnpm probes
 pnpm probes:json
+pnpm promotion
+pnpm promotion:json
 pnpm run test:probe:reports
 ```
 
