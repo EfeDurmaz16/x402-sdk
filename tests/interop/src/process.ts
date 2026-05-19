@@ -12,11 +12,15 @@ type RunningServer = {
 const ADAPTER_OUTPUT_TIMEOUT_MS = 120_000;
 
 async function waitForJsonMessage<T extends AdapterMessage>(
+  implementation: ImplementationDefinition,
   child: ChildProcess,
   timeoutMs: number,
+  expectedOutput: string,
 ): Promise<T> {
+  const adapterName = `${implementation.role} adapter ${implementation.id}`;
+
   if (!child.stdout) {
-    throw new Error("Spawned process does not expose stdout");
+    throw new Error(`${adapterName} does not expose stdout`);
   }
 
   const readline = createInterface({ input: child.stdout });
@@ -33,17 +37,23 @@ async function waitForJsonMessage<T extends AdapterMessage>(
             resolve(JSON.parse(line) as T);
           } catch (error) {
             reject(
-              new Error(`Failed to parse adapter output as JSON: ${line}\n${String(error)}`),
+              new Error(
+                `${adapterName} wrote invalid JSON while waiting for ${expectedOutput}: ${line}\n${String(
+                  error,
+                )}`,
+              ),
             );
           }
         });
 
         child.once("exit", code => {
-          reject(new Error(`Adapter exited before signaling readiness/result (code ${code ?? -1})`));
+          reject(new Error(`${adapterName} exited before ${expectedOutput} (code ${code ?? -1})`));
         });
       }),
       delay(timeoutMs).then(() => {
-        throw new Error(`Timed out waiting for adapter output after ${timeoutMs}ms`);
+        throw new Error(
+          `Timed out waiting for ${expectedOutput} from ${adapterName} after ${timeoutMs}ms`,
+        );
       }),
     ]);
   } finally {
@@ -71,7 +81,12 @@ export async function startServer(
   extraEnv: Record<string, string> = {},
 ): Promise<RunningServer> {
   const child = spawnAdapter(implementation, extraEnv);
-  const ready = await waitForJsonMessage<ReadyMessage>(child, ADAPTER_OUTPUT_TIMEOUT_MS);
+  const ready = await waitForJsonMessage<ReadyMessage>(
+    implementation,
+    child,
+    ADAPTER_OUTPUT_TIMEOUT_MS,
+    "server readiness",
+  );
 
   if (ready.type !== "ready" || ready.role !== "server" || !ready.port) {
     child.kill("SIGTERM");
@@ -91,7 +106,12 @@ export async function runClient(
     ...extraEnv,
   });
 
-  const result = await waitForJsonMessage<ClientRunResult>(child, ADAPTER_OUTPUT_TIMEOUT_MS);
+  const result = await waitForJsonMessage<ClientRunResult>(
+    implementation,
+    child,
+    ADAPTER_OUTPUT_TIMEOUT_MS,
+    "client result",
+  );
   await new Promise<void>((resolve, reject) => {
     child.once("exit", code => {
       if (code === 0) {
