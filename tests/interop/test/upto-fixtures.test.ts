@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { uptoScenarioFixtures, uptoSolanaDesignGate } from "../src/fixtures/upto";
+import {
+  uptoLanguageRoleFixtures,
+  uptoScenarioFixtures,
+  uptoSolanaDesignGate,
+} from "../src/fixtures/upto";
 
 describe("upto scenario fixtures", () => {
   it("defines the planned positive and negative cases before implementation", () => {
@@ -61,5 +65,17 @@ describe("upto scenario fixtures", () => {
         "over-maximum-enforcement",
       ],
     });
+  });
+
+  it("keeps PHP and Lua server-only for upto while other planned SDKs track both roles", () => {
+    expect(uptoLanguageRoleFixtures).toEqual([
+      { language: "rust", clientRole: "planned", serverRole: "planned" },
+      { language: "typescript", clientRole: "planned", serverRole: "experimental" },
+      { language: "python", clientRole: "planned", serverRole: "planned" },
+      { language: "go", clientRole: "planned", serverRole: "planned" },
+      { language: "ruby", clientRole: "planned", serverRole: "planned" },
+      { language: "lua", clientRole: "missing", serverRole: "planned" },
+      { language: "php", clientRole: "missing", serverRole: "planned" },
+    ]);
   });
 });
