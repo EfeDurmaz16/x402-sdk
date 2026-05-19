@@ -15,6 +15,7 @@ TypeScript and Rust adapters. The stable matrix covers:
 - TypeScript client to Rust server
 - Rust client to Rust server
 - USDC and PYUSD selection/fallback cases
+- negative boundary cases for network mismatch and missing recipient ATA
 
 This baseline must remain green while usage-based support is added.
 

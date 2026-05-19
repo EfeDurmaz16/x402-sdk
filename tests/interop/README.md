@@ -61,6 +61,11 @@ The first boundary suite mutates the client payment envelope's
 `accepted.network` after a valid payment is built. Servers must reject that
 payment and must not emit a settlement header.
 
+It also exercises the current recipient ATA precondition. Exact SVM clients
+derive the recipient associated token account but do not create it in the
+payment transaction, so servers must not report settlement success when the
+recipient ATA is missing.
+
 Experimental usage-based contracts can be checked without running runtime
 interop:
 

@@ -100,5 +100,32 @@ describe("x402 interop boundaries", () => {
       },
       20_000,
     );
+
+    socketAwareIt(
+      `${serverImplementation.id} server does not settle ${clientImplementation.id} client payment when recipient ATA is missing`,
+      async () => {
+        if (!surfnet || !interopEnv) {
+          throw new Error("Surfpool interop environment was not initialized");
+        }
+
+        const payToWithoutAta = Surfnet.newKeypair();
+        const server = await startServer(serverImplementation, {
+          ...interopEnv,
+          X402_INTEROP_PAY_TO: payToWithoutAta.publicKey,
+        });
+        runningServers.push(server);
+
+        const targetUrl = `http://127.0.0.1:${server.ready.port}${interopScenario.resourcePath}`;
+        const result = await runClient(clientImplementation, targetUrl, {
+          ...interopEnv,
+          X402_INTEROP_PAY_TO: payToWithoutAta.publicKey,
+        });
+
+        expect(result.ok, JSON.stringify(result, null, 2)).toBe(false);
+        expect(result.status).toBeGreaterThanOrEqual(400);
+        expect(result.settlement).toBeNull();
+      },
+      20_000,
+    );
   }
 });
