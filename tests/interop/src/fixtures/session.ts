@@ -45,3 +45,50 @@ export const sessionIntentFixtures: SessionIntentFixture[] = [
     cumulativeAmount: "600",
   },
 ];
+
+export type SessionFixtureValidationResult =
+  | {
+      ok: true;
+      defaultCi: false;
+      supportedRuntime: false;
+      actions: SessionIntentFixture["action"][];
+    }
+  | {
+      ok: false;
+      reason:
+        | "missing-session-challenge"
+        | "session-must-remain-compatibility-intent"
+        | "voucher-cumulative-amount-must-increase";
+    };
+
+export function validateSessionIntentFixtures(
+  fixtures: SessionIntentFixture[],
+): SessionFixtureValidationResult {
+  const challenge = fixtures.find(fixture => fixture.action === "challenge");
+  if (!challenge) {
+    return { ok: false, reason: "missing-session-challenge" };
+  }
+
+  if (fixtures.some(fixture => fixture.nativeX402Scheme !== false)) {
+    return { ok: false, reason: "session-must-remain-compatibility-intent" };
+  }
+
+  for (const fixture of fixtures) {
+    if (fixture.action !== "voucher") {
+      continue;
+    }
+
+    const previous = BigInt(fixture.previousCumulativeAmount ?? "0");
+    const current = BigInt(fixture.cumulativeAmount ?? "0");
+    if (current <= previous) {
+      return { ok: false, reason: "voucher-cumulative-amount-must-increase" };
+    }
+  }
+
+  return {
+    ok: true,
+    defaultCi: false,
+    supportedRuntime: false,
+    actions: fixtures.map(fixture => fixture.action),
+  };
+}

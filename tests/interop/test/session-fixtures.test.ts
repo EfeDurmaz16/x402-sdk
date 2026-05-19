@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { sessionIntentFixtures } from "../src/fixtures/session";
+import {
+  sessionIntentFixtures,
+  validateSessionIntentFixtures,
+} from "../src/fixtures/session";
 
 describe("session intent fixtures", () => {
   it("defines the planned session lifecycle shapes before implementation", () => {
@@ -30,6 +33,40 @@ describe("session intent fixtures", () => {
       intent: "session",
       cumulativeAmount: "600",
       previousCumulativeAmount: "400",
+    });
+  });
+
+  it("validates the experimental session contract without enabling runtime support", () => {
+    expect(validateSessionIntentFixtures(sessionIntentFixtures)).toMatchObject({
+      ok: true,
+      defaultCi: false,
+      supportedRuntime: false,
+      actions: ["challenge", "open", "voucher", "topUp", "close"],
+    });
+  });
+
+  it("rejects non-cumulative voucher fixtures", () => {
+    expect(
+      validateSessionIntentFixtures([
+        {
+          action: "challenge",
+          intent: "session",
+          nativeX402Scheme: false,
+          expectedOutcome: "unsupported",
+          unsupportedReason: "session-intent-not-native-x402-scheme",
+        },
+        {
+          action: "voucher",
+          intent: "session",
+          nativeX402Scheme: false,
+          expectedOutcome: "accepted-shape",
+          previousCumulativeAmount: "600",
+          cumulativeAmount: "400",
+        },
+      ]),
+    ).toMatchObject({
+      ok: false,
+      reason: "voucher-cumulative-amount-must-increase",
     });
   });
 });
