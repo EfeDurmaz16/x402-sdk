@@ -5,18 +5,21 @@ client or facilitator support for `upto`.
 
 ## Current Reference State
 
-As of 2026-05-19, the public x402 docs describe:
+As of 2026-05-20, the public x402 docs describe:
 
 - `exact` as the fixed-price scheme that works across EVM, SVM, Stellar, and
   Aptos.
 - `upto` as maximum authorization with actual usage settlement, currently
   available on EVM networks only through Permit2 in TypeScript, Go, and Python.
-- `batch-settlement` as an EVM-focused channel or escrow model where the buyer
-  deposits once, signs off-chain vouchers, and sellers redeem in batches.
+- `batch-settlement` as a channel or escrow model where the buyer deposits
+  once, signs cumulative off-chain vouchers, and sellers redeem in batches.
+  The x402 announcement describes TypeScript and Go support as available, with
+  Python support in development.
 
 Relevant public references:
 
 - https://docs.x402.org/getting-started/quickstart-for-sellers
+- https://www.x402.org/writing/x402-batch-settlement
 - https://docs.x402.org/faq
 - https://docs.x402.org/core-concepts/http-402
 - https://docs.x402.org/core-concepts/network-and-token-support
