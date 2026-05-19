@@ -7,6 +7,10 @@
     "capabilities": "tsx src/print-capabilities.ts",
     "test": "vitest run",
     "test:boundaries": "vitest run test/boundary.test.ts test/exact-fixtures.test.ts",
+    "test:language:rust": "X402_INTEROP_CLIENTS=rust X402_INTEROP_SERVERS=rust vitest run test/e2e.test.ts",
+    "test:language:typescript": "X402_INTEROP_CLIENTS=typescript X402_INTEROP_SERVERS=typescript vitest run test/e2e.test.ts",
+    "test:pair:rust-ts": "X402_INTEROP_CLIENTS=rust X402_INTEROP_SERVERS=typescript vitest run test/e2e.test.ts",
+    "test:pair:ts-rust": "X402_INTEROP_CLIENTS=typescript X402_INTEROP_SERVERS=rust vitest run test/e2e.test.ts",
     "test:smoke": "vitest run test/e2e.test.ts --testNamePattern \"client pays\"",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit"

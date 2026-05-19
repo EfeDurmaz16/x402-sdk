@@ -95,5 +95,17 @@ describe("interop capability roadmap", () => {
     expect(packageJson.scripts.capabilities).toBe(
       "tsx src/print-capabilities.ts",
     );
+    expect(packageJson.scripts["test:pair:ts-rust"]).toBe(
+      "X402_INTEROP_CLIENTS=typescript X402_INTEROP_SERVERS=rust vitest run test/e2e.test.ts",
+    );
+    expect(packageJson.scripts["test:pair:rust-ts"]).toBe(
+      "X402_INTEROP_CLIENTS=rust X402_INTEROP_SERVERS=typescript vitest run test/e2e.test.ts",
+    );
+    expect(packageJson.scripts["test:language:typescript"]).toBe(
+      "X402_INTEROP_CLIENTS=typescript X402_INTEROP_SERVERS=typescript vitest run test/e2e.test.ts",
+    );
+    expect(packageJson.scripts["test:language:rust"]).toBe(
+      "X402_INTEROP_CLIENTS=rust X402_INTEROP_SERVERS=rust vitest run test/e2e.test.ts",
+    );
   });
 });

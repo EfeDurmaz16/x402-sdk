@@ -61,6 +61,26 @@ The first boundary suite mutates the client payment envelope's
 `accepted.network` after a valid payment is built. Servers must reject that
 payment and must not emit a settlement header.
 
+For one-pair debugging:
+
+```bash
+pnpm run test:pair:ts-rust
+pnpm run test:pair:rust-ts
+```
+
+For one-language debugging:
+
+```bash
+pnpm run test:language:typescript
+pnpm run test:language:rust
+```
+
+To inspect planned, experimental, server-only, and missing capability gaps:
+
+```bash
+pnpm capabilities
+```
+
 Domain-specific scenarios can stay selectable through Vitest filters. For
 example, the current smoke script selects the exact-payment tests by matching
 `client pays`, while the multi-currency vectors remain available in the full
