@@ -208,7 +208,7 @@ describe("interop capability roadmap", () => {
       "pnpm capabilities && pnpm capabilities:json && pnpm scaffold && pnpm scaffold:json && pnpm probes && pnpm probes:json && pnpm promotion && pnpm promotion:json",
     );
     expect(packageJson.scripts["test:probe:planned-syntax"]).toBe(
-      "pnpm test:probe:python-syntax && pnpm test:probe:python-unit && pnpm test:probe:go-build && pnpm test:probe:ruby-syntax && pnpm test:probe:ruby-unit && pnpm test:probe:php-syntax && pnpm test:probe:php-unit",
+      "pnpm test:probe:python-syntax && pnpm test:probe:python-unit && pnpm test:probe:go-build && pnpm test:probe:ruby-syntax && pnpm test:probe:ruby-unit && pnpm test:probe:php-syntax && pnpm test:probe:php-unit && pnpm test:probe:php-composer",
     );
     expect(packageJson.scripts["test:probe:usage-boundaries"]).toBe(
       "pnpm test:probe:upto-fixtures && pnpm test:probe:batch-settlement-fixtures && pnpm test:probe:session-fixtures && pnpm test:probe:subscription-fixtures && vitest run test/contracts.test.ts",
@@ -272,6 +272,9 @@ describe("interop capability roadmap", () => {
     );
     expect(packageJson.scripts["test:probe:php-unit"]).toBe(
       "php ../../php/tests/interop_server_test.php",
+    );
+    expect(packageJson.scripts["test:probe:php-composer"]).toBe(
+      "cd ../../php && composer validate --strict && composer test",
     );
     expect(packageJson.scripts["test:probe:php-server"]).toBe(
       "X402_INTEROP_CLIENTS=typescript X402_INTEROP_SERVERS=php pnpm test:smoke",

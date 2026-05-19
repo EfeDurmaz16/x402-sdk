@@ -22,9 +22,9 @@ export const interopProbes: ProbeDefinition[] = [
   },
   {
     script: "test:probe:planned-syntax",
-    command: "pnpm test:probe:python-syntax && pnpm test:probe:python-unit && pnpm test:probe:go-build && pnpm test:probe:ruby-syntax && pnpm test:probe:ruby-unit && pnpm test:probe:php-syntax && pnpm test:probe:php-unit",
+    command: "pnpm test:probe:python-syntax && pnpm test:probe:python-unit && pnpm test:probe:go-build && pnpm test:probe:ruby-syntax && pnpm test:probe:ruby-unit && pnpm test:probe:php-syntax && pnpm test:probe:php-unit && pnpm test:probe:php-composer",
     status: "green",
-    reason: "Python, Go, Ruby, and PHP scaffold syntax/build plus Python/Ruby parser and PHP server unit health.",
+    reason: "Python, Go, Ruby, and PHP scaffold syntax/build plus Python/Ruby parser and PHP package health.",
   },
   {
     script: "test:probe:usage-boundaries",
@@ -109,6 +109,12 @@ export const interopProbes: ProbeDefinition[] = [
     command: "php ../../php/tests/interop_server_test.php",
     status: "green",
     reason: "PHP server-only scaffold readiness and HTTP response contract.",
+  },
+  {
+    script: "test:probe:php-composer",
+    command: "cd ../../php && composer validate --strict && composer test",
+    status: "green",
+    reason: "PHP Composer metadata validation and package-level server-only test script.",
   },
   {
     script: "test:probe:lua-static",

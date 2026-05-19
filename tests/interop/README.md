@@ -275,6 +275,7 @@ pnpm run test:probe:ruby-syntax
 pnpm run test:probe:ruby-unit
 pnpm run test:probe:php-syntax
 pnpm run test:probe:php-unit
+pnpm run test:probe:php-composer
 pnpm run test:probe:lua-static
 pnpm run test:probe:upto-fixtures
 pnpm run test:probe:batch-settlement-fixtures

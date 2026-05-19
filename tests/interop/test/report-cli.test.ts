@@ -79,6 +79,10 @@ describe("interop report CLIs", () => {
           command: "php ../../php/tests/interop_server_test.php",
         }),
         expect.objectContaining({
+          script: "test:probe:php-composer",
+          command: "cd ../../php && composer validate --strict && composer test",
+        }),
+        expect.objectContaining({
           script: "test:probe:upto-fixtures",
           command: "vitest run test/upto-fixtures.test.ts",
         }),
