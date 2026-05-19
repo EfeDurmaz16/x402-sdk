@@ -17,6 +17,8 @@ export type SdkScaffoldDefinition = {
   manifest: string;
   serverOnly: boolean;
   planned: boolean;
+  plannedClientBoundaries?: string[];
+  plannedServerBoundaries: string[];
   expectedClientCommand?: string[];
   expectedServerCommand: string[];
 };
@@ -37,6 +39,8 @@ export const sdkScaffoldDefinitions: SdkScaffoldDefinition[] = [
     manifest: "Cargo.toml",
     serverOnly: false,
     planned: true,
+    plannedClientBoundaries: ["exact"],
+    plannedServerBoundaries: ["exact", "upto"],
     expectedClientCommand: [
       "cargo",
       "run",
@@ -62,6 +66,8 @@ export const sdkScaffoldDefinitions: SdkScaffoldDefinition[] = [
     manifest: "package.json",
     serverOnly: false,
     planned: true,
+    plannedClientBoundaries: ["exact"],
+    plannedServerBoundaries: ["exact", "upto"],
     expectedClientCommand: [
       "pnpm",
       "exec",
@@ -85,6 +91,8 @@ export const sdkScaffoldDefinitions: SdkScaffoldDefinition[] = [
     manifest: "pyproject.toml",
     serverOnly: false,
     planned: true,
+    plannedClientBoundaries: ["exact", "upto", "session"],
+    plannedServerBoundaries: ["exact", "upto", "session"],
     expectedClientCommand: ["python3", "-m", "x402_sdk.interop.client"],
     expectedServerCommand: ["python3", "-m", "x402_sdk.interop.server"],
   },
@@ -94,6 +102,8 @@ export const sdkScaffoldDefinitions: SdkScaffoldDefinition[] = [
     manifest: "go.mod",
     serverOnly: false,
     planned: true,
+    plannedClientBoundaries: ["exact", "upto", "session"],
+    plannedServerBoundaries: ["exact", "upto", "session"],
     expectedClientCommand: ["go", "run", "./cmd/interop-client"],
     expectedServerCommand: ["go", "run", "./cmd/interop-server"],
   },
@@ -103,6 +113,8 @@ export const sdkScaffoldDefinitions: SdkScaffoldDefinition[] = [
     manifest: "Gemfile",
     serverOnly: false,
     planned: true,
+    plannedClientBoundaries: ["exact", "upto", "session"],
+    plannedServerBoundaries: ["exact", "upto", "session"],
     expectedClientCommand: ["ruby", "bin/interop-client"],
     expectedServerCommand: ["ruby", "bin/interop-server"],
   },
@@ -112,6 +124,7 @@ export const sdkScaffoldDefinitions: SdkScaffoldDefinition[] = [
     manifest: "x402-sdk-svm.rockspec",
     serverOnly: true,
     planned: true,
+    plannedServerBoundaries: ["exact", "upto", "session"],
     expectedServerCommand: ["lua", "bin/interop-server.lua"],
   },
   {
@@ -120,6 +133,7 @@ export const sdkScaffoldDefinitions: SdkScaffoldDefinition[] = [
     manifest: "composer.json",
     serverOnly: true,
     planned: true,
+    plannedServerBoundaries: ["exact", "upto", "session"],
     expectedServerCommand: ["php", "bin/interop-server.php"],
   },
 ];
@@ -175,6 +189,8 @@ export function formatSdkScaffoldReport(statuses = getSdkScaffoldStatus()): stri
         `runtime-server:${status.runtimeServerAdapter}`,
         `implemented-client:${status.implementedClientAdapter}`,
         `implemented-server:${status.implementedServerAdapter}`,
+        `planned-client-boundaries:${status.plannedClientBoundaries?.join(",") ?? "none"}`,
+        `planned-server-boundaries:${status.plannedServerBoundaries.join(",")}`,
         `expected-client:${status.expectedClientCommand?.join(" ") ?? "none"}`,
         `expected-server:${status.expectedServerCommand.join(" ")}`,
       ].join(" ");

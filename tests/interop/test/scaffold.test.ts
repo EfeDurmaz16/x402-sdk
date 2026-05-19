@@ -16,6 +16,8 @@ describe("SDK scaffold diagnostics", () => {
         manifest: "Cargo.toml",
         serverOnly: false,
         planned: true,
+        plannedClientBoundaries: ["exact"],
+        plannedServerBoundaries: ["exact", "upto"],
         expectedClientCommand: [
           "cargo",
           "run",
@@ -41,6 +43,8 @@ describe("SDK scaffold diagnostics", () => {
         manifest: "package.json",
         serverOnly: false,
         planned: true,
+        plannedClientBoundaries: ["exact"],
+        plannedServerBoundaries: ["exact", "upto"],
         expectedClientCommand: [
           "pnpm",
           "exec",
@@ -64,6 +68,8 @@ describe("SDK scaffold diagnostics", () => {
         manifest: "pyproject.toml",
         serverOnly: false,
         planned: true,
+        plannedClientBoundaries: ["exact", "upto", "session"],
+        plannedServerBoundaries: ["exact", "upto", "session"],
         expectedClientCommand: ["python3", "-m", "x402_sdk.interop.client"],
         expectedServerCommand: ["python3", "-m", "x402_sdk.interop.server"],
       },
@@ -73,6 +79,8 @@ describe("SDK scaffold diagnostics", () => {
         manifest: "go.mod",
         serverOnly: false,
         planned: true,
+        plannedClientBoundaries: ["exact", "upto", "session"],
+        plannedServerBoundaries: ["exact", "upto", "session"],
         expectedClientCommand: ["go", "run", "./cmd/interop-client"],
         expectedServerCommand: ["go", "run", "./cmd/interop-server"],
       },
@@ -82,6 +90,8 @@ describe("SDK scaffold diagnostics", () => {
         manifest: "Gemfile",
         serverOnly: false,
         planned: true,
+        plannedClientBoundaries: ["exact", "upto", "session"],
+        plannedServerBoundaries: ["exact", "upto", "session"],
         expectedClientCommand: ["ruby", "bin/interop-client"],
         expectedServerCommand: ["ruby", "bin/interop-server"],
       },
@@ -91,6 +101,7 @@ describe("SDK scaffold diagnostics", () => {
         manifest: "x402-sdk-svm.rockspec",
         serverOnly: true,
         planned: true,
+        plannedServerBoundaries: ["exact", "upto", "session"],
         expectedServerCommand: ["lua", "bin/interop-server.lua"],
       },
       {
@@ -99,6 +110,7 @@ describe("SDK scaffold diagnostics", () => {
         manifest: "composer.json",
         serverOnly: true,
         planned: true,
+        plannedServerBoundaries: ["exact", "upto", "session"],
         expectedServerCommand: ["php", "bin/interop-server.php"],
       },
     ]);
@@ -152,6 +164,8 @@ describe("SDK scaffold diagnostics", () => {
     expect(formatSdkScaffoldReport()).toContain("expected-client:none");
     expect(formatSdkScaffoldReport()).toContain("expected-server:php bin/interop-server.php");
     expect(formatSdkScaffoldReport()).toContain("implemented-client:false");
+    expect(formatSdkScaffoldReport()).toContain("planned-client-boundaries:exact,upto,session");
+    expect(formatSdkScaffoldReport()).toContain("planned-server-boundaries:exact,upto,session");
   });
 
   it("exposes scaffold diagnostics as package scripts", () => {

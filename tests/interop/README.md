@@ -136,6 +136,9 @@ current roadmap.
 It also separates registered adapter commands from implemented exact adapters,
 so planned Python, Go, Ruby, Lua, and PHP scaffolds remain visible without being
 reported as production-ready runtime support.
+The report also lists planned client/server boundaries, for example
+`exact,upto,session`, so reviewers can distinguish tested scaffold boundaries
+from implemented payment settlement.
 
 Domain-specific scenarios can stay selectable through Vitest filters. For
 example, the current smoke script selects the exact-payment tests by matching
