@@ -116,6 +116,7 @@ Server adapters must:
 - bind an HTTP server on `127.0.0.1`
 - emit exactly one `ready` message after the server is listening
 - keep running until the harness sends `SIGTERM` or `SIGINT`
+- include the active scenario scheme in `capabilities`
 - protect `GET /protected` with x402 and return `{ "ok": true, "paid": true }`
   after settlement succeeds
 - include a non-empty settlement value in the `x-fixture-settlement` response
@@ -132,6 +133,10 @@ The `ready` message shape is:
   "capabilities": ["exact"]
 }
 ```
+
+The harness rejects a server adapter when `capabilities` does not include the
+active scenario scheme. This keeps future `upto` or `batch-settlement` adapters
+from accidentally running against an `exact` scenario.
 
 Client adapters must:
 
