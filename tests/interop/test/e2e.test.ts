@@ -4,6 +4,7 @@ import { createSolanaRpc } from "@solana/kit";
 import { Surfnet } from "surfpool-sdk";
 import { interopScenario } from "../src/contracts";
 import { clientImplementations, serverImplementations } from "../src/implementations";
+import { selectInteropPairs } from "../src/matrix";
 import { runClient, startServer, stopServer } from "../src/process";
 
 type RunningServer = Awaited<ReturnType<typeof startServer>>;
@@ -86,44 +87,43 @@ afterEach(async () => {
 describe("x402 interop", () => {
   const activeServers = serverImplementations.filter(implementation => implementation.enabled);
   const activeClients = clientImplementations.filter(implementation => implementation.enabled);
+  const activePairs = selectInteropPairs(activeClients, activeServers);
   const socketAwareIt = socketSupport ? it : it.skip;
 
-  for (const serverImplementation of activeServers) {
-    for (const clientImplementation of activeClients) {
-      socketAwareIt(`${clientImplementation.id} client pays ${serverImplementation.id} server`, async () => {
-        if (!surfnet || !interopEnv) {
-          throw new Error("Surfpool interop environment was not initialized");
-        }
+  for (const { client: clientImplementation, server: serverImplementation } of activePairs) {
+    socketAwareIt(`${clientImplementation.id} client pays ${serverImplementation.id} server`, async () => {
+      if (!surfnet || !interopEnv) {
+        throw new Error("Surfpool interop environment was not initialized");
+      }
 
-        const initialBalance = await getTokenBalance(
-          surfnet,
-          interopEnv.X402_INTEROP_PAY_TO,
-          interopEnv.X402_INTEROP_MINT,
-        );
+      const initialBalance = await getTokenBalance(
+        surfnet,
+        interopEnv.X402_INTEROP_PAY_TO,
+        interopEnv.X402_INTEROP_MINT,
+      );
 
-        const server = await startServer(serverImplementation, interopEnv);
-        runningServers.push(server);
+      const server = await startServer(serverImplementation, interopEnv);
+      runningServers.push(server);
 
-        const targetUrl = `http://127.0.0.1:${server.ready.port}${interopScenario.resourcePath}`;
-        const result = await runClient(clientImplementation, targetUrl, interopEnv);
+      const targetUrl = `http://127.0.0.1:${server.ready.port}${interopScenario.resourcePath}`;
+      const result = await runClient(clientImplementation, targetUrl, interopEnv);
 
-        const finalBalance = await getTokenBalance(
-          surfnet,
-          interopEnv.X402_INTEROP_PAY_TO,
-          interopEnv.X402_INTEROP_MINT,
-        );
+      const finalBalance = await getTokenBalance(
+        surfnet,
+        interopEnv.X402_INTEROP_PAY_TO,
+        interopEnv.X402_INTEROP_MINT,
+      );
 
-        expect(result.ok, JSON.stringify(result, null, 2)).toBe(true);
-        expect(result.status).toBe(200);
-        expect(result.responseBody).toMatchObject({
-          ok: true,
-          paid: true,
-        });
-        expect(typeof result.settlement).toBe("string");
-        expect(result.settlement).not.toHaveLength(0);
-        expect(finalBalance - initialBalance).toBe(1_000n);
+      expect(result.ok, JSON.stringify(result, null, 2)).toBe(true);
+      expect(result.status).toBe(200);
+      expect(result.responseBody).toMatchObject({
+        ok: true,
+        paid: true,
       });
-    }
+      expect(typeof result.settlement).toBe("string");
+      expect(result.settlement).not.toHaveLength(0);
+      expect(finalBalance - initialBalance).toBe(1_000n);
+    });
   }
 });
 
@@ -143,6 +143,7 @@ describe("x402 interop multi-currency", () => {
   const socketAwareIt = socketSupport ? it : it.skip;
   const activeServers = serverImplementations.filter(implementation => implementation.enabled);
   const activeClients = clientImplementations.filter(implementation => implementation.enabled);
+  const activePairs = selectInteropPairs(activeClients, activeServers);
 
   async function setupPyusdMint(): Promise<string> {
     if (!surfnet || !interopEnv) {
@@ -171,87 +172,85 @@ describe("x402 interop multi-currency", () => {
     return clientAddress;
   }
 
-  for (const serverImplementation of activeServers) {
-    for (const clientImplementation of activeClients) {
-      socketAwareIt(
-        `${clientImplementation.id} client picks PYUSD from ${serverImplementation.id} server offering USDC + PYUSD`,
-        async () => {
-          if (!surfnet || !interopEnv) {
-            throw new Error("Surfpool interop environment was not initialized");
-          }
-          await setupPyusdMint();
+  for (const { client: clientImplementation, server: serverImplementation } of activePairs) {
+    socketAwareIt(
+      `${clientImplementation.id} client picks PYUSD from ${serverImplementation.id} server offering USDC + PYUSD`,
+      async () => {
+        if (!surfnet || !interopEnv) {
+          throw new Error("Surfpool interop environment was not initialized");
+        }
+        await setupPyusdMint();
 
-          const initialPyusdBalance = await getTokenBalance(
-            surfnet,
-            interopEnv.X402_INTEROP_PAY_TO,
-            PYUSD_DEVNET_MINT,
-            TOKEN_2022_PROGRAM,
-          );
+        const initialPyusdBalance = await getTokenBalance(
+          surfnet,
+          interopEnv.X402_INTEROP_PAY_TO,
+          PYUSD_DEVNET_MINT,
+          TOKEN_2022_PROGRAM,
+        );
 
-          const multiEnv = {
-            ...interopEnv,
-            X402_INTEROP_EXTRA_OFFERED_MINTS: PYUSD_DEVNET_MINT,
-          };
-          const server = await startServer(serverImplementation, multiEnv);
-          runningServers.push(server);
+        const multiEnv = {
+          ...interopEnv,
+          X402_INTEROP_EXTRA_OFFERED_MINTS: PYUSD_DEVNET_MINT,
+        };
+        const server = await startServer(serverImplementation, multiEnv);
+        runningServers.push(server);
 
-          const targetUrl = `http://127.0.0.1:${server.ready.port}${interopScenario.resourcePath}`;
-          const result = await runClient(clientImplementation, targetUrl, {
-            ...multiEnv,
-            X402_INTEROP_PREFER_CURRENCIES: "PYUSD,USDC",
-          });
+        const targetUrl = `http://127.0.0.1:${server.ready.port}${interopScenario.resourcePath}`;
+        const result = await runClient(clientImplementation, targetUrl, {
+          ...multiEnv,
+          X402_INTEROP_PREFER_CURRENCIES: "PYUSD,USDC",
+        });
 
-          const finalPyusdBalance = await getTokenBalance(
-            surfnet,
-            interopEnv.X402_INTEROP_PAY_TO,
-            PYUSD_DEVNET_MINT,
-            TOKEN_2022_PROGRAM,
-          );
+        const finalPyusdBalance = await getTokenBalance(
+          surfnet,
+          interopEnv.X402_INTEROP_PAY_TO,
+          PYUSD_DEVNET_MINT,
+          TOKEN_2022_PROGRAM,
+        );
 
-          expect(result.ok, JSON.stringify(result, null, 2)).toBe(true);
-          expect(result.status).toBe(200);
-          expect(finalPyusdBalance - initialPyusdBalance).toBe(1_000n);
-        },
-        20_000,
-      );
+        expect(result.ok, JSON.stringify(result, null, 2)).toBe(true);
+        expect(result.status).toBe(200);
+        expect(finalPyusdBalance - initialPyusdBalance).toBe(1_000n);
+      },
+      20_000,
+    );
 
-      socketAwareIt(
-        `${clientImplementation.id} client falls back to USDC when PYUSD is not in its preference list (${serverImplementation.id} server)`,
-        async () => {
-          if (!surfnet || !interopEnv) {
-            throw new Error("Surfpool interop environment was not initialized");
-          }
+    socketAwareIt(
+      `${clientImplementation.id} client falls back to USDC when PYUSD is not in its preference list (${serverImplementation.id} server)`,
+      async () => {
+        if (!surfnet || !interopEnv) {
+          throw new Error("Surfpool interop environment was not initialized");
+        }
 
-          const initialUsdcBalance = await getTokenBalance(
-            surfnet,
-            interopEnv.X402_INTEROP_PAY_TO,
-            interopEnv.X402_INTEROP_MINT,
-          );
+        const initialUsdcBalance = await getTokenBalance(
+          surfnet,
+          interopEnv.X402_INTEROP_PAY_TO,
+          interopEnv.X402_INTEROP_MINT,
+        );
 
-          const multiEnv = {
-            ...interopEnv,
-            X402_INTEROP_EXTRA_OFFERED_MINTS: PYUSD_DEVNET_MINT,
-          };
-          const server = await startServer(serverImplementation, multiEnv);
-          runningServers.push(server);
+        const multiEnv = {
+          ...interopEnv,
+          X402_INTEROP_EXTRA_OFFERED_MINTS: PYUSD_DEVNET_MINT,
+        };
+        const server = await startServer(serverImplementation, multiEnv);
+        runningServers.push(server);
 
-          const targetUrl = `http://127.0.0.1:${server.ready.port}${interopScenario.resourcePath}`;
-          const result = await runClient(clientImplementation, targetUrl, {
-            ...multiEnv,
-            X402_INTEROP_PREFER_CURRENCIES: "USDC",
-          });
+        const targetUrl = `http://127.0.0.1:${server.ready.port}${interopScenario.resourcePath}`;
+        const result = await runClient(clientImplementation, targetUrl, {
+          ...multiEnv,
+          X402_INTEROP_PREFER_CURRENCIES: "USDC",
+        });
 
-          const finalUsdcBalance = await getTokenBalance(
-            surfnet,
-            interopEnv.X402_INTEROP_PAY_TO,
-            interopEnv.X402_INTEROP_MINT,
-          );
+        const finalUsdcBalance = await getTokenBalance(
+          surfnet,
+          interopEnv.X402_INTEROP_PAY_TO,
+          interopEnv.X402_INTEROP_MINT,
+        );
 
-          expect(result.ok, JSON.stringify(result, null, 2)).toBe(true);
-          expect(finalUsdcBalance - initialUsdcBalance).toBe(1_000n);
-        },
-        20_000,
-      );
-    }
+        expect(result.ok, JSON.stringify(result, null, 2)).toBe(true);
+        expect(finalUsdcBalance - initialUsdcBalance).toBe(1_000n);
+      },
+      20_000,
+    );
   }
 });
