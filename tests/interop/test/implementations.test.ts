@@ -218,26 +218,77 @@ describe("interop implementation metadata", () => {
     ).toThrowError(/X402_INTEROP_SERVERS contains unknown adapter id\(s\): perl/);
   });
 
-  it("fails selected planned adapters with a scaffold-specific diagnostic", () => {
-    expect(() =>
-      validateSelectedImplementationScaffolds(
-        [
-          {
-            id: "python",
-            label: "Python HTTP client",
-            role: "client",
-            command: ["python", "-m", "x402_sdk.interop.client"],
-            cwd: "../../python",
-            requiredManifest: "../../python/pyproject.toml",
-            enabled: true,
-            runtimeSchemes: ["exact"],
-            runtimeIntents: [],
-          },
-        ],
-        "X402_INTEROP_CLIENTS",
-      ),
-    ).toThrowError(
-      /X402_INTEROP_CLIENTS selected adapter\(s\) without SDK scaffold: python missing \.\.\/\.\.\/python\/pyproject\.toml/,
-    );
+  it("fails selected planned adapters with scaffold-specific diagnostics", () => {
+    const plannedSelections = [
+      {
+        envName: "X402_INTEROP_CLIENTS",
+        implementation: {
+          id: "python",
+          label: "Python HTTP client",
+          role: "client" as const,
+          command: ["python", "-m", "x402_sdk.interop.client"],
+          cwd: "../../python",
+          requiredManifest: "../../python/pyproject.toml",
+          enabled: true,
+          runtimeSchemes: ["exact" as const],
+          runtimeIntents: [],
+        },
+        expected: /python missing \.\.\/\.\.\/python\/pyproject\.toml/,
+      },
+      {
+        envName: "X402_INTEROP_CLIENTS",
+        implementation: {
+          id: "go",
+          label: "Go HTTP client",
+          role: "client" as const,
+          command: ["go", "run", "./cmd/interop-client"],
+          cwd: "../../go",
+          requiredManifest: "../../go/go.mod",
+          enabled: true,
+          runtimeSchemes: ["exact" as const],
+          runtimeIntents: [],
+        },
+        expected: /go missing \.\.\/\.\.\/go\/go\.mod/,
+      },
+      {
+        envName: "X402_INTEROP_SERVERS",
+        implementation: {
+          id: "lua",
+          label: "Lua HTTP server",
+          role: "server" as const,
+          command: ["lua", "bin/interop-server.lua"],
+          cwd: "../../lua",
+          requiredManifest: "../../lua/x402-sdk-svm.rockspec",
+          enabled: true,
+          runtimeSchemes: ["exact" as const],
+          runtimeIntents: [],
+        },
+        expected: /lua missing \.\.\/\.\.\/lua\/x402-sdk-svm\.rockspec/,
+      },
+      {
+        envName: "X402_INTEROP_SERVERS",
+        implementation: {
+          id: "php",
+          label: "PHP HTTP server",
+          role: "server" as const,
+          command: ["php", "bin/interop-server.php"],
+          cwd: "../../php",
+          requiredManifest: "../../php/composer.json",
+          enabled: true,
+          runtimeSchemes: ["exact" as const],
+          runtimeIntents: [],
+        },
+        expected: /php missing \.\.\/\.\.\/php\/composer\.json/,
+      },
+    ];
+
+    for (const selection of plannedSelections) {
+      expect(() =>
+        validateSelectedImplementationScaffolds(
+          [selection.implementation],
+          selection.envName,
+        ),
+      ).toThrowError(selection.expected);
+    }
   });
 });
