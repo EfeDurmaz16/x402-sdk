@@ -162,6 +162,8 @@ PRs.
   by setting `X402_INTEROP_EXPERIMENTAL=true`.
 - The JSON capability report includes a flat `roles` list so CI and reviewers
   can inspect each language/role status without parsing summary text.
+- `pnpm scaffold` reports planned SDK roots, expected package manifests, and
+  current runtime adapter availability for monorepo readiness checks.
 - Split-payment semantics are not modeled in the current exact SVM contract;
   keep them out of runtime claims until an x402 requirements shape exists.
 
