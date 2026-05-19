@@ -273,6 +273,14 @@ pnpm run test:probe:php-unit
 pnpm run test:probe:lua-static
 ```
 
+The PHP scaffold also exposes the same server-only checks from its package
+root:
+
+```bash
+cd ../../php
+composer test
+```
+
 Use these runtime smoke probes to reproduce the expected-red boundary before a
 planned adapter is implemented:
 

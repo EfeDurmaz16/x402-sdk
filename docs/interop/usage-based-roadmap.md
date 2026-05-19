@@ -211,6 +211,8 @@ Use this checklist when splitting the staging branch into upstream PRs:
 - `pnpm run test:probe:planned-syntax` checks Python and Ruby syntax plus
   parser units, Go build health, and PHP server-only syntax plus HTTP contract
   health in one local command.
+- `cd php && composer test` runs the same PHP server-only syntax and HTTP
+  contract checks from inside the PHP package.
 - `pnpm run test:probe:lua-static` checks the Lua server-only scaffold contract
   without requiring a local Lua or `luac` binary.
 - `pnpm run test:probe:upto-boundary` and

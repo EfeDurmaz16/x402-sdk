@@ -156,6 +156,18 @@ describe("SDK scaffold diagnostics", () => {
     expect(packageJson.scripts["scaffold:json"]).toBe("tsx src/print-scaffold.ts --json");
   });
 
+  it("keeps the PHP scaffold testable through Composer", () => {
+    const composerJson = JSON.parse(readFileSync("../../php/composer.json", "utf8")) as {
+      scripts: Record<string, string | string[]>;
+    };
+
+    expect(composerJson.scripts.lint).toBe("php -l bin/interop-server.php");
+    expect(composerJson.scripts.test).toEqual([
+      "@lint",
+      "php tests/interop_server_test.php",
+    ]);
+  });
+
   it("reports registered scaffold adapters without promoting them to implemented exact", () => {
     const runtimeReady = getSdkScaffoldStatus()
       .filter(status => status.runtimeClientAdapter || status.runtimeServerAdapter)

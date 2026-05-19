@@ -5,5 +5,12 @@
   "license": "Apache-2.0",
   "require": {
     "php": ">=8.2"
+  },
+  "scripts": {
+    "lint": "php -l bin/interop-server.php",
+    "test": [
+      "@lint",
+      "php tests/interop_server_test.php"
+    ]
   }
 }
