@@ -8,13 +8,13 @@ module X402SDK
     module Client
       module_function
 
-      def select_svm_requirement(headers:, body:, network:)
+      def select_svm_requirement(headers:, body:, network:, scheme: "exact")
         accepts = []
         accepts.concat(accepts_from_envelope(load_payment_required_header(headers)))
         accepts.concat(accepts_from_envelope(load_payment_required_body(body)))
 
         accepts.find do |requirement|
-          requirement["scheme"] == "exact" &&
+          requirement["scheme"] == scheme &&
             requirement["network"] == network &&
             requirement["asset"].is_a?(String) &&
             requirement["amount"].is_a?(String)

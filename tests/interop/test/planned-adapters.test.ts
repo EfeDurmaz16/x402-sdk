@@ -17,6 +17,10 @@ const plannedClientRequirement = {
   asset: "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU",
   amount: "1000",
 };
+const plannedUptoClientRequirement = {
+  ...plannedClientRequirement,
+  scheme: "upto",
+};
 const plannedChallengeBody = JSON.stringify({
   x402Version: 2,
   accepts: [
@@ -28,6 +32,10 @@ const plannedChallengeBody = JSON.stringify({
     },
     plannedClientRequirement,
   ],
+});
+const plannedUptoChallengeBody = JSON.stringify({
+  x402Version: 2,
+  accepts: [plannedUptoClientRequirement],
 });
 
 function hasCommand(command: string): boolean {
@@ -41,13 +49,15 @@ async function getJson(url: string): Promise<{ status: number; body: unknown }> 
   return { status: response.status, body };
 }
 
-async function startChallengeServer(): Promise<{ server: http.Server; url: string }> {
+async function startChallengeServer(
+  body: string = plannedChallengeBody,
+): Promise<{ server: http.Server; url: string }> {
   const server = http.createServer((_request, response) => {
     response.writeHead(402, {
       "content-type": "application/json",
-      "content-length": Buffer.byteLength(plannedChallengeBody),
+      "content-length": Buffer.byteLength(body),
     });
-    response.end(plannedChallengeBody);
+    response.end(body);
   });
 
   await new Promise<void>((resolve, reject) => {
@@ -110,6 +120,41 @@ describe("planned client adapter process contract", () => {
           challengeStatus: 402,
           challengeBody: plannedChallengeBody,
           selectedRequirement: plannedClientRequirement,
+        },
+        settlement: null,
+      });
+    });
+
+    it(`${id} client reports the planned upto failure shape after reading an upto 402 challenge`, async () => {
+      const implementation = clientImplementations.find(client => client.id === id);
+      expect(implementation, `missing ${id} client implementation`).toBeDefined();
+
+      if (!implementation) {
+        return;
+      }
+
+      const command = implementation.command[0];
+      const { url } = await startChallengeServer(plannedUptoChallengeBody);
+      if (!hasCommand(command)) {
+        await expect(
+          runClient(implementation, url, { X402_INTEROP_SCHEME: "upto" }),
+        ).rejects.toThrow(new RegExp(`Failed to start adapter command: spawn ${command} ENOENT`));
+        return;
+      }
+
+      await expect(
+        runClient(implementation, url, { X402_INTEROP_SCHEME: "upto" }),
+      ).resolves.toMatchObject({
+        type: "result",
+        implementation: id,
+        role: "client",
+        ok: false,
+        status: 402,
+        responseBody: {
+          error: `${id}_upto_client_not_implemented`,
+          challengeStatus: 402,
+          challengeBody: plannedUptoChallengeBody,
+          selectedRequirement: plannedUptoClientRequirement,
         },
         settlement: null,
       });

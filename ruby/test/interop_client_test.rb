@@ -68,4 +68,22 @@ class InteropClientTest < Minitest::Test
 
     assert_nil selected
   end
+
+  def test_selects_upto_requirement_when_scheme_is_requested
+    requirement = {
+      "scheme" => "upto",
+      "network" => NETWORK,
+      "asset" => ASSET,
+      "amount" => "1000"
+    }
+
+    selected = X402SDK::Interop::Client.select_svm_requirement(
+      headers: {},
+      body: JSON.generate("accepts" => [requirement]),
+      network: NETWORK,
+      scheme: "upto"
+    )
+
+    assert_equal requirement, selected
+  end
 end

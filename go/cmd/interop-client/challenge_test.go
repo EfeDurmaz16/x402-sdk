@@ -25,6 +25,7 @@ func TestSelectSVMRequirementFromPaymentRequiredHeader(t *testing.T) {
 		map[string]string{"PAYMENT-REQUIRED": base64.StdEncoding.EncodeToString(envelope)},
 		"",
 		"solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1",
+		"exact",
 	)
 
 	if selected == nil {
@@ -60,6 +61,7 @@ func TestSelectSVMRequirementFromBody(t *testing.T) {
 		map[string]string{},
 		string(body),
 		"solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1",
+		"exact",
 	)
 
 	if selected == nil {
@@ -89,9 +91,40 @@ func TestSelectSVMRequirementIgnoresUnsupportedScheme(t *testing.T) {
 		map[string]string{},
 		string(body),
 		"solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1",
+		"exact",
 	)
 
 	if selected != nil {
 		t.Fatalf("expected no selected requirement, got %+v", selected)
+	}
+}
+
+func TestSelectSVMRequirementSupportsRequestedUptoScheme(t *testing.T) {
+	body, err := json.Marshal(map[string]any{
+		"accepts": []map[string]any{
+			{
+				"scheme":  "upto",
+				"network": "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1",
+				"asset":   "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU",
+				"amount":  "1000",
+			},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	selected := selectSVMRequirement(
+		map[string]string{},
+		string(body),
+		"solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1",
+		"upto",
+	)
+
+	if selected == nil {
+		t.Fatal("expected selected upto requirement")
+	}
+	if selected.Scheme != "upto" {
+		t.Fatalf("unexpected scheme: %s", selected.Scheme)
 	}
 }

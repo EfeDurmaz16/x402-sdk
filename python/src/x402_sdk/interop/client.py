@@ -58,6 +58,7 @@ def select_svm_requirement(
     headers: dict[str, str],
     body: str,
     network: str,
+    scheme: str = "exact",
 ) -> dict[str, Any] | None:
     accepts = [
         *_accepts_from_envelope(_load_payment_required_header(headers)),
@@ -65,7 +66,7 @@ def select_svm_requirement(
     ]
 
     for requirement in accepts:
-        if requirement.get("scheme") != "exact":
+        if requirement.get("scheme") != scheme:
             continue
         if requirement.get("network") != network:
             continue
@@ -108,7 +109,9 @@ def main() -> int:
             "X402_INTEROP_NETWORK",
             "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1",
         ),
+        scheme=os.environ.get("X402_INTEROP_SCHEME", "exact"),
     )
+    scheme = os.environ.get("X402_INTEROP_SCHEME", "exact")
 
     _emit(
         {
@@ -119,7 +122,7 @@ def main() -> int:
             "status": status,
             "responseHeaders": headers,
             "responseBody": {
-                "error": "python_exact_client_not_implemented",
+                "error": f"python_{scheme}_client_not_implemented",
                 "challengeStatus": status,
                 "challengeBody": body,
                 "selectedRequirement": selected_requirement,

@@ -72,6 +72,24 @@ class SelectSvmRequirementTests(unittest.TestCase):
             )
         )
 
+    def test_selects_upto_requirement_when_scheme_is_requested(self) -> None:
+        requirement = {
+            "scheme": "upto",
+            "network": "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1",
+            "asset": "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU",
+            "amount": "1000",
+        }
+
+        self.assertEqual(
+            select_svm_requirement(
+                headers={},
+                body=json.dumps({"accepts": [requirement]}),
+                network="solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1",
+                scheme="upto",
+            ),
+            requirement,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

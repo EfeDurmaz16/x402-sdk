@@ -18,8 +18,10 @@ end
 selected_requirement = X402SDK::Interop::Client.select_svm_requirement(
   headers: headers,
   body: response.body,
-  network: ENV.fetch("X402_INTEROP_NETWORK", "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1")
+  network: ENV.fetch("X402_INTEROP_NETWORK", "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1"),
+  scheme: ENV.fetch("X402_INTEROP_SCHEME", "exact")
 )
+scheme = ENV.fetch("X402_INTEROP_SCHEME", "exact")
 
 puts JSON.generate(
   type: "result",
@@ -29,7 +31,7 @@ puts JSON.generate(
   status: response.code.to_i,
   responseHeaders: headers,
   responseBody: {
-    error: "ruby_exact_client_not_implemented",
+    error: "ruby_#{scheme}_client_not_implemented",
     challengeStatus: response.code.to_i,
     challengeBody: response.body,
     selectedRequirement: selected_requirement

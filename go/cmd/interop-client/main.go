@@ -60,7 +60,7 @@ func loadPaymentRequiredBody(body string) *paymentEnvelope {
 	return &envelope
 }
 
-func selectSVMRequirement(headers map[string]string, body string, network string) *paymentRequirement {
+func selectSVMRequirement(headers map[string]string, body string, network string, scheme string) *paymentRequirement {
 	envelopes := []*paymentEnvelope{
 		loadPaymentRequiredHeader(headers),
 		loadPaymentRequiredBody(body),
@@ -71,7 +71,7 @@ func selectSVMRequirement(headers map[string]string, body string, network string
 			continue
 		}
 		for _, requirement := range envelope.Accepts {
-			if requirement.Scheme != "exact" {
+			if requirement.Scheme != scheme {
 				continue
 			}
 			if requirement.Network != network {
@@ -115,7 +115,9 @@ func main() {
 		headers,
 		string(body),
 		readEnvWithDefault("X402_INTEROP_NETWORK", "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1"),
+		readEnvWithDefault("X402_INTEROP_SCHEME", "exact"),
 	)
+	scheme := readEnvWithDefault("X402_INTEROP_SCHEME", "exact")
 
 	payload := map[string]any{
 		"type":            "result",
@@ -125,7 +127,7 @@ func main() {
 		"status":          response.StatusCode,
 		"responseHeaders": headers,
 		"responseBody": map[string]any{
-			"error":               "go_exact_client_not_implemented",
+			"error":               fmt.Sprintf("go_%s_client_not_implemented", scheme),
 			"challengeStatus":     response.StatusCode,
 			"challengeBody":       string(body),
 			"selectedRequirement": selectedRequirement,
