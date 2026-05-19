@@ -75,6 +75,8 @@ describe("promotion plan", () => {
       "pnpm test:ci",
       "pnpm run test:probe:staging",
       "pnpm run test:probe:upto-fixtures",
+      "pnpm run test:probe:typescript-upto-server",
+      "pnpm run test:probe:rust-upto-server",
       "pnpm run test:probe:session-fixtures",
     ]));
   });

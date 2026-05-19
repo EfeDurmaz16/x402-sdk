@@ -91,6 +91,15 @@ describe("interop report CLIs", () => {
           command: "vitest run test/upto-fixtures.test.ts",
         }),
         expect.objectContaining({
+          script: "test:probe:typescript-upto-server",
+          command:
+            "cd ../../typescript/packages/x402 && pnpm exec vitest run test/unit/upto-server.test.ts test/unit/compatibility.test.ts",
+        }),
+        expect.objectContaining({
+          script: "test:probe:rust-upto-server",
+          command: "cd ../../rust && cargo test upto",
+        }),
+        expect.objectContaining({
           script: "test:probe:session-fixtures",
           command: "vitest run test/session-fixtures.test.ts",
         }),

@@ -34,7 +34,7 @@ export const promotionSlices: PromotionSlice[] = [
     id: "4",
     title: "TypeScript upto server support.",
     status: "staged-experimental",
-    verification: ["pnpm run test:probe:usage-boundaries"],
+    verification: ["pnpm run test:probe:typescript-upto-server"],
   },
   {
     id: "5",
@@ -46,7 +46,7 @@ export const promotionSlices: PromotionSlice[] = [
     id: "6",
     title: "Rust upto server support.",
     status: "staged-experimental",
-    verification: ["pnpm run test:probe:usage-boundaries"],
+    verification: ["pnpm run test:probe:rust-upto-server"],
   },
   {
     id: "7",

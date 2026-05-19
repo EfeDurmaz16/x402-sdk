@@ -34,9 +34,9 @@ export const interopProbes: ProbeDefinition[] = [
   },
   {
     script: "test:probe:usage-boundaries",
-    command: "pnpm test:probe:upto-fixtures && pnpm test:probe:batch-settlement-fixtures && pnpm test:probe:session-fixtures && pnpm test:probe:subscription-fixtures && vitest run test/contracts.test.ts",
+    command: "pnpm test:probe:upto-fixtures && pnpm test:probe:typescript-upto-server && pnpm test:probe:rust-upto-server && pnpm test:probe:batch-settlement-fixtures && pnpm test:probe:session-fixtures && pnpm test:probe:subscription-fixtures && vitest run test/contracts.test.ts",
     status: "green",
-    reason: "Green aggregate for disabled runtime boundaries and usage-based fixtures.",
+    reason: "Green aggregate for disabled runtime boundaries, usage-based fixtures, and server-side upto SDK gates.",
   },
   {
     script: "test:probe:multi-currency",
@@ -49,6 +49,18 @@ export const interopProbes: ProbeDefinition[] = [
     command: "vitest run test/upto-fixtures.test.ts",
     status: "green",
     reason: "Solana upto maximum-authorization fixture contract without runtime settlement.",
+  },
+  {
+    script: "test:probe:typescript-upto-server",
+    command: "cd ../../typescript/packages/x402 && pnpm exec vitest run test/unit/upto-server.test.ts test/unit/compatibility.test.ts",
+    status: "green",
+    reason: "TypeScript server-side upto boundary and export compatibility.",
+  },
+  {
+    script: "test:probe:rust-upto-server",
+    command: "cd ../../rust && cargo test upto",
+    status: "green",
+    reason: "Rust server-side upto challenge construction boundary.",
   },
   {
     script: "test:probe:batch-settlement-fixtures",

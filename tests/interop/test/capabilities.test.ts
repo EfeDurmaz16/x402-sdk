@@ -219,13 +219,19 @@ describe("interop capability roadmap", () => {
     );
     expect(packageJson.scripts["test:probe:planned-runtime"]).toBe("pnpm test:planned-adapters");
     expect(packageJson.scripts["test:probe:usage-boundaries"]).toBe(
-      "pnpm test:probe:upto-fixtures && pnpm test:probe:batch-settlement-fixtures && pnpm test:probe:session-fixtures && pnpm test:probe:subscription-fixtures && vitest run test/contracts.test.ts",
+      "pnpm test:probe:upto-fixtures && pnpm test:probe:typescript-upto-server && pnpm test:probe:rust-upto-server && pnpm test:probe:batch-settlement-fixtures && pnpm test:probe:session-fixtures && pnpm test:probe:subscription-fixtures && vitest run test/contracts.test.ts",
     );
     expect(packageJson.scripts["test:probe:multi-currency"]).toBe(
       "X402_INTEROP_PROFILE=reference-spine X402_INTEROP_REFERENCE=rust pnpm test:multi-currency",
     );
     expect(packageJson.scripts["test:probe:upto-fixtures"]).toBe(
       "vitest run test/upto-fixtures.test.ts",
+    );
+    expect(packageJson.scripts["test:probe:typescript-upto-server"]).toBe(
+      "cd ../../typescript/packages/x402 && pnpm exec vitest run test/unit/upto-server.test.ts test/unit/compatibility.test.ts",
+    );
+    expect(packageJson.scripts["test:probe:rust-upto-server"]).toBe(
+      "cd ../../rust && cargo test upto",
     );
     expect(packageJson.scripts["test:probe:batch-settlement-fixtures"]).toBe(
       "vitest run test/batch-settlement-fixtures.test.ts",

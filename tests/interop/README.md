@@ -296,6 +296,8 @@ pnpm run test:probe:php-unit
 pnpm run test:probe:php-composer
 pnpm run test:probe:lua-static
 pnpm run test:probe:upto-fixtures
+pnpm run test:probe:typescript-upto-server
+pnpm run test:probe:rust-upto-server
 pnpm run test:probe:batch-settlement-fixtures
 pnpm run test:probe:session-fixtures
 pnpm run test:probe:subscription-fixtures
@@ -335,6 +337,8 @@ payment implementation yet.
 fail until those runtime scenarios are enabled; they exercise the fail-fast
 capability diagnostics rather than payment settlement.
 Use `test:probe:usage-boundaries` for a green aggregate check of the same
-disabled-runtime contract plus the `upto` and `session` fixture gates.
+disabled-runtime contract plus the `upto` and `session` fixture gates. It also
+runs the TypeScript and Rust server-side `upto` unit probes so staged server
+support is covered by SDK-local tests, not only interop metadata.
 
 The suite performs a local socket-bind preflight. If the current environment forbids opening loopback ports, the e2e test is skipped instead of failing. In CI, where loopback sockets are available, the matrix runs normally.
