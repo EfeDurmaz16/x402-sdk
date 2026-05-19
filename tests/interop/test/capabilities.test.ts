@@ -44,11 +44,29 @@ describe("interop capability roadmap", () => {
     });
   });
 
+  it("keeps subscription compatibility visible but outside native x402 schemes", () => {
+    expect(interopCapabilities.intents.subscription).toMatchObject({
+      intentBoundary: "compatibility-intent",
+      nativeX402Scheme: false,
+      defaultCi: false,
+      status: "planned",
+    });
+
+    expect(interopCapabilities.intents.subscription.languages).toMatchObject({
+      python: { client: "planned", server: "planned" },
+      go: { client: "planned", server: "planned" },
+      ruby: { client: "planned", server: "planned" },
+      lua: { client: "missing", server: "planned" },
+      php: { client: "missing", server: "planned" },
+    });
+  });
+
   it("formats planned and server-only capability gaps for maintainer diagnostics", () => {
     expect(formatCapabilityReport()).toContain(
       "scheme:upto planned semantics:maximum-authorization solana:requires-design default-ci:false",
     );
     expect(formatCapabilityReport()).toContain("intent:session planned native-x402:false");
+    expect(formatCapabilityReport()).toContain("intent:subscription planned native-x402:false");
     expect(formatCapabilityReport()).toContain("lua client:missing server:planned");
     expect(formatCapabilityReport()).toContain("php client:missing server:planned");
   });
@@ -63,6 +81,9 @@ describe("interop capability roadmap", () => {
       "planned: session client/server go,python,ruby",
       "planned: session server-only lua,php",
       "missing: session client lua,php",
+      "planned: subscription client/server go,python,ruby",
+      "planned: subscription server-only lua,php",
+      "missing: subscription client lua,php",
     ]);
   });
 

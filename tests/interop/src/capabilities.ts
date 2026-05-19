@@ -68,6 +68,19 @@ export const interopCapabilities = {
         php: { client: "missing", server: "planned" },
       },
     },
+    subscription: {
+      status: "planned",
+      intentBoundary: "compatibility-intent",
+      nativeX402Scheme: false,
+      defaultCi: false,
+      languages: {
+        python: { client: "planned", server: "planned" },
+        go: { client: "planned", server: "planned" },
+        ruby: { client: "planned", server: "planned" },
+        lua: { client: "missing", server: "planned" },
+        php: { client: "missing", server: "planned" },
+      },
+    },
   },
 } as const satisfies {
   schemes: Record<string, SchemeCapability>;
