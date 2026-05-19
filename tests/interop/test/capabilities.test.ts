@@ -307,4 +307,10 @@ describe("interop capability roadmap", () => {
     expect(workflow).toContain("vars.X402_INTEROP_EXPERIMENTAL == 'true'");
     expect(workflow).toContain("pnpm test:experimental");
   });
+
+  it("keeps generated interop report artifacts out of source control", () => {
+    const gitignore = readFileSync("../../.gitignore", "utf8");
+
+    expect(gitignore).toContain("tests/interop/interop-*.json");
+  });
 });
