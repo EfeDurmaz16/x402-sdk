@@ -10,6 +10,8 @@ export type LanguageCapabilityMap = Record<string, RoleCapability>;
 export type SchemeCapability = {
   status: CapabilityStatus;
   intentBoundary: "x402-scheme";
+  settlementSemantics: "fixed-amount" | "maximum-authorization";
+  solanaSemantics: "implemented" | "requires-design";
   defaultCi: boolean;
   languages: LanguageCapabilityMap;
 };
@@ -27,6 +29,8 @@ export const interopCapabilities = {
     exact: {
       status: "implemented",
       intentBoundary: "x402-scheme",
+      settlementSemantics: "fixed-amount",
+      solanaSemantics: "implemented",
       defaultCi: true,
       languages: {
         typescript: { client: "implemented", server: "implemented" },
@@ -36,6 +40,8 @@ export const interopCapabilities = {
     upto: {
       status: "planned",
       intentBoundary: "x402-scheme",
+      settlementSemantics: "maximum-authorization",
+      solanaSemantics: "requires-design",
       defaultCi: false,
       languages: {
         typescript: { client: "planned", server: "planned" },
@@ -80,7 +86,9 @@ export function formatCapabilityReport(): string {
   const lines: string[] = [];
 
   for (const [scheme, capability] of Object.entries(interopCapabilities.schemes)) {
-    lines.push(`scheme:${scheme} ${capability.status} default-ci:${capability.defaultCi}`);
+    lines.push(
+      `scheme:${scheme} ${capability.status} semantics:${capability.settlementSemantics} solana:${capability.solanaSemantics} default-ci:${capability.defaultCi}`,
+    );
     lines.push(...formatLanguageCapabilities(capability.languages));
   }
 

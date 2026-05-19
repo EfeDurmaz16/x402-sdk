@@ -27,6 +27,13 @@ x402 usage-based work should start with native x402 scheme boundaries:
 - `batch-settlement`: repeated low-value requests, off-chain vouchers, batched
   on-chain redemption.
 
+Current public x402 references describe `upto` as maximum-authorization
+semantics and currently document it for EVM. Solana `exact` payments are signed
+SPL transfer transactions with a fixed amount, so Solana `upto` must not be
+treated as a simple scheme rename over `exact`. The staging harness tracks
+Solana `upto` as `requires-design` until the authorization and settlement model
+is explicit.
+
 `session` is not treated as a native x402 scheme in this repository unless the
 upstream x402 standard defines one. Until then, session-shaped flows belong to
 an explicit compatibility intent path, not the native scheme registry.
@@ -45,6 +52,7 @@ an explicit compatibility intent path, not the native scheme registry.
 
 The first `upto` test contract should cover:
 
+- maximum-authorization semantics distinct from fixed-amount `exact`
 - maximum amount advertised by the server
 - actual settlement amount chosen by the server
 - zero settlement

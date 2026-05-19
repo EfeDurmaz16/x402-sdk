@@ -19,6 +19,7 @@ describe("upto scenario fixtures", () => {
 
     expect(fixture).toMatchObject({
       scheme: "upto",
+      settlementSemantics: "maximum-authorization",
       maximumAmount: "1000",
       settlementAmount: "600",
       expectedOutcome: "success",
@@ -32,10 +33,19 @@ describe("upto scenario fixtures", () => {
 
     expect(fixture).toMatchObject({
       scheme: "upto",
+      settlementSemantics: "maximum-authorization",
       maximumAmount: "1000",
       settlementAmount: "1001",
       expectedOutcome: "reject",
       rejectionReason: "settlement-exceeds-maximum",
     });
+  });
+
+  it("does not let upto fixtures collapse into exact fixed-amount semantics", () => {
+    expect(
+      uptoScenarioFixtures.every(
+        fixture => fixture.settlementSemantics === "maximum-authorization",
+      ),
+    ).toBe(true);
   });
 });

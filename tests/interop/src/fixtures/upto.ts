@@ -6,6 +6,7 @@ export type UptoScenarioFixture = {
     | "rejects-missing-settlement-override"
     | "rejects-wrong-scheme";
   scheme: "upto" | "exact";
+  settlementSemantics: "maximum-authorization";
   maximumAmount: string;
   settlementAmount?: string;
   expectedOutcome: "success" | "reject";
@@ -19,6 +20,7 @@ export const uptoScenarioFixtures: UptoScenarioFixture[] = [
   {
     id: "settles-actual-below-maximum",
     scheme: "upto",
+    settlementSemantics: "maximum-authorization",
     maximumAmount: "1000",
     settlementAmount: "600",
     expectedOutcome: "success",
@@ -26,6 +28,7 @@ export const uptoScenarioFixtures: UptoScenarioFixture[] = [
   {
     id: "allows-zero-settlement",
     scheme: "upto",
+    settlementSemantics: "maximum-authorization",
     maximumAmount: "1000",
     settlementAmount: "0",
     expectedOutcome: "success",
@@ -33,6 +36,7 @@ export const uptoScenarioFixtures: UptoScenarioFixture[] = [
   {
     id: "rejects-over-maximum-settlement",
     scheme: "upto",
+    settlementSemantics: "maximum-authorization",
     maximumAmount: "1000",
     settlementAmount: "1001",
     expectedOutcome: "reject",
@@ -41,6 +45,7 @@ export const uptoScenarioFixtures: UptoScenarioFixture[] = [
   {
     id: "rejects-missing-settlement-override",
     scheme: "upto",
+    settlementSemantics: "maximum-authorization",
     maximumAmount: "1000",
     expectedOutcome: "reject",
     rejectionReason: "missing-settlement-override",
@@ -48,6 +53,7 @@ export const uptoScenarioFixtures: UptoScenarioFixture[] = [
   {
     id: "rejects-wrong-scheme",
     scheme: "exact",
+    settlementSemantics: "maximum-authorization",
     maximumAmount: "1000",
     settlementAmount: "600",
     expectedOutcome: "reject",

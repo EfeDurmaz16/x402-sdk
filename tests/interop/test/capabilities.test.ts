@@ -5,6 +5,8 @@ describe("interop capability roadmap", () => {
   it("keeps usage-based x402 work planned before implementation starts", () => {
     expect(interopCapabilities.schemes.upto).toMatchObject({
       intentBoundary: "x402-scheme",
+      settlementSemantics: "maximum-authorization",
+      solanaSemantics: "requires-design",
       defaultCi: false,
       status: "planned",
     });
@@ -38,7 +40,9 @@ describe("interop capability roadmap", () => {
   });
 
   it("formats planned and server-only capability gaps for maintainer diagnostics", () => {
-    expect(formatCapabilityReport()).toContain("scheme:upto planned default-ci:false");
+    expect(formatCapabilityReport()).toContain(
+      "scheme:upto planned semantics:maximum-authorization solana:requires-design default-ci:false",
+    );
     expect(formatCapabilityReport()).toContain("intent:session planned native-x402:false");
     expect(formatCapabilityReport()).toContain("lua client:missing server:planned");
     expect(formatCapabilityReport()).toContain("php client:missing server:planned");
