@@ -33,6 +33,12 @@ export const interopProbes: ProbeDefinition[] = [
     reason: "Green aggregate for disabled runtime boundaries and usage-based fixtures.",
   },
   {
+    script: "test:probe:multi-currency",
+    command: "X402_INTEROP_PROFILE=reference-spine X402_INTEROP_REFERENCE=rust pnpm test:multi-currency",
+    status: "green",
+    reason: "Reference-spine runtime coverage for multi-currency offer selection and fallback.",
+  },
+  {
     script: "test:probe:upto-fixtures",
     command: "vitest run test/upto-fixtures.test.ts",
     status: "green",

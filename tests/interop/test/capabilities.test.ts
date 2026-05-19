@@ -178,7 +178,7 @@ describe("interop capability roadmap", () => {
       "vitest run test/capabilities.test.ts test/contracts.test.ts test/report-cli.test.ts test/scaffold.test.ts test/lua-scaffold.test.ts test/promotion.test.ts test/upto-fixtures.test.ts test/batch-settlement-fixtures.test.ts test/session-fixtures.test.ts test/subscription-fixtures.test.ts test/planned-adapters.test.ts",
     );
     expect(packageJson.scripts["test:ci"]).toBe(
-      "pnpm typecheck && X402_INTEROP_PROFILE=reference-spine X402_INTEROP_REFERENCE=rust pnpm test:smoke && X402_INTEROP_PROFILE=reference-spine X402_INTEROP_REFERENCE=rust pnpm test:boundaries",
+      "pnpm typecheck && X402_INTEROP_PROFILE=reference-spine X402_INTEROP_REFERENCE=rust pnpm test:smoke && X402_INTEROP_PROFILE=reference-spine X402_INTEROP_REFERENCE=rust pnpm test:multi-currency && X402_INTEROP_PROFILE=reference-spine X402_INTEROP_REFERENCE=rust pnpm test:boundaries",
     );
     expect(packageJson.scripts["test:pair:ts-rust"]).toBe(
       "X402_INTEROP_CLIENTS=typescript X402_INTEROP_SERVERS=rust vitest run test/e2e.test.ts",
@@ -191,6 +191,9 @@ describe("interop capability roadmap", () => {
     );
     expect(packageJson.scripts["test:language:rust"]).toBe(
       "X402_INTEROP_CLIENTS=rust X402_INTEROP_SERVERS=rust vitest run test/e2e.test.ts",
+    );
+    expect(packageJson.scripts["test:multi-currency"]).toBe(
+      "vitest run test/e2e.test.ts --testNamePattern \"picks PYUSD|falls back to USDC\"",
     );
     expect(packageJson.scripts["test:planned-adapters"]).toBe(
       "vitest run test/planned-adapters.test.ts",
@@ -209,6 +212,9 @@ describe("interop capability roadmap", () => {
     );
     expect(packageJson.scripts["test:probe:usage-boundaries"]).toBe(
       "pnpm test:probe:upto-fixtures && pnpm test:probe:batch-settlement-fixtures && pnpm test:probe:session-fixtures && pnpm test:probe:subscription-fixtures && vitest run test/contracts.test.ts",
+    );
+    expect(packageJson.scripts["test:probe:multi-currency"]).toBe(
+      "X402_INTEROP_PROFILE=reference-spine X402_INTEROP_REFERENCE=rust pnpm test:multi-currency",
     );
     expect(packageJson.scripts["test:probe:upto-fixtures"]).toBe(
       "vitest run test/upto-fixtures.test.ts",
