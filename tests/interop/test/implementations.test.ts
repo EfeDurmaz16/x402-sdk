@@ -92,6 +92,7 @@ describe("interop implementation metadata", () => {
         enabled: implementation.enabled,
         command: implementation.command,
         cwd: implementation.cwd,
+        env: implementation.env,
         requiredManifest: implementation.requiredManifest,
       })),
     ).toEqual([
@@ -100,6 +101,7 @@ describe("interop implementation metadata", () => {
         enabled: true,
         command: ["pnpm", "exec", "node", "--import", "tsx", "src/fixtures/typescript/client.ts"],
         cwd: undefined,
+        env: undefined,
         requiredManifest: undefined,
       },
       {
@@ -115,13 +117,15 @@ describe("interop implementation metadata", () => {
           "interop_client",
         ],
         cwd: undefined,
+        env: undefined,
         requiredManifest: undefined,
       },
       {
         id: "python",
         enabled: false,
-        command: ["python", "-m", "x402_sdk.interop.client"],
+        command: ["python3", "-m", "x402_sdk.interop.client"],
         cwd: "../../python",
+        env: { PYTHONPATH: "src" },
         requiredManifest: "../../python/pyproject.toml",
       },
       {
@@ -129,6 +133,7 @@ describe("interop implementation metadata", () => {
         enabled: false,
         command: ["go", "run", "./cmd/interop-client"],
         cwd: "../../go",
+        env: undefined,
         requiredManifest: "../../go/go.mod",
       },
     ]);
@@ -139,6 +144,7 @@ describe("interop implementation metadata", () => {
         enabled: implementation.enabled,
         command: implementation.command,
         cwd: implementation.cwd,
+        env: implementation.env,
         requiredManifest: implementation.requiredManifest,
       })),
     ).toEqual([
@@ -147,6 +153,7 @@ describe("interop implementation metadata", () => {
         enabled: true,
         command: ["pnpm", "exec", "node", "--import", "tsx", "src/fixtures/typescript/server.ts"],
         cwd: undefined,
+        env: undefined,
         requiredManifest: undefined,
       },
       {
@@ -162,13 +169,15 @@ describe("interop implementation metadata", () => {
           "interop_server",
         ],
         cwd: undefined,
+        env: undefined,
         requiredManifest: undefined,
       },
       {
         id: "python",
         enabled: false,
-        command: ["python", "-m", "x402_sdk.interop.server"],
+        command: ["python3", "-m", "x402_sdk.interop.server"],
         cwd: "../../python",
+        env: { PYTHONPATH: "src" },
         requiredManifest: "../../python/pyproject.toml",
       },
       {
@@ -176,6 +185,7 @@ describe("interop implementation metadata", () => {
         enabled: false,
         command: ["go", "run", "./cmd/interop-server"],
         cwd: "../../go",
+        env: undefined,
         requiredManifest: "../../go/go.mod",
       },
       {
@@ -183,6 +193,7 @@ describe("interop implementation metadata", () => {
         enabled: false,
         command: ["lua", "bin/interop-server.lua"],
         cwd: "../../lua",
+        env: undefined,
         requiredManifest: "../../lua/x402-sdk-svm.rockspec",
       },
       {
@@ -190,6 +201,7 @@ describe("interop implementation metadata", () => {
         enabled: false,
         command: ["php", "bin/interop-server.php"],
         cwd: "../../php",
+        env: undefined,
         requiredManifest: "../../php/composer.json",
       },
     ]);
@@ -220,21 +232,6 @@ describe("interop implementation metadata", () => {
 
   it("fails selected planned adapters with scaffold-specific diagnostics", () => {
     const plannedSelections = [
-      {
-        envName: "X402_INTEROP_CLIENTS",
-        implementation: {
-          id: "python",
-          label: "Python HTTP client",
-          role: "client" as const,
-          command: ["python", "-m", "x402_sdk.interop.client"],
-          cwd: "../../python",
-          requiredManifest: "../../python/pyproject.toml",
-          enabled: true,
-          runtimeSchemes: ["exact" as const],
-          runtimeIntents: [],
-        },
-        expected: /python missing \.\.\/\.\.\/python\/pyproject\.toml/,
-      },
       {
         envName: "X402_INTEROP_CLIENTS",
         implementation: {

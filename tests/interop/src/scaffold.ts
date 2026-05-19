@@ -83,8 +83,8 @@ export const sdkScaffoldDefinitions: SdkScaffoldDefinition[] = [
     manifest: "pyproject.toml",
     serverOnly: false,
     planned: true,
-    expectedClientCommand: ["python", "-m", "x402_sdk.interop.client"],
-    expectedServerCommand: ["python", "-m", "x402_sdk.interop.server"],
+    expectedClientCommand: ["python3", "-m", "x402_sdk.interop.client"],
+    expectedServerCommand: ["python3", "-m", "x402_sdk.interop.server"],
   },
   {
     language: "go",

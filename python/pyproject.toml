@@ -1,0 +1,9 @@
+[project]
+name = "x402-sdk-svm"
+version = "0.0.0"
+description = "Experimental Python scaffold for Solana x402 interop adapters"
+requires-python = ">=3.11"
+dependencies = []
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]

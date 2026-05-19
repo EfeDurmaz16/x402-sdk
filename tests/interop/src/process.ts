@@ -61,6 +61,7 @@ function spawnAdapter(
     cwd: implementation.cwd ? join(process.cwd(), implementation.cwd) : process.cwd(),
     env: {
       ...process.env,
+      ...implementation.env,
       ...extraEnv,
     },
     stdio: ["ignore", "pipe", "inherit"],

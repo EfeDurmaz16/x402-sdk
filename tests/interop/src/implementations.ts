@@ -8,6 +8,7 @@ export type ImplementationDefinition = {
   role: "client" | "server";
   command: string[];
   cwd?: string;
+  env?: Record<string, string>;
   requiredManifest?: string;
   enabled: boolean;
   runtimeSchemes: InteropRuntimeScheme[];
@@ -110,8 +111,9 @@ export const clientImplementations: ImplementationDefinition[] = [
     id: "python",
     label: "Python HTTP client",
     role: "client",
-    command: ["python", "-m", "x402_sdk.interop.client"],
+    command: ["python3", "-m", "x402_sdk.interop.client"],
     cwd: "../../python",
+    env: { PYTHONPATH: "src" },
     requiredManifest: "../../python/pyproject.toml",
     enabled: isEnabled("python", "X402_INTEROP_CLIENTS", false),
     runtimeSchemes: ["exact"],
@@ -161,8 +163,9 @@ export const serverImplementations: ImplementationDefinition[] = [
     id: "python",
     label: "Python HTTP server",
     role: "server",
-    command: ["python", "-m", "x402_sdk.interop.server"],
+    command: ["python3", "-m", "x402_sdk.interop.server"],
     cwd: "../../python",
+    env: { PYTHONPATH: "src" },
     requiredManifest: "../../python/pyproject.toml",
     enabled: isEnabled("python", "X402_INTEROP_SERVERS", false),
     runtimeSchemes: ["exact"],

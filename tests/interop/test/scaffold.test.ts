@@ -64,8 +64,8 @@ describe("SDK scaffold diagnostics", () => {
         manifest: "pyproject.toml",
         serverOnly: false,
         planned: true,
-        expectedClientCommand: ["python", "-m", "x402_sdk.interop.client"],
-        expectedServerCommand: ["python", "-m", "x402_sdk.interop.server"],
+        expectedClientCommand: ["python3", "-m", "x402_sdk.interop.client"],
+        expectedServerCommand: ["python3", "-m", "x402_sdk.interop.server"],
       },
       {
         language: "go",
@@ -146,7 +146,7 @@ describe("SDK scaffold diagnostics", () => {
     expect(packageJson.scripts["scaffold:json"]).toBe("tsx src/print-scaffold.ts --json");
   });
 
-  it("keeps runtime adapters aligned with implemented exact capabilities", () => {
+  it("reports registered scaffold adapters without promoting them to implemented exact", () => {
     const runtimeReady = getSdkScaffoldStatus()
       .filter(status => status.runtimeClientAdapter || status.runtimeServerAdapter)
       .map(status => ({
@@ -156,15 +156,16 @@ describe("SDK scaffold diagnostics", () => {
       }))
       .sort((left, right) => left.language.localeCompare(right.language));
 
-    const implementedExact = Object.entries(interopCapabilities.schemes.exact.languages)
-      .map(([language, roles]) => ({
-        language,
-        client: roles.client === "implemented",
-        server: roles.server === "implemented",
-      }))
-      .sort((left, right) => left.language.localeCompare(right.language));
+    expect(runtimeReady).toEqual([
+      { language: "python", client: true, server: true },
+      { language: "rust", client: true, server: true },
+      { language: "typescript", client: true, server: true },
+    ]);
 
-    expect(runtimeReady).toEqual(implementedExact);
+    expect(interopCapabilities.schemes.exact.languages).toEqual({
+      rust: { client: "implemented", server: "implemented" },
+      typescript: { client: "implemented", server: "implemented" },
+    });
   });
 
   it("keeps server-only scaffold policy aligned with usage-based capability gaps", () => {
