@@ -77,6 +77,12 @@ jobs:
         env:
           X402_INTEROP_PROFILE: reference-spine
           X402_INTEROP_REFERENCE: rust
+      - name: Run interop boundary checks
+        run: pnpm test:boundaries
+        working-directory: tests/interop
+        env:
+          X402_INTEROP_PROFILE: reference-spine
+          X402_INTEROP_REFERENCE: rust
       - name: Run experimental interop contracts
         if: ${{ vars.X402_INTEROP_EXPERIMENTAL == 'true' }}
         run: pnpm test:experimental

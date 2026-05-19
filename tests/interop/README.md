@@ -57,7 +57,8 @@ Boundary and negative vectors are kept outside the default CI smoke profile:
 pnpm test:boundaries
 ```
 
-The first boundary suite mutates the client payment envelope's
+CI runs this suite after the reference-spine smoke profile. The first boundary
+suite mutates the client payment envelope's
 `accepted.network` after a valid payment is built. Servers must reject that
 payment and must not emit a settlement header.
 
