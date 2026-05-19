@@ -22,7 +22,7 @@ class InteropHandler(BaseHTTPRequestHandler):
         )
 
     def log_message(self, format: str, *args: object) -> None:
-        print(format % args, file=sys.stderr)
+        return
 
     def _write_json(self, status: int, body: dict[str, object]) -> None:
         encoded = json.dumps(body).encode("utf-8")

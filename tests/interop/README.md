@@ -96,6 +96,7 @@ For one-language debugging:
 ```bash
 pnpm run test:language:typescript
 pnpm run test:language:rust
+pnpm run test:planned-adapters
 ```
 
 To inspect planned, experimental, server-only, and missing capability gaps:

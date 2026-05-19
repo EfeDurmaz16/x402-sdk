@@ -188,6 +188,9 @@ describe("interop capability roadmap", () => {
     expect(packageJson.scripts["test:language:rust"]).toBe(
       "X402_INTEROP_CLIENTS=rust X402_INTEROP_SERVERS=rust vitest run test/e2e.test.ts",
     );
+    expect(packageJson.scripts["test:planned-adapters"]).toBe(
+      "vitest run test/planned-adapters.test.ts",
+    );
     expect(packageJson.scripts["test:probe:python-client"]).toBe(
       "X402_INTEROP_CLIENTS=python X402_INTEROP_SERVERS=rust pnpm test:smoke",
     );
