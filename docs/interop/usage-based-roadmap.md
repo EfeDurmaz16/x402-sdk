@@ -116,6 +116,12 @@ roles while Lua and PHP remain planned server-only roles.
 It also records the required operational safety checks before runtime support:
 durable accounting before service delivery, cumulative voucher monotonicity,
 top-up without channel reset, and cooperative plus forced close exit paths.
+Each planned lifecycle action also carries required fields so future adapters
+cannot collapse the session shape into a generic not-implemented placeholder:
+challenge advertises payee, mint, suggested deposit, unit price, and unit type;
+open binds payer, channel or escrow id, authorized signer, and initial voucher;
+voucher and close require cumulative amount plus signature; top-up requires an
+explicit top-up amount.
 
 ## PHP and Lua policy
 
@@ -162,6 +168,7 @@ PRs.
 | 26 | Planned Python/Go/Ruby client/server and Lua/PHP server scaffold probes. | staged |
 | 27 | Usage boundary probes for `upto` and `session` fail-fast diagnostics. | staged |
 | 28 | Lua server-only static scaffold probe without local Lua toolchain. | staged |
+| 29 | Session lifecycle required-field fixtures. | staged |
 
 ## Promotion checklist
 

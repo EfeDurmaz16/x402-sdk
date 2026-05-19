@@ -26,6 +26,13 @@ describe("session intent fixtures", () => {
       nativeX402Scheme: false,
       expectedOutcome: "unsupported",
       unsupportedReason: "session-intent-not-native-x402-scheme",
+      requiredFields: [
+        "payee",
+        "mint",
+        "suggestedDeposit",
+        "unitPrice",
+        "unitType",
+      ],
     });
   });
 
@@ -36,7 +43,69 @@ describe("session intent fixtures", () => {
       intent: "session",
       cumulativeAmount: "600",
       previousCumulativeAmount: "400",
+      requiredFields: [
+        "escrowOrChannelId",
+        "cumulativeAmount",
+        "voucherSignature",
+      ],
     });
+  });
+
+  it("keeps each lifecycle action tied to explicit required fields", () => {
+    expect(
+      sessionIntentFixtures.map(fixture => ({
+        action: fixture.action,
+        requiredFields: fixture.requiredFields,
+      })),
+    ).toEqual([
+      {
+        action: "challenge",
+        requiredFields: [
+          "payee",
+          "mint",
+          "suggestedDeposit",
+          "unitPrice",
+          "unitType",
+        ],
+      },
+      {
+        action: "open",
+        requiredFields: [
+          "payer",
+          "payee",
+          "mint",
+          "escrowOrChannelId",
+          "authorizedSigner",
+          "cumulativeAmount",
+          "voucherSignature",
+        ],
+      },
+      {
+        action: "voucher",
+        requiredFields: [
+          "escrowOrChannelId",
+          "cumulativeAmount",
+          "voucherSignature",
+        ],
+      },
+      {
+        action: "topUp",
+        requiredFields: [
+          "payer",
+          "escrowOrChannelId",
+          "topUpAmount",
+        ],
+      },
+      {
+        action: "close",
+        requiredFields: [
+          "escrowOrChannelId",
+          "cumulativeAmount",
+          "voucherSignature",
+          "closeMode",
+        ],
+      },
+    ]);
   });
 
   it("validates the experimental session contract without enabling runtime support", () => {
@@ -57,12 +126,18 @@ describe("session intent fixtures", () => {
           nativeX402Scheme: false,
           expectedOutcome: "unsupported",
           unsupportedReason: "session-intent-not-native-x402-scheme",
+          requiredFields: ["payee"],
         },
         {
           action: "voucher",
           intent: "session",
           nativeX402Scheme: false,
           expectedOutcome: "accepted-shape",
+          requiredFields: [
+            "escrowOrChannelId",
+            "cumulativeAmount",
+            "voucherSignature",
+          ],
           previousCumulativeAmount: "600",
           cumulativeAmount: "400",
         },
@@ -70,6 +145,23 @@ describe("session intent fixtures", () => {
     ).toMatchObject({
       ok: false,
       reason: "voucher-cumulative-amount-must-increase",
+    });
+  });
+
+  it("rejects lifecycle fixtures without explicit required fields", () => {
+    expect(
+      validateSessionIntentFixtures([
+        {
+          action: "challenge",
+          intent: "session",
+          nativeX402Scheme: false,
+          expectedOutcome: "unsupported",
+          unsupportedReason: "session-intent-not-native-x402-scheme",
+        },
+      ]),
+    ).toMatchObject({
+      ok: false,
+      reason: "session-fixture-missing-required-fields",
     });
   });
 

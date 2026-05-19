@@ -4,9 +4,24 @@ export type SessionIntentFixture = {
   nativeX402Scheme: false;
   expectedOutcome: "unsupported" | "accepted-shape";
   unsupportedReason?: "session-intent-not-native-x402-scheme";
+  requiredFields?: SessionRequiredField[];
   cumulativeAmount?: string;
   previousCumulativeAmount?: string;
 };
+
+export type SessionRequiredField =
+  | "payer"
+  | "payee"
+  | "mint"
+  | "escrowOrChannelId"
+  | "suggestedDeposit"
+  | "authorizedSigner"
+  | "unitPrice"
+  | "unitType"
+  | "cumulativeAmount"
+  | "voucherSignature"
+  | "topUpAmount"
+  | "closeMode";
 
 export const sessionIntentFixtures: SessionIntentFixture[] = [
   {
@@ -15,12 +30,28 @@ export const sessionIntentFixtures: SessionIntentFixture[] = [
     nativeX402Scheme: false,
     expectedOutcome: "unsupported",
     unsupportedReason: "session-intent-not-native-x402-scheme",
+    requiredFields: [
+      "payee",
+      "mint",
+      "suggestedDeposit",
+      "unitPrice",
+      "unitType",
+    ],
   },
   {
     action: "open",
     intent: "session",
     nativeX402Scheme: false,
     expectedOutcome: "accepted-shape",
+    requiredFields: [
+      "payer",
+      "payee",
+      "mint",
+      "escrowOrChannelId",
+      "authorizedSigner",
+      "cumulativeAmount",
+      "voucherSignature",
+    ],
     cumulativeAmount: "0",
   },
   {
@@ -28,6 +59,11 @@ export const sessionIntentFixtures: SessionIntentFixture[] = [
     intent: "session",
     nativeX402Scheme: false,
     expectedOutcome: "accepted-shape",
+    requiredFields: [
+      "escrowOrChannelId",
+      "cumulativeAmount",
+      "voucherSignature",
+    ],
     previousCumulativeAmount: "400",
     cumulativeAmount: "600",
   },
@@ -36,12 +72,23 @@ export const sessionIntentFixtures: SessionIntentFixture[] = [
     intent: "session",
     nativeX402Scheme: false,
     expectedOutcome: "accepted-shape",
+    requiredFields: [
+      "payer",
+      "escrowOrChannelId",
+      "topUpAmount",
+    ],
   },
   {
     action: "close",
     intent: "session",
     nativeX402Scheme: false,
     expectedOutcome: "accepted-shape",
+    requiredFields: [
+      "escrowOrChannelId",
+      "cumulativeAmount",
+      "voucherSignature",
+      "closeMode",
+    ],
     cumulativeAmount: "600",
   },
 ];
@@ -58,6 +105,7 @@ export type SessionFixtureValidationResult =
       reason:
         | "missing-session-challenge"
         | "session-must-remain-compatibility-intent"
+        | "session-fixture-missing-required-fields"
         | "voucher-cumulative-amount-must-increase";
     };
 
@@ -125,6 +173,10 @@ export function validateSessionIntentFixtures(
   }
 
   for (const fixture of fixtures) {
+    if (!fixture.requiredFields || fixture.requiredFields.length === 0) {
+      return { ok: false, reason: "session-fixture-missing-required-fields" };
+    }
+
     if (fixture.action !== "voucher") {
       continue;
     }
