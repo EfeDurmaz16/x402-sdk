@@ -70,9 +70,9 @@ export const interopProbes: ProbeDefinition[] = [
   },
   {
     script: "test:probe:reports",
-    command: "pnpm capabilities && pnpm capabilities:json && pnpm scaffold && pnpm scaffold:json && pnpm probes && pnpm probes:json && pnpm promotion && pnpm promotion:json",
+    command: "pnpm capabilities && pnpm capabilities:json && pnpm scaffold && pnpm scaffold:json && pnpm probes && pnpm probes:json && pnpm promotion && pnpm promotion:json && pnpm reports:verify",
     status: "green",
-    reason: "Capability, scaffold, probe-plan, and promotion-plan output stays readable and machine-readable.",
+    reason: "Capability, scaffold, probe-plan, promotion-plan, and generated CI artifacts stay readable and machine-readable.",
   },
   {
     script: "test:probe:python-syntax",

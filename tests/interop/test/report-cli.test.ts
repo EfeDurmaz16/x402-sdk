@@ -64,7 +64,7 @@ describe("interop report CLIs", () => {
         }),
         expect.objectContaining({
           script: "test:probe:reports",
-          command: "pnpm capabilities && pnpm capabilities:json && pnpm scaffold && pnpm scaffold:json && pnpm probes && pnpm probes:json && pnpm promotion && pnpm promotion:json",
+          command: "pnpm capabilities && pnpm capabilities:json && pnpm scaffold && pnpm scaffold:json && pnpm probes && pnpm probes:json && pnpm promotion && pnpm promotion:json && pnpm reports:verify",
         }),
         expect.objectContaining({
           script: "test:probe:multi-currency",

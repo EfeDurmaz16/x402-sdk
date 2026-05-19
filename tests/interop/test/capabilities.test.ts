@@ -177,6 +177,9 @@ describe("interop capability roadmap", () => {
     expect(packageJson.scripts["reports:artifacts"]).toBe(
       "pnpm --silent capabilities:json > interop-capabilities.json && pnpm --silent scaffold:json > interop-scaffold.json && pnpm --silent probes:json > interop-probes.json && pnpm --silent promotion:json > interop-promotion.json",
     );
+    expect(packageJson.scripts["reports:verify"]).toBe(
+      "pnpm reports:artifacts && tsx src/verify-report-artifacts.ts",
+    );
     expect(packageJson.scripts["test:experimental"]).toBe(
       "vitest run test/capabilities.test.ts test/contracts.test.ts test/report-cli.test.ts test/scaffold.test.ts test/lua-scaffold.test.ts test/promotion.test.ts test/upto-fixtures.test.ts test/batch-settlement-fixtures.test.ts test/session-fixtures.test.ts test/subscription-fixtures.test.ts test/planned-adapters.test.ts",
     );
@@ -208,7 +211,7 @@ describe("interop capability roadmap", () => {
       "pnpm test:probe:planned-syntax && pnpm test:probe:lua-static && pnpm test:probe:usage-boundaries && pnpm test:probe:planned-runtime",
     );
     expect(packageJson.scripts["test:probe:reports"]).toBe(
-      "pnpm capabilities && pnpm capabilities:json && pnpm scaffold && pnpm scaffold:json && pnpm probes && pnpm probes:json && pnpm promotion && pnpm promotion:json",
+      "pnpm capabilities && pnpm capabilities:json && pnpm scaffold && pnpm scaffold:json && pnpm probes && pnpm probes:json && pnpm promotion && pnpm promotion:json && pnpm reports:verify",
     );
     expect(packageJson.scripts["test:probe:planned-syntax"]).toBe(
       "pnpm test:probe:python-syntax && pnpm test:probe:python-unit && pnpm test:probe:go-build && pnpm test:probe:ruby-syntax && pnpm test:probe:ruby-unit && pnpm test:probe:php-syntax && pnpm test:probe:php-unit && pnpm test:probe:php-composer",
