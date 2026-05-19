@@ -170,6 +170,8 @@ describe("interop capability roadmap", () => {
     expect(packageJson.scripts["capabilities:json"]).toBe(
       "tsx src/print-capabilities.ts --json",
     );
+    expect(packageJson.scripts.probes).toBe("tsx src/print-probes.ts");
+    expect(packageJson.scripts["probes:json"]).toBe("tsx src/print-probes.ts --json");
     expect(packageJson.scripts["test:experimental"]).toBe(
       "vitest run test/capabilities.test.ts test/contracts.test.ts test/report-cli.test.ts test/scaffold.test.ts test/upto-fixtures.test.ts test/batch-settlement-fixtures.test.ts test/session-fixtures.test.ts test/subscription-fixtures.test.ts test/planned-adapters.test.ts",
     );
@@ -198,7 +200,7 @@ describe("interop capability roadmap", () => {
       "pnpm test:probe:planned-syntax && pnpm test:probe:usage-boundaries && pnpm test:planned-adapters",
     );
     expect(packageJson.scripts["test:probe:reports"]).toBe(
-      "pnpm capabilities && pnpm capabilities:json && pnpm scaffold && pnpm scaffold:json",
+      "pnpm capabilities && pnpm capabilities:json && pnpm scaffold && pnpm scaffold:json && pnpm probes && pnpm probes:json",
     );
     expect(packageJson.scripts["test:probe:planned-syntax"]).toBe(
       "pnpm test:probe:python-syntax && pnpm test:probe:go-build && pnpm test:probe:ruby-syntax && pnpm test:probe:php-syntax",

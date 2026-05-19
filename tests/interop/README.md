@@ -104,6 +104,8 @@ To inspect planned, experimental, server-only, and missing capability gaps:
 ```bash
 pnpm capabilities
 pnpm capabilities:json
+pnpm probes
+pnpm probes:json
 pnpm run test:probe:reports
 ```
 

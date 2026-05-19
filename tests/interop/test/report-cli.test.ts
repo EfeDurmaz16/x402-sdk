@@ -39,4 +39,34 @@ describe("interop report CLIs", () => {
       ]),
     });
   });
+
+  it("prints clean machine-readable probe JSON", () => {
+    expect(runJsonReport("src/print-probes.ts")).toMatchObject({
+      version: 1,
+      green: expect.arrayContaining([
+        expect.objectContaining({
+          script: "test:probe:local",
+          command: "pnpm test:ci && pnpm test:probe:staging && pnpm test:probe:reports",
+        }),
+        expect.objectContaining({
+          script: "test:probe:reports",
+          command: "pnpm capabilities && pnpm capabilities:json && pnpm scaffold && pnpm scaffold:json && pnpm probes && pnpm probes:json",
+        }),
+        expect.objectContaining({
+          script: "test:probe:php-syntax",
+          command: "php -l ../../php/bin/interop-server.php",
+        }),
+      ]),
+      expectedRed: expect.arrayContaining([
+        expect.objectContaining({
+          script: "test:probe:php-server",
+          reason: "PHP server scaffold is registered but exact payment settlement is not implemented yet.",
+        }),
+        expect.objectContaining({
+          script: "test:probe:upto-boundary",
+          reason: "Solana upto runtime remains disabled until maximum-authorization settlement is designed.",
+        }),
+      ]),
+    });
+  });
 });
