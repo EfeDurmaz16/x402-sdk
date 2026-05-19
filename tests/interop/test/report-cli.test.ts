@@ -1,5 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { describe, expect, it } from "vitest";
+import { interopProbes } from "../src/probes";
 
 function runJsonReport(script: string): unknown {
   const output = execFileSync("pnpm", ["exec", "tsx", script, "--json"], {
@@ -92,6 +93,28 @@ describe("interop report CLIs", () => {
         }),
       ]),
     });
+  });
+
+  it("keeps expected-red probes out of green aggregate probes", () => {
+    const byScript = new Map(interopProbes.map(probe => [probe.script, probe]));
+    const expectedRedScripts = interopProbes
+      .filter(probe => probe.status === "expected-red")
+      .map(probe => probe.script);
+
+    for (const aggregateScript of [
+      "test:probe:local",
+      "test:probe:staging",
+      "test:probe:planned-syntax",
+      "test:probe:usage-boundaries",
+      "test:probe:reports",
+    ]) {
+      const aggregate = byScript.get(aggregateScript);
+      expect(aggregate?.status).toBe("green");
+
+      for (const expectedRedScript of expectedRedScripts) {
+        expect(aggregate?.command).not.toContain(expectedRedScript);
+      }
+    }
   });
 
   it("prints clean machine-readable promotion JSON", () => {
