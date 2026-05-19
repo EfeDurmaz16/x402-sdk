@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import {
+  formatCapabilityJson,
   formatCapabilityReport,
   formatCapabilitySummary,
   interopCapabilities,
@@ -87,6 +88,14 @@ describe("interop capability roadmap", () => {
     ]);
   });
 
+  it("formats a machine-readable capability artifact for CI", () => {
+    expect(formatCapabilityJson()).toEqual({
+      version: 1,
+      summary: formatCapabilitySummary(),
+      capabilities: interopCapabilities,
+    });
+  });
+
   it("exposes capability diagnostics as a package script", () => {
     const packageJson = JSON.parse(readFileSync("package.json", "utf8")) as {
       scripts: Record<string, string>;
@@ -94,6 +103,9 @@ describe("interop capability roadmap", () => {
 
     expect(packageJson.scripts.capabilities).toBe(
       "tsx src/print-capabilities.ts",
+    );
+    expect(packageJson.scripts["capabilities:json"]).toBe(
+      "tsx src/print-capabilities.ts --json",
     );
     expect(packageJson.scripts["test:pair:ts-rust"]).toBe(
       "X402_INTEROP_CLIENTS=typescript X402_INTEROP_SERVERS=rust vitest run test/e2e.test.ts",

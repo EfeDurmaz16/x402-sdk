@@ -79,6 +79,7 @@ To inspect planned, experimental, server-only, and missing capability gaps:
 
 ```bash
 pnpm capabilities
+pnpm capabilities:json
 ```
 
 Domain-specific scenarios can stay selectable through Vitest filters. For

@@ -170,3 +170,15 @@ export function formatCapabilitySummary(): string[] {
     ...collectRoleGroups(interopCapabilities.intents),
   ];
 }
+
+export function formatCapabilityJson(): {
+  version: 1;
+  summary: string[];
+  capabilities: typeof interopCapabilities;
+} {
+  return {
+    version: 1,
+    summary: formatCapabilitySummary(),
+    capabilities: interopCapabilities,
+  };
+}

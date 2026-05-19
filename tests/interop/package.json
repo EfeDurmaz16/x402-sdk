@@ -5,6 +5,7 @@
   "packageManager": "pnpm@10.14.0",
   "scripts": {
     "capabilities": "tsx src/print-capabilities.ts",
+    "capabilities:json": "tsx src/print-capabilities.ts --json",
     "test": "vitest run",
     "test:boundaries": "vitest run test/boundary.test.ts test/exact-fixtures.test.ts",
     "test:language:rust": "X402_INTEROP_CLIENTS=rust X402_INTEROP_SERVERS=rust vitest run test/e2e.test.ts",
