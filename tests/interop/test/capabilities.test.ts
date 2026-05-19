@@ -203,7 +203,7 @@ describe("interop capability roadmap", () => {
       "pnpm capabilities && pnpm capabilities:json && pnpm scaffold && pnpm scaffold:json && pnpm probes && pnpm probes:json",
     );
     expect(packageJson.scripts["test:probe:planned-syntax"]).toBe(
-      "pnpm test:probe:python-syntax && pnpm test:probe:python-unit && pnpm test:probe:go-build && pnpm test:probe:ruby-syntax && pnpm test:probe:php-syntax",
+      "pnpm test:probe:python-syntax && pnpm test:probe:python-unit && pnpm test:probe:go-build && pnpm test:probe:ruby-syntax && pnpm test:probe:ruby-unit && pnpm test:probe:php-syntax",
     );
     expect(packageJson.scripts["test:probe:usage-boundaries"]).toBe(
       "vitest run test/contracts.test.ts test/upto-fixtures.test.ts test/session-fixtures.test.ts",
@@ -237,6 +237,9 @@ describe("interop capability roadmap", () => {
     );
     expect(packageJson.scripts["test:probe:ruby-syntax"]).toBe(
       "cd ../../ruby && ruby -c bin/interop-client && ruby -c bin/interop-server",
+    );
+    expect(packageJson.scripts["test:probe:ruby-unit"]).toBe(
+      "cd ../../ruby && ruby -Ilib:test test/interop_client_test.rb",
     );
     expect(packageJson.scripts["test:probe:ruby-client"]).toBe(
       "X402_INTEROP_CLIENTS=ruby X402_INTEROP_SERVERS=rust pnpm test:smoke",

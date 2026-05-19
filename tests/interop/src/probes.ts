@@ -22,9 +22,9 @@ export const interopProbes: ProbeDefinition[] = [
   },
   {
     script: "test:probe:planned-syntax",
-    command: "pnpm test:probe:python-syntax && pnpm test:probe:python-unit && pnpm test:probe:go-build && pnpm test:probe:ruby-syntax && pnpm test:probe:php-syntax",
+    command: "pnpm test:probe:python-syntax && pnpm test:probe:python-unit && pnpm test:probe:go-build && pnpm test:probe:ruby-syntax && pnpm test:probe:ruby-unit && pnpm test:probe:php-syntax",
     status: "green",
-    reason: "Python, Go, Ruby, and PHP scaffold syntax/build plus Python parser unit health.",
+    reason: "Python, Go, Ruby, and PHP scaffold syntax/build plus Python and Ruby parser unit health.",
   },
   {
     script: "test:probe:usage-boundaries",
@@ -61,6 +61,12 @@ export const interopProbes: ProbeDefinition[] = [
     command: "cd ../../ruby && ruby -c bin/interop-client && ruby -c bin/interop-server",
     status: "green",
     reason: "Ruby scaffold syntax check.",
+  },
+  {
+    script: "test:probe:ruby-unit",
+    command: "cd ../../ruby && ruby -Ilib:test test/interop_client_test.rb",
+    status: "green",
+    reason: "Ruby interop parser unit tests.",
   },
   {
     script: "test:probe:php-syntax",

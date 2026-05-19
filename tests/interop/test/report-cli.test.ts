@@ -60,6 +60,10 @@ describe("interop report CLIs", () => {
           script: "test:probe:python-unit",
           command: "cd ../../python && PYTHONPATH=src python3 -m unittest discover -s tests",
         }),
+        expect.objectContaining({
+          script: "test:probe:ruby-unit",
+          command: "cd ../../ruby && ruby -Ilib:test test/interop_client_test.rb",
+        }),
       ]),
       expectedRed: expect.arrayContaining([
         expect.objectContaining({

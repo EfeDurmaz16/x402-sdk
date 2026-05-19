@@ -206,8 +206,9 @@ Use this checklist when splitting the staging branch into upstream PRs:
 - `pnpm run test:planned-adapters` checks planned adapter process contracts:
   Python/Go/Ruby client scaffold failures and Python/Go/Ruby/Lua/PHP server
   readiness, health, and explicit not-implemented responses.
-- `pnpm run test:probe:planned-syntax` checks Python syntax and parser units,
-  plus Go, Ruby, and PHP scaffold syntax/build health in one local command.
+- `pnpm run test:probe:planned-syntax` checks Python and Ruby syntax plus
+  parser units, plus Go and PHP scaffold syntax/build health in one local
+  command.
 - `pnpm run test:probe:upto-boundary` and
   `pnpm run test:probe:session-boundary` intentionally fail fast with
   capability diagnostics while those runtime scenarios remain disabled.

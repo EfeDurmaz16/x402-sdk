@@ -5,6 +5,9 @@ require "json"
 require "net/http"
 require "uri"
 
+$LOAD_PATH.unshift(File.expand_path("../lib", __dir__))
+require "x402_sdk/interop/client"
+
 target_url = ENV.fetch("X402_INTEROP_TARGET_URL")
 response = Net::HTTP.get_response(URI(target_url))
 
@@ -12,6 +15,11 @@ headers = {}
 response.each_header do |key, value|
   headers[key] = value
 end
+selected_requirement = X402SDK::Interop::Client.select_svm_requirement(
+  headers: headers,
+  body: response.body,
+  network: ENV.fetch("X402_INTEROP_NETWORK", "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1")
+)
 
 puts JSON.generate(
   type: "result",
@@ -23,7 +31,8 @@ puts JSON.generate(
   responseBody: {
     error: "ruby_exact_client_not_implemented",
     challengeStatus: response.code.to_i,
-    challengeBody: response.body
+    challengeBody: response.body,
+    selectedRequirement: selected_requirement
   },
   settlement: nil
 )
