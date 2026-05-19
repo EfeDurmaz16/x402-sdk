@@ -188,6 +188,21 @@ describe("interop capability roadmap", () => {
     expect(packageJson.scripts["test:language:rust"]).toBe(
       "X402_INTEROP_CLIENTS=rust X402_INTEROP_SERVERS=rust vitest run test/e2e.test.ts",
     );
+    expect(packageJson.scripts["test:probe:python-client"]).toBe(
+      "X402_INTEROP_CLIENTS=python X402_INTEROP_SERVERS=rust pnpm test:smoke",
+    );
+    expect(packageJson.scripts["test:probe:go-server"]).toBe(
+      "X402_INTEROP_CLIENTS=typescript X402_INTEROP_SERVERS=go pnpm test:smoke",
+    );
+    expect(packageJson.scripts["test:probe:ruby-client"]).toBe(
+      "X402_INTEROP_CLIENTS=ruby X402_INTEROP_SERVERS=rust pnpm test:smoke",
+    );
+    expect(packageJson.scripts["test:probe:php-server"]).toBe(
+      "X402_INTEROP_CLIENTS=typescript X402_INTEROP_SERVERS=php pnpm test:smoke",
+    );
+    expect(packageJson.scripts["test:probe:lua-server"]).toBe(
+      "X402_INTEROP_CLIENTS=typescript X402_INTEROP_SERVERS=lua pnpm test:smoke",
+    );
   });
 
   it("keeps capability JSON available as a CI artifact", () => {

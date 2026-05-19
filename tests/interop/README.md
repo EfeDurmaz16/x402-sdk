@@ -238,8 +238,8 @@ If no filter is set, all stable adapters are enabled by default:
 
 Planned adapters are registered but disabled by default:
 
-- clients: `python,go`
-- servers: `python,go,lua,php`
+- clients: `python,go,ruby`
+- servers: `python,go,ruby,lua,php`
 
 Selecting one of these before its SDK scaffold exists fails fast with a
 manifest-specific diagnostic instead of silently falling back to the stable
@@ -250,7 +250,23 @@ X402_INTEROP_CLIENTS=python pnpm test:smoke
 X402_INTEROP_SERVERS=php pnpm test:smoke
 ```
 
-PHP linting should be added as a separate PHP scaffold gate once PHP files
-exist; the runtime interop command remains `php bin/interop-server.php`.
+The current Python, Go, Ruby, and PHP scaffolds are intentionally not green
+payment implementations yet. Use the probe scripts to reproduce the current
+red interop boundary while keeping default CI green:
+
+```bash
+pnpm run test:probe:python-client
+pnpm run test:probe:python-server
+pnpm run test:probe:go-client
+pnpm run test:probe:go-server
+pnpm run test:probe:ruby-client
+pnpm run test:probe:ruby-server
+pnpm run test:probe:php-server
+pnpm run test:probe:lua-server
+```
+
+`test:probe:lua-server` currently fails at the scaffold/toolchain boundary on
+machines without Lua. PHP syntax is checked separately with `php -l`; the
+runtime interop command remains `php bin/interop-server.php`.
 
 The suite performs a local socket-bind preflight. If the current environment forbids opening loopback ports, the e2e test is skipped instead of failing. In CI, where loopback sockets are available, the matrix runs normally.
