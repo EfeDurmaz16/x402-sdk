@@ -41,6 +41,12 @@ For the CI-style exact-payment smoke suite:
 X402_INTEROP_PROFILE=reference-spine X402_INTEROP_REFERENCE=rust pnpm test:smoke
 ```
 
+To mirror the default interop CI job locally:
+
+```bash
+pnpm test:ci
+```
+
 `reference-spine` runs every active client against the reference server and the
 reference client against every active server. The default reference is `rust`,
 but it can be changed with `X402_INTEROP_REFERENCE=<implementation>`.
