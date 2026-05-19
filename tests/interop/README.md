@@ -256,6 +256,7 @@ payment implementations yet. Use the probe scripts to reproduce the current
 red interop boundary while keeping default CI green:
 
 ```bash
+pnpm run test:probe:planned-syntax
 pnpm run test:probe:python-syntax
 pnpm run test:probe:python-client
 pnpm run test:probe:python-server

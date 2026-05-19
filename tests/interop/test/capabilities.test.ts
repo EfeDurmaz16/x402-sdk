@@ -191,6 +191,9 @@ describe("interop capability roadmap", () => {
     expect(packageJson.scripts["test:planned-adapters"]).toBe(
       "vitest run test/planned-adapters.test.ts",
     );
+    expect(packageJson.scripts["test:probe:planned-syntax"]).toBe(
+      "pnpm test:probe:python-syntax && pnpm test:probe:go-build && pnpm test:probe:ruby-syntax && pnpm test:probe:php-syntax",
+    );
     expect(packageJson.scripts["test:probe:python-syntax"]).toBe(
       "cd ../../python && python3 -m compileall -q src",
     );

@@ -17,6 +17,7 @@
     "test:pair:rust-ts": "X402_INTEROP_CLIENTS=rust X402_INTEROP_SERVERS=typescript vitest run test/e2e.test.ts",
     "test:pair:ts-rust": "X402_INTEROP_CLIENTS=typescript X402_INTEROP_SERVERS=rust vitest run test/e2e.test.ts",
     "test:planned-adapters": "vitest run test/planned-adapters.test.ts",
+    "test:probe:planned-syntax": "pnpm test:probe:python-syntax && pnpm test:probe:go-build && pnpm test:probe:ruby-syntax && pnpm test:probe:php-syntax",
     "test:probe:python-syntax": "cd ../../python && python3 -m compileall -q src",
     "test:probe:python-client": "X402_INTEROP_CLIENTS=python X402_INTEROP_SERVERS=rust pnpm test:smoke",
     "test:probe:python-server": "X402_INTEROP_CLIENTS=typescript X402_INTEROP_SERVERS=python pnpm test:smoke",
