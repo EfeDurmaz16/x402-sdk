@@ -121,9 +121,9 @@ PRs.
 | 19 | PHP session server adapter support. | planned |
 | 20 | Subscription boundary docs and detection fixtures. | staged |
 | 21 | Subscription experimental diagnostics. | staged |
-| 22 | Matrix report artifacts. | partial |
-| 23 | Maintainer runbook for one language, one pair, and one scheme. | planned |
-| 24 | Experimental CI opt-in flags. | partial |
+| 22 | Matrix report artifacts. | staged |
+| 23 | Maintainer runbook for one language, one pair, and one scheme. | staged |
+| 24 | Experimental CI opt-in flags. | staged |
 | 25 | Final cleanup of planned/missing capability reporting. | partial |
 
 ## Current staging guardrails
@@ -136,6 +136,8 @@ PRs.
 - TypeScript `upto` server support is marked `experimental` because Solana
   maximum-authorization settlement still requires an explicit design.
 - Planned and server-only roles are visible through `pnpm capabilities`.
+- CI uploads the JSON capability report and can run experimental contract tests
+  by setting `X402_INTEROP_EXPERIMENTAL=true`.
 
 ## Current staging non-goals
 

@@ -68,6 +68,10 @@ interop:
 pnpm test:experimental
 ```
 
+CI keeps this experimental suite opt-in so unstable usage-based semantics do
+not block the exact-payment smoke path. Set the repository variable
+`X402_INTEROP_EXPERIMENTAL=true` to run `pnpm test:experimental` in Actions.
+
 For one-pair debugging:
 
 ```bash
