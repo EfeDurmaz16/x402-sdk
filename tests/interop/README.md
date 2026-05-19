@@ -257,6 +257,7 @@ red interop boundary while keeping default CI green:
 
 ```bash
 pnpm run test:probe:planned-syntax
+pnpm run test:probe:usage-boundaries
 pnpm run test:probe:upto-boundary
 pnpm run test:probe:session-boundary
 pnpm run test:probe:python-syntax
@@ -282,5 +283,7 @@ payment implementation yet.
 `test:probe:upto-boundary` and `test:probe:session-boundary` are expected to
 fail until those runtime scenarios are enabled; they exercise the fail-fast
 capability diagnostics rather than payment settlement.
+Use `test:probe:usage-boundaries` for a green aggregate check of the same
+disabled-runtime contract plus the `upto` and `session` fixture gates.
 
 The suite performs a local socket-bind preflight. If the current environment forbids opening loopback ports, the e2e test is skipped instead of failing. In CI, where loopback sockets are available, the matrix runs normally.

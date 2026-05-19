@@ -194,6 +194,9 @@ describe("interop capability roadmap", () => {
     expect(packageJson.scripts["test:probe:planned-syntax"]).toBe(
       "pnpm test:probe:python-syntax && pnpm test:probe:go-build && pnpm test:probe:ruby-syntax && pnpm test:probe:php-syntax",
     );
+    expect(packageJson.scripts["test:probe:usage-boundaries"]).toBe(
+      "vitest run test/contracts.test.ts test/upto-fixtures.test.ts test/session-fixtures.test.ts",
+    );
     expect(packageJson.scripts["test:probe:upto-boundary"]).toBe(
       "X402_INTEROP_SCHEME=upto pnpm test:smoke",
     );
