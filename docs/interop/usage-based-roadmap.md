@@ -35,6 +35,17 @@ treated as a simple scheme rename over `exact`. The staging harness tracks
 Solana `upto` as `requires-design` until the authorization and settlement model
 is explicit.
 
+Reference check on 2026-05-19:
+
+- x402 seller docs describe Solana examples for `exact`, while the `upto`
+  examples use EVM schemes.
+- the same docs state `upto` is currently available on EVM networks only in
+  TypeScript, Go, and Python SDKs.
+- network docs describe Solana transfer support as SPL or Token-2022 transfer,
+  while EVM supports EIP-3009 or Permit2.
+- batch settlement is documented separately from `upto` as a channel or escrow
+  style scheme for high-frequency flows, currently centered on EVM.
+
 `session` is not treated as a native x402 scheme in this repository unless the
 upstream x402 standard defines one. Until then, session-shaped flows belong to
 an explicit compatibility intent path, not the native scheme registry.
