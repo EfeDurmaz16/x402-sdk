@@ -48,37 +48,24 @@ jobs:
       - uses: pnpm/action-setup@v4
         with:
           version: 10.14.0
-      - name: Cache surfpool-sdk build
-        id: cache-surfpool
-        uses: actions/cache@v4
-        with:
-          path: /tmp/surfpool
-          key: surfpool-sdk-${{ runner.os }}-${{ runner.arch }}-v1
-      - name: Clone and build surfpool-sdk
-        if: steps.cache-surfpool.outputs.cache-hit != 'true'
-        run: |
-          git clone --depth 1 --branch feat/sdk https://github.com/solana-foundation/surfpool.git /tmp/surfpool
-          cd /tmp/surfpool/crates/sdk-node
-          npm install
-          npm run build
       - name: Install TypeScript workspace
         run: pnpm install
         working-directory: typescript
       - name: Build TypeScript package
         run: pnpm --filter @solana/x402 build
         working-directory: typescript
+      - name: Build Rust interop adapters
+        run: cargo build --bin interop_client --bin interop_server
+        working-directory: rust
       - name: Install interop harness
         run: pnpm install
         working-directory: tests/interop
-      - name: Link surfpool-sdk
-        run: |
-          mkdir -p node_modules
-          rm -rf node_modules/surfpool-sdk
-          ln -sfn /tmp/surfpool/crates/sdk-node node_modules/surfpool-sdk
+      - name: Typecheck interop harness
+        run: pnpm typecheck
         working-directory: tests/interop
-      - name: Run interop tests
-        run: pnpm test
+      - name: Run reference-spine interop smoke
+        run: pnpm test:smoke
         working-directory: tests/interop
         env:
-          X402_INTEROP_CLIENTS: typescript
-          X402_INTEROP_SERVERS: typescript
+          X402_INTEROP_PROFILE: reference-spine
+          X402_INTEROP_REFERENCE: rust

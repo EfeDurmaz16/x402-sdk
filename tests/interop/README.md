@@ -35,6 +35,27 @@ pnpm install
 pnpm test
 ```
 
+For the CI-style exact-payment smoke suite:
+
+```bash
+X402_INTEROP_PROFILE=reference-spine X402_INTEROP_REFERENCE=rust pnpm test:smoke
+```
+
+`reference-spine` runs every active client against the reference server and the
+reference client against every active server. The default reference is `rust`,
+but it can be changed with `X402_INTEROP_REFERENCE=<implementation>`.
+
+To run the full Cartesian client/server smoke matrix:
+
+```bash
+X402_INTEROP_PROFILE=full pnpm test:smoke
+```
+
+Domain-specific scenarios can stay selectable through Vitest filters. For
+example, the current smoke script selects the exact-payment tests by matching
+`client pays`, while the multi-currency vectors remain available in the full
+test suite.
+
 If the TypeScript adapter cannot resolve `@solana/x402/...` subpaths, rebuild
 the local package and refresh the interop package install:
 
@@ -138,6 +159,8 @@ Use these environment variables to filter the active matrix:
 
 - `X402_INTEROP_CLIENTS=typescript,rust`
 - `X402_INTEROP_SERVERS=typescript,rust`
+- `X402_INTEROP_PROFILE=reference-spine|full`
+- `X402_INTEROP_REFERENCE=rust`
 
 If no filter is set, all stable adapters are enabled by default:
 
