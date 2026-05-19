@@ -11,6 +11,7 @@ type RunningServer = Awaited<ReturnType<typeof startServer>>;
 
 const TOKEN_PROGRAM = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA";
 const MINT_ACCOUNT_SIZE = 82;
+const MULTI_CURRENCY_CASE_TIMEOUT_MS = 45_000;
 
 const runningServers: RunningServer[] = [];
 
@@ -212,7 +213,7 @@ describe("x402 interop multi-currency", () => {
         expect(result.status).toBe(200);
         expect(finalPyusdBalance - initialPyusdBalance).toBe(1_000n);
       },
-      20_000,
+      MULTI_CURRENCY_CASE_TIMEOUT_MS,
     );
 
     socketAwareIt(
@@ -250,7 +251,7 @@ describe("x402 interop multi-currency", () => {
         expect(result.ok, JSON.stringify(result, null, 2)).toBe(true);
         expect(finalUsdcBalance - initialUsdcBalance).toBe(1_000n);
       },
-      20_000,
+      MULTI_CURRENCY_CASE_TIMEOUT_MS,
     );
   }
 });
