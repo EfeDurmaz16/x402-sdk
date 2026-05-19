@@ -67,6 +67,20 @@ The selectors must match adapter IDs from
 `tests/interop/src/implementations.ts`. Unknown IDs fail before the matrix runs
 so typos do not silently reduce coverage.
 
+Run one language against itself:
+
+```bash
+X402_INTEROP_CLIENTS=typescript X402_INTEROP_SERVERS=typescript pnpm test
+X402_INTEROP_CLIENTS=rust X402_INTEROP_SERVERS=rust pnpm test
+```
+
+Run one language across the opposite side of the matrix:
+
+```bash
+X402_INTEROP_CLIENTS=typescript X402_INTEROP_SERVERS=typescript,rust pnpm test
+X402_INTEROP_CLIENTS=typescript,rust X402_INTEROP_SERVERS=rust pnpm test
+```
+
 If the TypeScript adapter cannot resolve `@solana/x402/...` subpaths, rebuild
 the local package and refresh the interop package install:
 
