@@ -61,6 +61,13 @@ The first boundary suite mutates the client payment envelope's
 `accepted.network` after a valid payment is built. Servers must reject that
 payment and must not emit a settlement header.
 
+Experimental usage-based contracts can be checked without running runtime
+interop:
+
+```bash
+pnpm test:experimental
+```
+
 For one-pair debugging:
 
 ```bash
