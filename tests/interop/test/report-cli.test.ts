@@ -71,6 +71,10 @@ describe("interop report CLIs", () => {
           command: "X402_INTEROP_PROFILE=reference-spine X402_INTEROP_REFERENCE=rust pnpm test:multi-currency",
         }),
         expect.objectContaining({
+          script: "test:probe:planned-runtime",
+          command: "pnpm test:planned-adapters",
+        }),
+        expect.objectContaining({
           script: "test:probe:php-syntax",
           command: "php -l ../../php/bin/interop-server.php",
         }),

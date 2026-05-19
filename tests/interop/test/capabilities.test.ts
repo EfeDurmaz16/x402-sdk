@@ -202,7 +202,7 @@ describe("interop capability roadmap", () => {
       "pnpm test:ci && pnpm test:probe:staging && pnpm test:probe:reports",
     );
     expect(packageJson.scripts["test:probe:staging"]).toBe(
-      "pnpm test:probe:planned-syntax && pnpm test:probe:lua-static && pnpm test:probe:usage-boundaries && pnpm test:planned-adapters",
+      "pnpm test:probe:planned-syntax && pnpm test:probe:lua-static && pnpm test:probe:usage-boundaries && pnpm test:probe:planned-runtime",
     );
     expect(packageJson.scripts["test:probe:reports"]).toBe(
       "pnpm capabilities && pnpm capabilities:json && pnpm scaffold && pnpm scaffold:json && pnpm probes && pnpm probes:json && pnpm promotion && pnpm promotion:json",
@@ -210,6 +210,7 @@ describe("interop capability roadmap", () => {
     expect(packageJson.scripts["test:probe:planned-syntax"]).toBe(
       "pnpm test:probe:python-syntax && pnpm test:probe:python-unit && pnpm test:probe:go-build && pnpm test:probe:ruby-syntax && pnpm test:probe:ruby-unit && pnpm test:probe:php-syntax && pnpm test:probe:php-unit && pnpm test:probe:php-composer",
     );
+    expect(packageJson.scripts["test:probe:planned-runtime"]).toBe("pnpm test:planned-adapters");
     expect(packageJson.scripts["test:probe:usage-boundaries"]).toBe(
       "pnpm test:probe:upto-fixtures && pnpm test:probe:batch-settlement-fixtures && pnpm test:probe:session-fixtures && pnpm test:probe:subscription-fixtures && vitest run test/contracts.test.ts",
     );

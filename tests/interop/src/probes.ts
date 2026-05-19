@@ -16,7 +16,7 @@ export const interopProbes: ProbeDefinition[] = [
   },
   {
     script: "test:probe:staging",
-    command: "pnpm test:probe:planned-syntax && pnpm test:probe:lua-static && pnpm test:probe:usage-boundaries && pnpm test:planned-adapters",
+    command: "pnpm test:probe:planned-syntax && pnpm test:probe:lua-static && pnpm test:probe:usage-boundaries && pnpm test:probe:planned-runtime",
     status: "green",
     reason: "Green staging gate for planned scaffold syntax and non-runtime contracts.",
   },
@@ -25,6 +25,12 @@ export const interopProbes: ProbeDefinition[] = [
     command: "pnpm test:probe:python-syntax && pnpm test:probe:python-unit && pnpm test:probe:go-build && pnpm test:probe:ruby-syntax && pnpm test:probe:ruby-unit && pnpm test:probe:php-syntax && pnpm test:probe:php-unit && pnpm test:probe:php-composer",
     status: "green",
     reason: "Python, Go, Ruby, and PHP scaffold syntax/build plus Python/Ruby parser and PHP package health.",
+  },
+  {
+    script: "test:probe:planned-runtime",
+    command: "pnpm test:planned-adapters",
+    status: "green",
+    reason: "Process-level planned adapter contracts that prove opt-in runtimes fail with explicit not-implemented shapes.",
   },
   {
     script: "test:probe:usage-boundaries",
