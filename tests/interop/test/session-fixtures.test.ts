@@ -4,6 +4,7 @@ import {
   sessionLanguageRoleFixtures,
   validateSessionIntentFixtures,
 } from "../src/fixtures/session";
+import { interopCapabilities } from "../src/capabilities";
 
 describe("session intent fixtures", () => {
   it("defines the planned session lifecycle shapes before implementation", () => {
@@ -79,5 +80,26 @@ describe("session intent fixtures", () => {
       { language: "lua", clientRole: "missing", serverRole: "planned" },
       { language: "php", clientRole: "missing", serverRole: "planned" },
     ]);
+  });
+
+  it("keeps session language role fixtures aligned with capability metadata", () => {
+    const byLanguage = (left: { language: string }, right: { language: string }) =>
+      left.language.localeCompare(right.language);
+
+    expect(
+      sessionLanguageRoleFixtures.map(fixture => ({
+        language: fixture.language,
+        client: fixture.clientRole,
+        server: fixture.serverRole,
+      })).sort(byLanguage),
+    ).toEqual(
+      Object.entries(interopCapabilities.intents.session.languages).map(
+        ([language, roles]) => ({
+          language,
+          client: roles.client,
+          server: roles.server,
+        }),
+      ).sort(byLanguage),
+    );
   });
 });

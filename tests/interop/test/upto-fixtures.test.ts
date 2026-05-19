@@ -4,6 +4,7 @@ import {
   uptoScenarioFixtures,
   uptoSolanaDesignGate,
 } from "../src/fixtures/upto";
+import { interopCapabilities } from "../src/capabilities";
 
 describe("upto scenario fixtures", () => {
   it("defines the planned positive and negative cases before implementation", () => {
@@ -77,5 +78,26 @@ describe("upto scenario fixtures", () => {
       { language: "lua", clientRole: "missing", serverRole: "planned" },
       { language: "php", clientRole: "missing", serverRole: "planned" },
     ]);
+  });
+
+  it("keeps upto language role fixtures aligned with capability metadata", () => {
+    const byLanguage = (left: { language: string }, right: { language: string }) =>
+      left.language.localeCompare(right.language);
+
+    expect(
+      uptoLanguageRoleFixtures.map(fixture => ({
+        language: fixture.language,
+        client: fixture.clientRole,
+        server: fixture.serverRole,
+      })).sort(byLanguage),
+    ).toEqual(
+      Object.entries(interopCapabilities.schemes.upto.languages).map(
+        ([language, roles]) => ({
+          language,
+          client: roles.client,
+          server: roles.server,
+        }),
+      ).sort(byLanguage),
+    );
   });
 });
