@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { interopCapabilities } from "../src/capabilities";
+import { formatCapabilityReport, interopCapabilities } from "../src/capabilities";
 
 describe("interop capability roadmap", () => {
   it("keeps usage-based x402 work planned before implementation starts", () => {
@@ -35,5 +35,12 @@ describe("interop capability roadmap", () => {
       lua: { client: "missing", server: "planned" },
       php: { client: "missing", server: "planned" },
     });
+  });
+
+  it("formats planned and server-only capability gaps for maintainer diagnostics", () => {
+    expect(formatCapabilityReport()).toContain("scheme:upto planned default-ci:false");
+    expect(formatCapabilityReport()).toContain("intent:session planned native-x402:false");
+    expect(formatCapabilityReport()).toContain("lua client:missing server:planned");
+    expect(formatCapabilityReport()).toContain("php client:missing server:planned");
   });
 });

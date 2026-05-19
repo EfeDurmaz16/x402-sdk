@@ -67,3 +67,29 @@ export const interopCapabilities = {
   schemes: Record<string, SchemeCapability>;
   intents: Record<string, IntentCapability>;
 };
+
+function formatLanguageCapabilities(languages: LanguageCapabilityMap): string[] {
+  return Object.entries(languages)
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([language, capability]) => {
+      return `${language} client:${capability.client} server:${capability.server}`;
+    });
+}
+
+export function formatCapabilityReport(): string {
+  const lines: string[] = [];
+
+  for (const [scheme, capability] of Object.entries(interopCapabilities.schemes)) {
+    lines.push(`scheme:${scheme} ${capability.status} default-ci:${capability.defaultCi}`);
+    lines.push(...formatLanguageCapabilities(capability.languages));
+  }
+
+  for (const [intent, capability] of Object.entries(interopCapabilities.intents)) {
+    lines.push(
+      `intent:${intent} ${capability.status} native-x402:${capability.nativeX402Scheme}`,
+    );
+    lines.push(...formatLanguageCapabilities(capability.languages));
+  }
+
+  return lines.join("\n");
+}
