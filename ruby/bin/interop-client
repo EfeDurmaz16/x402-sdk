@@ -1,0 +1,29 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require "json"
+require "net/http"
+require "uri"
+
+target_url = ENV.fetch("X402_INTEROP_TARGET_URL")
+response = Net::HTTP.get_response(URI(target_url))
+
+headers = {}
+response.each_header do |key, value|
+  headers[key] = value
+end
+
+puts JSON.generate(
+  type: "result",
+  implementation: "ruby",
+  role: "client",
+  ok: false,
+  status: response.code.to_i,
+  responseHeaders: headers,
+  responseBody: {
+    error: "ruby_exact_client_not_implemented",
+    challengeStatus: response.code.to_i,
+    challengeBody: response.body
+  },
+  settlement: nil
+)

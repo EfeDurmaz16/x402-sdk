@@ -85,7 +85,7 @@ describe("interop implementation metadata", () => {
     ]);
   });
 
-  it("registers opt-in Go, Python, and Lua adapter commands without enabling them by default", () => {
+  it("registers opt-in planned adapter commands without enabling them by default", () => {
     expect(
       clientImplementations.map(implementation => ({
         id: implementation.id,
@@ -135,6 +135,14 @@ describe("interop implementation metadata", () => {
         cwd: "../../go",
         env: undefined,
         requiredManifest: "../../go/go.mod",
+      },
+      {
+        id: "ruby",
+        enabled: false,
+        command: ["ruby", "bin/interop-client"],
+        cwd: "../../ruby",
+        env: undefined,
+        requiredManifest: "../../ruby/Gemfile",
       },
     ]);
 
@@ -187,6 +195,14 @@ describe("interop implementation metadata", () => {
         cwd: "../../go",
         env: undefined,
         requiredManifest: "../../go/go.mod",
+      },
+      {
+        id: "ruby",
+        enabled: false,
+        command: ["ruby", "bin/interop-server"],
+        cwd: "../../ruby",
+        env: undefined,
+        requiredManifest: "../../ruby/Gemfile",
       },
       {
         id: "lua",

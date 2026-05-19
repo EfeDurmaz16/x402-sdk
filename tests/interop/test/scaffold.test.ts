@@ -82,8 +82,8 @@ describe("SDK scaffold diagnostics", () => {
         manifest: "Gemfile",
         serverOnly: false,
         planned: true,
-        expectedClientCommand: ["bundle", "exec", "ruby", "bin/interop-client"],
-        expectedServerCommand: ["bundle", "exec", "ruby", "bin/interop-server"],
+        expectedClientCommand: ["ruby", "bin/interop-client"],
+        expectedServerCommand: ["ruby", "bin/interop-server"],
       },
       {
         language: "lua",
@@ -160,6 +160,7 @@ describe("SDK scaffold diagnostics", () => {
       { language: "go", client: true, server: true },
       { language: "php", client: false, server: true },
       { language: "python", client: true, server: true },
+      { language: "ruby", client: true, server: true },
       { language: "rust", client: true, server: true },
       { language: "typescript", client: true, server: true },
     ]);

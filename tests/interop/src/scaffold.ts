@@ -101,8 +101,8 @@ export const sdkScaffoldDefinitions: SdkScaffoldDefinition[] = [
     manifest: "Gemfile",
     serverOnly: false,
     planned: true,
-    expectedClientCommand: ["bundle", "exec", "ruby", "bin/interop-client"],
-    expectedServerCommand: ["bundle", "exec", "ruby", "bin/interop-server"],
+    expectedClientCommand: ["ruby", "bin/interop-client"],
+    expectedServerCommand: ["ruby", "bin/interop-server"],
   },
   {
     language: "lua",

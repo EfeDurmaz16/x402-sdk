@@ -1,0 +1,43 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require "json"
+require "webrick"
+
+server = WEBrick::HTTPServer.new(
+  BindAddress: "127.0.0.1",
+  Port: 0,
+  AccessLog: [],
+  Logger: WEBrick::Log.new($stderr, WEBrick::Log::WARN)
+)
+
+server.mount_proc "/" do |request, response|
+  if request.path == "/health"
+    response.status = 200
+    response["content-type"] = "application/json"
+    response.body = JSON.generate(ok: true)
+    next
+  end
+
+  response.status = 501
+  response["content-type"] = "application/json"
+  response.body = JSON.generate(
+    ok: false,
+    paid: false,
+    error: "ruby_exact_server_not_implemented"
+  )
+end
+
+trap("TERM") { server.shutdown }
+trap("INT") { server.shutdown }
+
+puts JSON.generate(
+  type: "ready",
+  implementation: "ruby",
+  role: "server",
+  port: server.config[:Port],
+  capabilities: ["exact"]
+)
+$stdout.flush
+
+server.start

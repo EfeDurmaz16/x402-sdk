@@ -130,6 +130,17 @@ export const clientImplementations: ImplementationDefinition[] = [
     runtimeSchemes: ["exact"],
     runtimeIntents: [],
   },
+  {
+    id: "ruby",
+    label: "Ruby HTTP client",
+    role: "client",
+    command: ["ruby", "bin/interop-client"],
+    cwd: "../../ruby",
+    requiredManifest: "../../ruby/Gemfile",
+    enabled: isEnabled("ruby", "X402_INTEROP_CLIENTS", false),
+    runtimeSchemes: ["exact"],
+    runtimeIntents: [],
+  },
 ];
 
 export const serverImplementations: ImplementationDefinition[] = [
@@ -179,6 +190,17 @@ export const serverImplementations: ImplementationDefinition[] = [
     cwd: "../../go",
     requiredManifest: "../../go/go.mod",
     enabled: isEnabled("go", "X402_INTEROP_SERVERS", false),
+    runtimeSchemes: ["exact"],
+    runtimeIntents: [],
+  },
+  {
+    id: "ruby",
+    label: "Ruby HTTP server",
+    role: "server",
+    command: ["ruby", "bin/interop-server"],
+    cwd: "../../ruby",
+    requiredManifest: "../../ruby/Gemfile",
+    enabled: isEnabled("ruby", "X402_INTEROP_SERVERS", false),
     runtimeSchemes: ["exact"],
     runtimeIntents: [],
   },
