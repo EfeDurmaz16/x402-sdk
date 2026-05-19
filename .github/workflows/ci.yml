@@ -63,6 +63,14 @@ jobs:
       - name: Typecheck interop harness
         run: pnpm typecheck
         working-directory: tests/interop
+      - name: Write interop capability report
+        run: pnpm --silent capabilities:json > interop-capabilities.json
+        working-directory: tests/interop
+      - name: Upload interop capability report
+        uses: actions/upload-artifact@v4
+        with:
+          name: interop-capabilities
+          path: tests/interop/interop-capabilities.json
       - name: Run reference-spine interop smoke
         run: pnpm test:smoke
         working-directory: tests/interop

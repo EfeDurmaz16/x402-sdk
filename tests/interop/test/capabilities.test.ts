@@ -123,4 +123,11 @@ describe("interop capability roadmap", () => {
       "X402_INTEROP_CLIENTS=rust X402_INTEROP_SERVERS=rust vitest run test/e2e.test.ts",
     );
   });
+
+  it("keeps capability JSON available as a CI artifact", () => {
+    const workflow = readFileSync("../../.github/workflows/ci.yml", "utf8");
+
+    expect(workflow).toContain("pnpm --silent capabilities:json > interop-capabilities.json");
+    expect(workflow).toContain("name: interop-capabilities");
+  });
 });
