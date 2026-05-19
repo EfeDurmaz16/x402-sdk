@@ -108,10 +108,12 @@ pnpm probes
 pnpm probes:json
 pnpm promotion
 pnpm promotion:json
+pnpm reports:artifacts
 pnpm run test:probe:reports
 ```
 
-CI uploads the same machine-readable reports as artifacts:
+CI uses `pnpm reports:artifacts` and uploads the generated machine-readable
+reports as artifacts:
 
 - `interop-capabilities`
 - `interop-scaffold`

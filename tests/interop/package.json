@@ -10,6 +10,7 @@
     "probes:json": "tsx src/print-probes.ts --json",
     "promotion": "tsx src/print-promotion.ts",
     "promotion:json": "tsx src/print-promotion.ts --json",
+    "reports:artifacts": "pnpm --silent capabilities:json > interop-capabilities.json && pnpm --silent scaffold:json > interop-scaffold.json && pnpm --silent probes:json > interop-probes.json && pnpm --silent promotion:json > interop-promotion.json",
     "scaffold": "tsx src/print-scaffold.ts",
     "scaffold:json": "tsx src/print-scaffold.ts --json",
     "test": "vitest run",

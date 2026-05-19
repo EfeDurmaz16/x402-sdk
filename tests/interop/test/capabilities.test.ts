@@ -174,6 +174,9 @@ describe("interop capability roadmap", () => {
     expect(packageJson.scripts["probes:json"]).toBe("tsx src/print-probes.ts --json");
     expect(packageJson.scripts.promotion).toBe("tsx src/print-promotion.ts");
     expect(packageJson.scripts["promotion:json"]).toBe("tsx src/print-promotion.ts --json");
+    expect(packageJson.scripts["reports:artifacts"]).toBe(
+      "pnpm --silent capabilities:json > interop-capabilities.json && pnpm --silent scaffold:json > interop-scaffold.json && pnpm --silent probes:json > interop-probes.json && pnpm --silent promotion:json > interop-promotion.json",
+    );
     expect(packageJson.scripts["test:experimental"]).toBe(
       "vitest run test/capabilities.test.ts test/contracts.test.ts test/report-cli.test.ts test/scaffold.test.ts test/lua-scaffold.test.ts test/promotion.test.ts test/upto-fixtures.test.ts test/batch-settlement-fixtures.test.ts test/session-fixtures.test.ts test/subscription-fixtures.test.ts test/planned-adapters.test.ts",
     );
@@ -294,13 +297,10 @@ describe("interop capability roadmap", () => {
   it("keeps interop JSON reports available as CI artifacts", () => {
     const workflow = readFileSync("../../.github/workflows/ci.yml", "utf8");
 
-    expect(workflow).toContain("pnpm --silent capabilities:json > interop-capabilities.json");
+    expect(workflow).toContain("pnpm reports:artifacts");
     expect(workflow).toContain("name: interop-capabilities");
-    expect(workflow).toContain("pnpm --silent scaffold:json > interop-scaffold.json");
     expect(workflow).toContain("name: interop-scaffold");
-    expect(workflow).toContain("pnpm --silent probes:json > interop-probes.json");
     expect(workflow).toContain("name: interop-probes");
-    expect(workflow).toContain("pnpm --silent promotion:json > interop-promotion.json");
     expect(workflow).toContain("name: interop-promotion");
     expect(workflow).toContain("pnpm test:multi-currency");
     expect(workflow).toContain("pnpm test:boundaries");

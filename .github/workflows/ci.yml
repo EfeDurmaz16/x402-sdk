@@ -63,17 +63,8 @@ jobs:
       - name: Typecheck interop harness
         run: pnpm typecheck
         working-directory: tests/interop
-      - name: Write interop capability report
-        run: pnpm --silent capabilities:json > interop-capabilities.json
-        working-directory: tests/interop
-      - name: Write SDK scaffold report
-        run: pnpm --silent scaffold:json > interop-scaffold.json
-        working-directory: tests/interop
-      - name: Write interop probe report
-        run: pnpm --silent probes:json > interop-probes.json
-        working-directory: tests/interop
-      - name: Write promotion plan report
-        run: pnpm --silent promotion:json > interop-promotion.json
+      - name: Write interop JSON reports
+        run: pnpm reports:artifacts
         working-directory: tests/interop
       - name: Upload interop capability report
         uses: actions/upload-artifact@v4
