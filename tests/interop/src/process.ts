@@ -42,6 +42,10 @@ async function waitForJsonMessage<T extends AdapterMessage>(
         child.once("exit", code => {
           reject(new Error(`Adapter exited before signaling readiness/result (code ${code ?? -1})`));
         });
+
+        child.once("error", error => {
+          reject(new Error(`Failed to start adapter command: ${error.message}`));
+        });
       }),
       delay(timeoutMs).then(() => {
         throw new Error(`Timed out waiting for adapter output after ${timeoutMs}ms`);
