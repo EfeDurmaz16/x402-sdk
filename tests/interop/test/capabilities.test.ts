@@ -46,6 +46,26 @@ describe("interop capability roadmap", () => {
     });
   });
 
+  it("keeps batch settlement visible as a native x402 scheme candidate", () => {
+    expect(interopCapabilities.schemes["batch-settlement"]).toMatchObject({
+      intentBoundary: "x402-scheme",
+      settlementSemantics: "batched-voucher",
+      solanaSemantics: "requires-design",
+      defaultCi: false,
+      status: "planned",
+    });
+
+    expect(interopCapabilities.schemes["batch-settlement"].languages).toMatchObject({
+      typescript: { client: "planned", server: "planned" },
+      rust: { client: "planned", server: "planned" },
+      python: { client: "planned", server: "planned" },
+      go: { client: "planned", server: "planned" },
+      ruby: { client: "planned", server: "planned" },
+      lua: { client: "missing", server: "planned" },
+      php: { client: "missing", server: "planned" },
+    });
+  });
+
   it("keeps subscription compatibility visible but outside native x402 schemes", () => {
     expect(interopCapabilities.intents.subscription).toMatchObject({
       intentBoundary: "compatibility-intent",
@@ -67,6 +87,9 @@ describe("interop capability roadmap", () => {
     expect(formatCapabilityReport()).toContain(
       "scheme:upto planned semantics:maximum-authorization solana:requires-design default-ci:false",
     );
+    expect(formatCapabilityReport()).toContain(
+      "scheme:batch-settlement planned semantics:batched-voucher solana:requires-design default-ci:false",
+    );
     expect(formatCapabilityReport()).toContain("intent:session planned native-x402:false");
     expect(formatCapabilityReport()).toContain("intent:subscription planned native-x402:false");
     expect(formatCapabilityReport()).toContain("lua client:missing server:planned");
@@ -80,6 +103,9 @@ describe("interop capability roadmap", () => {
       "experimental: upto server rust,typescript",
       "planned: upto server-only lua,php",
       "missing: upto client lua,php",
+      "planned: batch-settlement client/server go,python,ruby,rust,typescript",
+      "planned: batch-settlement server-only lua,php",
+      "missing: batch-settlement client lua,php",
       "planned: session client/server go,python,ruby",
       "planned: session server-only lua,php",
       "missing: session client lua,php",
@@ -113,6 +139,14 @@ describe("interop capability roadmap", () => {
       language: "typescript",
       role: "server",
       status: "experimental",
+      runtimeEligible: false,
+    });
+    expect(formatCapabilityRoles()).toContainEqual({
+      domain: "scheme",
+      name: "batch-settlement",
+      language: "rust",
+      role: "client",
+      status: "planned",
       runtimeEligible: false,
     });
     expect(formatCapabilityRoles()).toContainEqual({

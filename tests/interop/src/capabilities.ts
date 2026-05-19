@@ -10,7 +10,7 @@ export type LanguageCapabilityMap = Record<string, RoleCapability>;
 export type SchemeCapability = {
   status: CapabilityStatus;
   intentBoundary: "x402-scheme";
-  settlementSemantics: "fixed-amount" | "maximum-authorization";
+  settlementSemantics: "fixed-amount" | "maximum-authorization" | "batched-voucher";
   solanaSemantics: "implemented" | "requires-design";
   defaultCi: boolean;
   languages: LanguageCapabilityMap;
@@ -55,6 +55,22 @@ export const interopCapabilities = {
       languages: {
         typescript: { client: "planned", server: "experimental" },
         rust: { client: "planned", server: "experimental" },
+        python: { client: "planned", server: "planned" },
+        go: { client: "planned", server: "planned" },
+        ruby: { client: "planned", server: "planned" },
+        lua: { client: "missing", server: "planned" },
+        php: { client: "missing", server: "planned" },
+      },
+    },
+    "batch-settlement": {
+      status: "planned",
+      intentBoundary: "x402-scheme",
+      settlementSemantics: "batched-voucher",
+      solanaSemantics: "requires-design",
+      defaultCi: false,
+      languages: {
+        typescript: { client: "planned", server: "planned" },
+        rust: { client: "planned", server: "planned" },
         python: { client: "planned", server: "planned" },
         go: { client: "planned", server: "planned" },
         ruby: { client: "planned", server: "planned" },
