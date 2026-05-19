@@ -101,3 +101,52 @@ export function formatCapabilityReport(): string {
 
   return lines.join("\n");
 }
+
+function formatLanguageList(languages: string[]): string {
+  return languages.sort((left, right) => left.localeCompare(right)).join(",");
+}
+
+function collectRoleGroups(
+  capabilities: typeof interopCapabilities.schemes | typeof interopCapabilities.intents,
+): string[] {
+  const lines: string[] = [];
+
+  for (const [name, capability] of Object.entries(capabilities)) {
+    const languages = capability.languages as LanguageCapabilityMap;
+    const clientServer: string[] = [];
+    const serverOnly: string[] = [];
+    const missingClient: string[] = [];
+
+    for (const [language, role] of Object.entries(languages)) {
+      if (role.client === capability.status && role.server === capability.status) {
+        clientServer.push(language);
+      }
+      if (role.client === "missing" && role.server === capability.status) {
+        serverOnly.push(language);
+        missingClient.push(language);
+      }
+      if (role.client === capability.status && role.server === "missing") {
+        lines.push(`missing: ${name} server ${language}`);
+      }
+    }
+
+    if (clientServer.length > 0) {
+      lines.push(`${capability.status}: ${name} client/server ${formatLanguageList(clientServer)}`);
+    }
+    if (serverOnly.length > 0) {
+      lines.push(`${capability.status}: ${name} server-only ${formatLanguageList(serverOnly)}`);
+    }
+    if (missingClient.length > 0) {
+      lines.push(`missing: ${name} client ${formatLanguageList(missingClient)}`);
+    }
+  }
+
+  return lines;
+}
+
+export function formatCapabilitySummary(): string[] {
+  return [
+    ...collectRoleGroups(interopCapabilities.schemes),
+    ...collectRoleGroups(interopCapabilities.intents),
+  ];
+}

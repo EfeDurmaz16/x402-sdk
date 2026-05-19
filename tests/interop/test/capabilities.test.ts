@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { formatCapabilityReport, interopCapabilities } from "../src/capabilities";
+import { readFileSync } from "node:fs";
+import {
+  formatCapabilityReport,
+  formatCapabilitySummary,
+  interopCapabilities,
+} from "../src/capabilities";
 
 describe("interop capability roadmap", () => {
   it("keeps usage-based x402 work planned before implementation starts", () => {
@@ -46,5 +51,27 @@ describe("interop capability roadmap", () => {
     expect(formatCapabilityReport()).toContain("intent:session planned native-x402:false");
     expect(formatCapabilityReport()).toContain("lua client:missing server:planned");
     expect(formatCapabilityReport()).toContain("php client:missing server:planned");
+  });
+
+  it("summarizes implemented, planned, and missing roles for runner diagnostics", () => {
+    expect(formatCapabilitySummary()).toEqual([
+      "implemented: exact client/server rust,typescript",
+      "planned: upto client/server go,python,ruby,rust,typescript",
+      "planned: upto server-only lua,php",
+      "missing: upto client lua,php",
+      "planned: session client/server go,python,ruby",
+      "planned: session server-only lua,php",
+      "missing: session client lua,php",
+    ]);
+  });
+
+  it("exposes capability diagnostics as a package script", () => {
+    const packageJson = JSON.parse(readFileSync("package.json", "utf8")) as {
+      scripts: Record<string, string>;
+    };
+
+    expect(packageJson.scripts.capabilities).toBe(
+      "tsx src/print-capabilities.ts",
+    );
   });
 });
