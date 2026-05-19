@@ -269,6 +269,7 @@ pnpm run test:probe:go-build
 pnpm run test:probe:ruby-syntax
 pnpm run test:probe:ruby-unit
 pnpm run test:probe:php-syntax
+pnpm run test:probe:php-unit
 ```
 
 Use these runtime smoke probes to reproduce the expected-red boundary before a

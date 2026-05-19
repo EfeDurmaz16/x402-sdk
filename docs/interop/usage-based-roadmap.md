@@ -208,8 +208,8 @@ Use this checklist when splitting the staging branch into upstream PRs:
   requirement from a real x402 `accepts` challenge, plus Python/Go/Ruby/Lua/PHP
   server readiness, health, and explicit not-implemented responses.
 - `pnpm run test:probe:planned-syntax` checks Python and Ruby syntax plus
-  parser units, plus Go and PHP scaffold syntax/build health in one local
-  command.
+  parser units, Go build health, and PHP server-only syntax plus HTTP contract
+  health in one local command.
 - `pnpm run test:probe:upto-boundary` and
   `pnpm run test:probe:session-boundary` intentionally fail fast with
   capability diagnostics while those runtime scenarios remain disabled.

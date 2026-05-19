@@ -22,9 +22,9 @@ export const interopProbes: ProbeDefinition[] = [
   },
   {
     script: "test:probe:planned-syntax",
-    command: "pnpm test:probe:python-syntax && pnpm test:probe:python-unit && pnpm test:probe:go-build && pnpm test:probe:ruby-syntax && pnpm test:probe:ruby-unit && pnpm test:probe:php-syntax",
+    command: "pnpm test:probe:python-syntax && pnpm test:probe:python-unit && pnpm test:probe:go-build && pnpm test:probe:ruby-syntax && pnpm test:probe:ruby-unit && pnpm test:probe:php-syntax && pnpm test:probe:php-unit",
     status: "green",
-    reason: "Python, Go, Ruby, and PHP scaffold syntax/build plus Python and Ruby parser unit health.",
+    reason: "Python, Go, Ruby, and PHP scaffold syntax/build plus Python/Ruby parser and PHP server unit health.",
   },
   {
     script: "test:probe:usage-boundaries",
@@ -73,6 +73,12 @@ export const interopProbes: ProbeDefinition[] = [
     command: "php -l ../../php/bin/interop-server.php",
     status: "green",
     reason: "PHP server-only scaffold syntax check.",
+  },
+  {
+    script: "test:probe:php-unit",
+    command: "php ../../php/tests/interop_server_test.php",
+    status: "green",
+    reason: "PHP server-only scaffold readiness and HTTP response contract.",
   },
   {
     script: "test:probe:upto-boundary",
