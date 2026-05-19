@@ -88,6 +88,7 @@ The most likely next design candidate for Solana variable usage is closer to
 the documented `batch-settlement` shape than to the current EVM-only `upto`
 shape: per-request maximums, off-chain usage authorization, and a settlement
 path that can redeem the actual amount without rewriting a signed SPL transfer.
+See [Solana `upto` and Batch Settlement Design Notes](./solana-upto-batch-settlement-design.md).
 
 ## Session compatibility boundary
 
