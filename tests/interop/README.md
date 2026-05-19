@@ -113,6 +113,10 @@ pnpm scaffold
 pnpm scaffold:json
 ```
 
+The scaffold report also records the expected future adapter commands. Lua and
+PHP intentionally omit client commands because they are server-side only in the
+current roadmap.
+
 Domain-specific scenarios can stay selectable through Vitest filters. For
 example, the current smoke script selects the exact-payment tests by matching
 `client pays`, while the multi-currency vectors remain available in the full
