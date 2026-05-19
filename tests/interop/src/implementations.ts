@@ -11,16 +11,44 @@ export type ImplementationDefinition = {
 };
 
 function isEnabled(id: string, envName: string, defaultEnabled: boolean): boolean {
-  const selected = process.env[envName];
-  if (!selected || selected.trim() === "") {
+  const selected = parseSelectedImplementationIds(process.env[envName]);
+  if (selected.length === 0) {
     return defaultEnabled;
+  }
+
+  return selected.includes(id);
+}
+
+export function parseSelectedImplementationIds(selected?: string): string[] {
+  if (!selected || selected.trim() === "") {
+    return [];
   }
 
   return selected
     .split(",")
     .map(value => value.trim())
-    .filter(Boolean)
-    .includes(id);
+    .filter(Boolean);
+}
+
+export function validateImplementationSelection(
+  implementations: ImplementationDefinition[],
+  envName: string,
+  env: Record<string, string | undefined> = process.env,
+): void {
+  const selected = parseSelectedImplementationIds(env[envName]);
+  if (selected.length === 0) {
+    return;
+  }
+
+  const knownIds = new Set(implementations.map(implementation => implementation.id));
+  const unknownIds = selected.filter(id => !knownIds.has(id));
+  if (unknownIds.length > 0) {
+    throw new Error(
+      `${envName} contains unknown adapter id(s): ${unknownIds.join(",")}. Known adapters: ${[
+        ...knownIds,
+      ].join(",")}`,
+    );
+  }
 }
 
 export const clientImplementations: ImplementationDefinition[] = [
@@ -80,3 +108,6 @@ export const serverImplementations: ImplementationDefinition[] = [
     runtimeIntents: [],
   },
 ];
+
+validateImplementationSelection(clientImplementations, "X402_INTEROP_CLIENTS");
+validateImplementationSelection(serverImplementations, "X402_INTEROP_SERVERS");

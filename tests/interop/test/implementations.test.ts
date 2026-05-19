@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { clientImplementations, serverImplementations } from "../src/implementations";
+import {
+  clientImplementations,
+  parseSelectedImplementationIds,
+  serverImplementations,
+  validateImplementationSelection,
+} from "../src/implementations";
 
 describe("interop implementation metadata", () => {
   it("marks current runtime adapters as exact-only", () => {
@@ -46,5 +51,28 @@ describe("interop implementation metadata", () => {
         implementation => implementation.runtimeSchemes,
       ),
     ).not.toContain("upto");
+  });
+
+  it("parses comma-separated implementation filters", () => {
+    expect(parseSelectedImplementationIds(" rust, typescript ,,")).toEqual([
+      "rust",
+      "typescript",
+    ]);
+    expect(parseSelectedImplementationIds("")).toEqual([]);
+    expect(parseSelectedImplementationIds(undefined)).toEqual([]);
+  });
+
+  it("rejects unknown selected client or server adapters", () => {
+    expect(() =>
+      validateImplementationSelection(clientImplementations, "X402_INTEROP_CLIENTS", {
+        X402_INTEROP_CLIENTS: "python",
+      }),
+    ).toThrowError(/X402_INTEROP_CLIENTS contains unknown adapter id\(s\): python/);
+
+    expect(() =>
+      validateImplementationSelection(serverImplementations, "X402_INTEROP_SERVERS", {
+        X402_INTEROP_SERVERS: "php",
+      }),
+    ).toThrowError(/X402_INTEROP_SERVERS contains unknown adapter id\(s\): php/);
   });
 });
