@@ -1,4 +1,4 @@
-export type CapabilityStatus = "implemented" | "planned" | "missing";
+export type CapabilityStatus = "implemented" | "experimental" | "planned" | "missing";
 
 export type RoleCapability = {
   client: CapabilityStatus;
@@ -44,7 +44,7 @@ export const interopCapabilities = {
       solanaSemantics: "requires-design",
       defaultCi: false,
       languages: {
-        typescript: { client: "planned", server: "planned" },
+        typescript: { client: "planned", server: "experimental" },
         rust: { client: "planned", server: "planned" },
         python: { client: "planned", server: "planned" },
         go: { client: "planned", server: "planned" },
@@ -116,10 +116,14 @@ function collectRoleGroups(
     const clientServer: string[] = [];
     const serverOnly: string[] = [];
     const missingClient: string[] = [];
+    const experimentalServer: string[] = [];
 
     for (const [language, role] of Object.entries(languages)) {
       if (role.client === capability.status && role.server === capability.status) {
         clientServer.push(language);
+      }
+      if (role.server === "experimental") {
+        experimentalServer.push(language);
       }
       if (role.client === "missing" && role.server === capability.status) {
         serverOnly.push(language);
@@ -132,6 +136,9 @@ function collectRoleGroups(
 
     if (clientServer.length > 0) {
       lines.push(`${capability.status}: ${name} client/server ${formatLanguageList(clientServer)}`);
+    }
+    if (experimentalServer.length > 0) {
+      lines.push(`experimental: ${name} server ${formatLanguageList(experimentalServer)}`);
     }
     if (serverOnly.length > 0) {
       lines.push(`${capability.status}: ${name} server-only ${formatLanguageList(serverOnly)}`);

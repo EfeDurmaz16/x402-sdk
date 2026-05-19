@@ -7,7 +7,7 @@ import {
 } from "../src/capabilities";
 
 describe("interop capability roadmap", () => {
-  it("keeps usage-based x402 work planned before implementation starts", () => {
+  it("keeps usage-based x402 work experimental until end-to-end settlement exists", () => {
     expect(interopCapabilities.schemes.upto).toMatchObject({
       intentBoundary: "x402-scheme",
       settlementSemantics: "maximum-authorization",
@@ -17,7 +17,7 @@ describe("interop capability roadmap", () => {
     });
 
     expect(interopCapabilities.schemes.upto.languages).toMatchObject({
-      typescript: { client: "planned", server: "planned" },
+      typescript: { client: "planned", server: "experimental" },
       rust: { client: "planned", server: "planned" },
       python: { client: "planned", server: "planned" },
       go: { client: "planned", server: "planned" },
@@ -56,7 +56,8 @@ describe("interop capability roadmap", () => {
   it("summarizes implemented, planned, and missing roles for runner diagnostics", () => {
     expect(formatCapabilitySummary()).toEqual([
       "implemented: exact client/server rust,typescript",
-      "planned: upto client/server go,python,ruby,rust,typescript",
+      "planned: upto client/server go,python,ruby,rust",
+      "experimental: upto server typescript",
       "planned: upto server-only lua,php",
       "missing: upto client lua,php",
       "planned: session client/server go,python,ruby",
