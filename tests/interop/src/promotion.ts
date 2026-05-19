@@ -58,7 +58,7 @@ export const promotionSlices: PromotionSlice[] = [
     id: "8-12",
     title: "Python, Go, Ruby, Lua, and PHP upto adapter support.",
     status: "planned",
-    verification: ["pnpm run test:probe:planned-syntax", "pnpm run test:planned-adapters"],
+    verification: ["pnpm run test:probe:planned-syntax", "pnpm run test:probe:planned-runtime"],
   },
   {
     id: "12a",
