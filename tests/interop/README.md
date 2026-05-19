@@ -56,6 +56,16 @@ example, the current smoke script selects the exact-payment tests by matching
 `client pays`, while the multi-currency vectors remain available in the full
 test suite.
 
+Useful package scripts:
+
+```bash
+pnpm run test:process
+pnpm run test:e2e
+pnpm run test:typescript
+pnpm run test:rust
+pnpm run test:matrix
+```
+
 Run one client/server pair while debugging an adapter:
 
 ```bash

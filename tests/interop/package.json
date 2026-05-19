@@ -6,6 +6,11 @@
   "scripts": {
     "test": "vitest run",
     "test:smoke": "vitest run test/e2e.test.ts --testNamePattern \"client pays\"",
+    "test:e2e": "vitest run test/e2e.test.ts",
+    "test:process": "vitest run test/process.test.ts test/implementations.test.ts",
+    "test:typescript": "X402_INTEROP_CLIENTS=typescript X402_INTEROP_SERVERS=typescript vitest run test/e2e.test.ts",
+    "test:rust": "X402_INTEROP_CLIENTS=rust X402_INTEROP_SERVERS=rust vitest run test/e2e.test.ts",
+    "test:matrix": "X402_INTEROP_CLIENTS=typescript,rust X402_INTEROP_SERVERS=typescript,rust vitest run test/e2e.test.ts",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit"
   },
