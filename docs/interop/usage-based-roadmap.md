@@ -67,6 +67,9 @@ shared scenario contract locally and in CI.
 Solana `upto` runtime support also needs explicit decisions for the
 authorization primitive, single-use replay model, actual settlement authority,
 zero-settlement behavior, recipient ATA policy, and over-maximum enforcement.
+The interop fixtures also lock the planned language roles so PHP and Lua stay
+server-only while Rust, TypeScript, Python, Go, and Ruby track both client and
+server support.
 
 ## Session compatibility boundary
 
@@ -88,6 +91,9 @@ Session compatibility is planned for:
 
 Session support should remain experimental until the target spec is stable
 enough and durable server-state requirements are tested.
+
+The session fixture contract locks Python, Go, and Ruby as planned client/server
+roles while Lua and PHP remain planned server-only roles.
 
 ## PHP and Lua policy
 
