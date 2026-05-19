@@ -17,6 +17,8 @@ export type SdkScaffoldDefinition = {
   manifest: string;
   serverOnly: boolean;
   planned: boolean;
+  expectedClientCommand?: string[];
+  expectedServerCommand: string[];
 };
 
 export type SdkScaffoldStatus = SdkScaffoldDefinition & {
@@ -33,6 +35,24 @@ export const sdkScaffoldDefinitions: SdkScaffoldDefinition[] = [
     manifest: "Cargo.toml",
     serverOnly: false,
     planned: true,
+    expectedClientCommand: [
+      "cargo",
+      "run",
+      "--quiet",
+      "--manifest-path",
+      "../../rust/Cargo.toml",
+      "--bin",
+      "interop_client",
+    ],
+    expectedServerCommand: [
+      "cargo",
+      "run",
+      "--quiet",
+      "--manifest-path",
+      "../../rust/Cargo.toml",
+      "--bin",
+      "interop_server",
+    ],
   },
   {
     language: "typescript",
@@ -40,6 +60,22 @@ export const sdkScaffoldDefinitions: SdkScaffoldDefinition[] = [
     manifest: "package.json",
     serverOnly: false,
     planned: true,
+    expectedClientCommand: [
+      "pnpm",
+      "exec",
+      "node",
+      "--import",
+      "tsx",
+      "src/fixtures/typescript/client.ts",
+    ],
+    expectedServerCommand: [
+      "pnpm",
+      "exec",
+      "node",
+      "--import",
+      "tsx",
+      "src/fixtures/typescript/server.ts",
+    ],
   },
   {
     language: "python",
@@ -47,6 +83,8 @@ export const sdkScaffoldDefinitions: SdkScaffoldDefinition[] = [
     manifest: "pyproject.toml",
     serverOnly: false,
     planned: true,
+    expectedClientCommand: ["python", "-m", "x402_sdk.interop.client"],
+    expectedServerCommand: ["python", "-m", "x402_sdk.interop.server"],
   },
   {
     language: "go",
@@ -54,6 +92,8 @@ export const sdkScaffoldDefinitions: SdkScaffoldDefinition[] = [
     manifest: "go.mod",
     serverOnly: false,
     planned: true,
+    expectedClientCommand: ["go", "run", "./cmd/interop-client"],
+    expectedServerCommand: ["go", "run", "./cmd/interop-server"],
   },
   {
     language: "ruby",
@@ -61,6 +101,8 @@ export const sdkScaffoldDefinitions: SdkScaffoldDefinition[] = [
     manifest: "Gemfile",
     serverOnly: false,
     planned: true,
+    expectedClientCommand: ["bundle", "exec", "ruby", "bin/interop-client"],
+    expectedServerCommand: ["bundle", "exec", "ruby", "bin/interop-server"],
   },
   {
     language: "lua",
@@ -68,6 +110,7 @@ export const sdkScaffoldDefinitions: SdkScaffoldDefinition[] = [
     manifest: "x402-sdk-svm.rockspec",
     serverOnly: true,
     planned: true,
+    expectedServerCommand: ["lua", "bin/interop-server.lua"],
   },
   {
     language: "php",
@@ -75,6 +118,7 @@ export const sdkScaffoldDefinitions: SdkScaffoldDefinition[] = [
     manifest: "composer.json",
     serverOnly: true,
     planned: true,
+    expectedServerCommand: ["php", "bin/interop-server.php"],
   },
 ];
 
@@ -110,6 +154,8 @@ export function formatSdkScaffoldReport(statuses = getSdkScaffoldStatus()): stri
         `server-only:${status.serverOnly}`,
         `runtime-client:${status.runtimeClientAdapter}`,
         `runtime-server:${status.runtimeServerAdapter}`,
+        `expected-client:${status.expectedClientCommand?.join(" ") ?? "none"}`,
+        `expected-server:${status.expectedServerCommand.join(" ")}`,
       ].join(" ");
     })
     .join("\n");

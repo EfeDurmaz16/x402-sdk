@@ -16,6 +16,24 @@ describe("SDK scaffold diagnostics", () => {
         manifest: "Cargo.toml",
         serverOnly: false,
         planned: true,
+        expectedClientCommand: [
+          "cargo",
+          "run",
+          "--quiet",
+          "--manifest-path",
+          "../../rust/Cargo.toml",
+          "--bin",
+          "interop_client",
+        ],
+        expectedServerCommand: [
+          "cargo",
+          "run",
+          "--quiet",
+          "--manifest-path",
+          "../../rust/Cargo.toml",
+          "--bin",
+          "interop_server",
+        ],
       },
       {
         language: "typescript",
@@ -23,6 +41,22 @@ describe("SDK scaffold diagnostics", () => {
         manifest: "package.json",
         serverOnly: false,
         planned: true,
+        expectedClientCommand: [
+          "pnpm",
+          "exec",
+          "node",
+          "--import",
+          "tsx",
+          "src/fixtures/typescript/client.ts",
+        ],
+        expectedServerCommand: [
+          "pnpm",
+          "exec",
+          "node",
+          "--import",
+          "tsx",
+          "src/fixtures/typescript/server.ts",
+        ],
       },
       {
         language: "python",
@@ -30,6 +64,8 @@ describe("SDK scaffold diagnostics", () => {
         manifest: "pyproject.toml",
         serverOnly: false,
         planned: true,
+        expectedClientCommand: ["python", "-m", "x402_sdk.interop.client"],
+        expectedServerCommand: ["python", "-m", "x402_sdk.interop.server"],
       },
       {
         language: "go",
@@ -37,6 +73,8 @@ describe("SDK scaffold diagnostics", () => {
         manifest: "go.mod",
         serverOnly: false,
         planned: true,
+        expectedClientCommand: ["go", "run", "./cmd/interop-client"],
+        expectedServerCommand: ["go", "run", "./cmd/interop-server"],
       },
       {
         language: "ruby",
@@ -44,6 +82,8 @@ describe("SDK scaffold diagnostics", () => {
         manifest: "Gemfile",
         serverOnly: false,
         planned: true,
+        expectedClientCommand: ["bundle", "exec", "ruby", "bin/interop-client"],
+        expectedServerCommand: ["bundle", "exec", "ruby", "bin/interop-server"],
       },
       {
         language: "lua",
@@ -51,6 +91,7 @@ describe("SDK scaffold diagnostics", () => {
         manifest: "x402-sdk-svm.rockspec",
         serverOnly: true,
         planned: true,
+        expectedServerCommand: ["lua", "bin/interop-server.lua"],
       },
       {
         language: "php",
@@ -58,6 +99,7 @@ describe("SDK scaffold diagnostics", () => {
         manifest: "composer.json",
         serverOnly: true,
         planned: true,
+        expectedServerCommand: ["php", "bin/interop-server.php"],
       },
     ]);
   });
@@ -91,6 +133,8 @@ describe("SDK scaffold diagnostics", () => {
     expect(formatSdkScaffoldReport()).toContain(
       "language:lua root:missing manifest:missing(x402-sdk-svm.rockspec) server-only:true",
     );
+    expect(formatSdkScaffoldReport()).toContain("expected-client:none");
+    expect(formatSdkScaffoldReport()).toContain("expected-server:php bin/interop-server.php");
   });
 
   it("exposes scaffold diagnostics as package scripts", () => {
