@@ -26,6 +26,7 @@ use function X402Sdk\Interop\associated_token_address;
 use function X402Sdk\Interop\exact_requirement;
 use function X402Sdk\Interop\normalize_amount;
 use function X402Sdk\Interop\protected_response;
+use function X402Sdk\Interop\public_key_from_base58;
 use function X402Sdk\Interop\read_short_vec;
 use function X402Sdk\Interop\response_for;
 use function X402Sdk\Interop\secret_key_bytes;
@@ -35,6 +36,7 @@ use function X402Sdk\Interop\sign_transaction_with_fee_payer;
 use function X402Sdk\Interop\settle_exact_payment;
 use function X402Sdk\Interop\settlement_cache_is_duplicate;
 use function X402Sdk\Interop\state_from_env;
+use function X402Sdk\Interop\verify_exact_transaction;
 
 function fail(string $message): never
 {
@@ -149,6 +151,20 @@ function assert_rejects_payment(array $state, string $paymentHeader, string $exp
     }
 
     fail("expected payment rejection containing '{$expectedMessage}'");
+}
+
+function assert_runtime_error(string $expectedMessage, callable $callback): void
+{
+    try {
+        $callback();
+    } catch (Throwable $error) {
+        if (!str_contains($error->getMessage(), $expectedMessage)) {
+            fail("expected runtime error containing '{$expectedMessage}', got '{$error->getMessage()}'");
+        }
+        return;
+    }
+
+    fail("expected runtime error containing '{$expectedMessage}'");
 }
 
 function versioned_transaction_shell_for_requirement_checks(array $state, string $blockhashByte = "\x00"): string
@@ -316,6 +332,13 @@ function assert_canonical_svm_transaction_gaps_documented(): void
 if (normalize_amount('$0.001') !== '1000' || normalize_amount('1.25') !== '1250000') {
     fail('PHP amount normalization failed');
 }
+assert_runtime_error('X402_INTEROP_PRICE has too many decimal places', static fn () => normalize_amount('$0.0000001'));
+assert_runtime_error('invalid base58 character', static fn () => public_key_from_base58('0', 'unit'));
+assert_runtime_error('invalid unit', static fn () => public_key_from_base58('1', 'unit'));
+assert_runtime_error('short vec extends beyond input', static fn () => read_short_vec('', 0));
+assert_runtime_error('short vec is too long', static fn () => read_short_vec("\x80\x80\x80\x80\x80\x01", 0));
+assert_runtime_error('invalid amount', static fn () => X402Sdk\Interop\decimal_to_u64_le('not-digits'));
+assert_runtime_error('invalid amount', static fn () => X402Sdk\Interop\decimal_to_u64_le('184467440737095516160'));
 
 $unitState = state_from_env([
     'X402_INTEROP_RPC_URL' => 'http://127.0.0.1:8899',
@@ -452,6 +475,57 @@ $feePayerAuthorityPayment = mutate_payment_transaction($validCanonicalPayment, s
     return $transaction;
 });
 assert_rejects_payment($unitState, encoded_payment($feePayerAuthorityPayment), 'invalid_exact_svm_payload_transaction_fee_payer_transferring_funds');
+
+$feePayerInMemoPayment = mutate_payment_transaction($validCanonicalPayment, static function (string $transaction): string {
+    $instructions = transaction_instruction_offsets($transaction);
+    $transaction = substr_replace($transaction, short_vec(1) . chr(0), $instructions[3]['accountsOffset'] - 1, 1);
+    return $transaction;
+});
+assert_rejects_payment($unitState, encoded_payment($feePayerInMemoPayment), 'invalid_exact_svm_payload_transaction_fee_payer_in_instruction_accounts');
+
+$computeLimitPayment = mutate_payment_transaction($validCanonicalPayment, static function (string $transaction): string {
+    $instructions = transaction_instruction_offsets($transaction);
+    $transaction[$instructions[0]['dataOffset']] = chr(9);
+    return $transaction;
+});
+assert_rejects_payment($unitState, encoded_payment($computeLimitPayment), 'invalid_exact_svm_payload_transaction_instructions_compute_limit_instruction');
+
+$computePricePayment = mutate_payment_transaction($validCanonicalPayment, static function (string $transaction): string {
+    $instructions = transaction_instruction_offsets($transaction);
+    $transaction = substr_replace($transaction, X402Sdk\Interop\decimal_to_u64_le('5000001'), $instructions[1]['dataOffset'] + 1, 8);
+    return $transaction;
+});
+assert_rejects_payment($unitState, encoded_payment($computePricePayment), 'invalid_exact_svm_payload_transaction_instructions_compute_price_instruction_too_high');
+
+$decimalsMismatchPayment = mutate_payment_transaction($validCanonicalPayment, static function (string $transaction): string {
+    $instructions = transaction_instruction_offsets($transaction);
+    $transaction[$instructions[2]['dataOffset'] + 9] = chr(7);
+    return $transaction;
+});
+assert_rejects_payment($unitState, encoded_payment($decimalsMismatchPayment), 'invalid_exact_svm_payload_decimals_mismatch');
+
+$tooLongMemoPayment = mutate_payment_transaction($validCanonicalPayment, static function (string $transaction): string {
+    $instructions = transaction_instruction_offsets($transaction);
+    return substr_replace($transaction, short_vec(257) . str_repeat('m', 257), $instructions[3]['dataOffset'] - 1, 1 + strlen('php-test-memo'));
+});
+assert_rejects_payment($unitState, encoded_payment($tooLongMemoPayment), 'extra.memo exceeds maximum 256 bytes');
+
+$memoRequirementState = $unitState;
+$memoRequirement = exact_requirement($memoRequirementState);
+$memoRequirement['extra']['memo'] = 'expected-route-memo';
+$memoTransaction = base64_decode(canonical_versioned_transaction_for_exact_payment($memoRequirementState, "\x0b"), true);
+if ($memoTransaction === false) {
+    fail('memo test transaction is not base64');
+}
+$memoInstructionOffsets = transaction_instruction_offsets($memoTransaction);
+$memoTransaction = substr_replace($memoTransaction, short_vec(strlen('expected-route-memo')) . 'expected-route-memo', $memoInstructionOffsets[3]['dataOffset'] - 1, 1 + strlen('php-test-memo'));
+verify_exact_transaction($memoTransaction, $memoRequirement, [$memoRequirementState['feePayerPublicKey']]);
+
+$missingMemoTransaction = base64_decode(canonical_versioned_transaction_for_exact_payment($memoRequirementState, "\x0c"), true);
+if ($missingMemoTransaction === false) {
+    fail('missing memo test transaction is not base64');
+}
+assert_runtime_error('invalid_exact_svm_payload_memo_mismatch', static fn () => verify_exact_transaction($missingMemoTransaction, $memoRequirement, [$memoRequirementState['feePayerPublicKey']]));
 
 if (
     settlement_cache_is_duplicate('php-cache-unit', 1_000) !== false
