@@ -1,6 +1,7 @@
 /target
 /node_modules
 **/node_modules
+**/.build
 Cargo.lock
 rust/target
 typescript/packages/x402/coverage

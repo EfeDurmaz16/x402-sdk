@@ -42,6 +42,13 @@ export const clientImplementations: ImplementationDefinition[] = [
     ],
     enabled: isEnabled("rust", "X402_INTEROP_CLIENTS", true),
   },
+  {
+    id: "swift",
+    label: "Swift HTTP client",
+    role: "client",
+    command: ["swift", "run", "--package-path", "../../swift", "x402-swift-interop-client"],
+    enabled: isEnabled("swift", "X402_INTEROP_CLIENTS", false),
+  },
 ];
 
 export const serverImplementations: ImplementationDefinition[] = [
