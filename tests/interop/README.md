@@ -56,6 +56,18 @@ example, the current smoke script selects the exact-payment tests by matching
 `client pays`, while the multi-currency vectors remain available in the full
 test suite.
 
+## Batch-settlement readiness
+
+`batch-settlement` is tracked as a readiness gate instead of a runtime Solana
+adapter today. The public x402 binding is EVM-specific, so the harness records
+the missing SVM decisions and fails if Solana support is accidentally marked as
+implemented before those decisions are resolved.
+
+```bash
+pnpm test:batch-readiness
+pnpm batch:readiness
+```
+
 If the TypeScript adapter cannot resolve `@solana/x402/...` subpaths, rebuild
 the local package and refresh the interop package install:
 
