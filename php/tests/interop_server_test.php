@@ -1,0 +1,620 @@
+<?php
+
+declare(strict_types=1);
+
+$coverageRequested = getenv('X402_PHP_COVERAGE') === '1';
+$coverageSource = realpath(__DIR__ . '/../src/InteropServer.php');
+if ($coverageRequested) {
+    if (!function_exists('xdebug_start_code_coverage') || !function_exists('xdebug_get_code_coverage')) {
+        echo "PHP coverage SKIP: Xdebug coverage functions unavailable\n";
+        exit(0);
+    }
+
+    $coverageFlags = 0;
+    if (defined('XDEBUG_CC_UNUSED')) {
+        $coverageFlags |= constant('XDEBUG_CC_UNUSED');
+    }
+    if (defined('XDEBUG_CC_DEAD_CODE')) {
+        $coverageFlags |= constant('XDEBUG_CC_DEAD_CODE');
+    }
+    xdebug_start_code_coverage($coverageFlags);
+}
+
+require_once __DIR__ . '/../src/InteropServer.php';
+
+use function X402Sdk\Interop\associated_token_address;
+use function X402Sdk\Interop\exact_requirement;
+use function X402Sdk\Interop\normalize_amount;
+use function X402Sdk\Interop\protected_response;
+use function X402Sdk\Interop\read_short_vec;
+use function X402Sdk\Interop\secret_key_bytes;
+use function X402Sdk\Interop\short_vec;
+use function X402Sdk\Interop\sign_transaction_with_fee_payer;
+use function X402Sdk\Interop\settle_exact_payment;
+use function X402Sdk\Interop\settlement_cache_is_duplicate;
+use function X402Sdk\Interop\state_from_env;
+
+function fail(string $message): never
+{
+    fwrite(STDERR, $message . PHP_EOL);
+    exit(1);
+}
+
+function request_json(int $port, string $path, array $headers = []): array
+{
+    $socket = @fsockopen('127.0.0.1', $port, $errno, $errstr, 5);
+    if ($socket === false) {
+        fail("failed to connect to PHP interop server: {$errstr}");
+    }
+
+    $headerLines = '';
+    foreach ($headers as $name => $value) {
+        $headerLines .= "{$name}: {$value}\r\n";
+    }
+
+    fwrite($socket, "GET {$path} HTTP/1.1\r\nHost: 127.0.0.1\r\n{$headerLines}Connection: close\r\n\r\n");
+    $raw = stream_get_contents($socket);
+    fclose($socket);
+
+    if ($raw === false || !str_contains($raw, "\r\n\r\n")) {
+        fail('invalid HTTP response from PHP interop server');
+    }
+
+    [$head, $body] = explode("\r\n\r\n", $raw, 2);
+    $statusLine = strtok($head, "\r\n");
+    if (!is_string($statusLine) || preg_match('/^HTTP\/[0-9.]+\s+([0-9]+)/', $statusLine, $matches) !== 1) {
+        fail('missing HTTP status line from PHP interop server');
+    }
+
+    $decoded = json_decode($body, true, flags: JSON_THROW_ON_ERROR);
+    if (!is_array($decoded)) {
+        fail('PHP interop server did not return a JSON object');
+    }
+
+    $headers = [];
+    foreach (explode("\r\n", $head) as $index => $line) {
+        if ($index === 0 || !str_contains($line, ':')) {
+            continue;
+        }
+        [$name, $value] = explode(':', $line, 2);
+        $headers[strtolower(trim($name))] = trim($value);
+    }
+
+    return [
+        'status' => (int) $matches[1],
+        'body' => $decoded,
+        'headers' => $headers,
+    ];
+}
+
+function secret_json(string $seedByte): string
+{
+    $keypair = sodium_crypto_sign_seed_keypair(str_repeat($seedByte, SODIUM_CRYPTO_SIGN_SEEDBYTES));
+    return json_encode(array_values(unpack('C*', sodium_crypto_sign_secretkey($keypair))), JSON_THROW_ON_ERROR);
+}
+
+function encoded_payment(array $payment): string
+{
+    return base64_encode(json_encode($payment, JSON_THROW_ON_ERROR));
+}
+
+function assert_rejects_payment(array $state, string $paymentHeader, string $expectedMessage): void
+{
+    try {
+        settle_exact_payment($state, $paymentHeader, static fn (): string => 'settled-signature');
+    } catch (Throwable $error) {
+        if (!str_contains($error->getMessage(), $expectedMessage)) {
+            fail("expected rejection containing '{$expectedMessage}', got '{$error->getMessage()}'");
+        }
+        return;
+    }
+
+    fail("expected payment rejection containing '{$expectedMessage}'");
+}
+
+function versioned_transaction_shell_for_requirement_checks(array $state, string $blockhashByte = "\x00"): string
+{
+    $clientPublicKey = substr(secret_key_bytes(secret_json("\x06")), 32, 32);
+    $message = "\x80" . "\x02" . "\x01" . "\x00" . short_vec(2) . $state['feePayerPublicKey'] . $clientPublicKey . str_repeat($blockhashByte, 32) . short_vec(0) . short_vec(0);
+
+    return base64_encode(short_vec(2) . str_repeat("\x00", 128) . $message);
+}
+
+function base58_decode_test(string $value): string
+{
+    $alphabet = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+    $bytes = [0];
+    foreach (str_split($value) as $char) {
+        $index = strpos($alphabet, $char);
+        if ($index === false) {
+            throw new RuntimeException("invalid base58 character: {$char}");
+        }
+        $carry = $index;
+        for ($i = 0, $length = count($bytes); $i < $length; $i++) {
+            $carry += $bytes[$i] * 58;
+            $bytes[$i] = $carry & 0xff;
+            $carry = intdiv($carry, 256);
+        }
+        while ($carry > 0) {
+            $bytes[] = $carry & 0xff;
+            $carry = intdiv($carry, 256);
+        }
+    }
+
+    $leadingZeroes = strspn($value, '1');
+    return str_repeat("\x00", $leadingZeroes) . implode('', array_map('chr', array_reverse($bytes)));
+}
+
+function associated_token_address_test(string $owner, string $tokenProgram, string $mint): string
+{
+    return associated_token_address($owner, $tokenProgram, $mint);
+}
+
+function u64_le_test(int $value): string
+{
+    return pack('V2', $value & 0xffffffff, intdiv($value, 0x100000000));
+}
+
+function compiled_instruction_test(int $programIndex, array $accounts, string $data): string
+{
+    return chr($programIndex) . short_vec(count($accounts)) . pack('C*', ...$accounts) . short_vec(strlen($data)) . $data;
+}
+
+function canonical_versioned_transaction_for_exact_payment(array $state, string $blockhashByte = "\x00"): string
+{
+    $requirement = exact_requirement($state);
+    $clientPublicKey = substr(secret_key_bytes(secret_json("\x06")), 32, 32);
+    $mint = base58_decode_test($requirement['asset']);
+    $payTo = base58_decode_test($requirement['payTo']);
+    $tokenProgram = base58_decode_test($requirement['extra']['tokenProgram']);
+    $source = associated_token_address_test($clientPublicKey, $tokenProgram, $mint);
+    $destination = associated_token_address_test($payTo, $tokenProgram, $mint);
+    $computeProgram = base58_decode_test('ComputeBudget111111111111111111111111111111');
+    $memoProgram = base58_decode_test('MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr');
+    $accountKeys = [
+        $state['feePayerPublicKey'],
+        $clientPublicKey,
+        $source,
+        $mint,
+        $destination,
+        $computeProgram,
+        $tokenProgram,
+        $memoProgram,
+    ];
+    $instructions = [
+        compiled_instruction_test(5, [], chr(2) . pack('V', 20_000)),
+        compiled_instruction_test(5, [], chr(3) . u64_le_test(1)),
+        compiled_instruction_test(6, [2, 3, 4, 1], chr(12) . u64_le_test((int) $requirement['amount']) . chr((int) $requirement['extra']['decimals'])),
+        compiled_instruction_test(7, [], 'php-test-memo'),
+    ];
+    $message = "\x80"
+        . "\x02"
+        . "\x01"
+        . "\x04"
+        . short_vec(count($accountKeys))
+        . implode('', $accountKeys)
+        . str_repeat($blockhashByte, 32)
+        . short_vec(count($instructions))
+        . implode('', $instructions)
+        . short_vec(0);
+
+    return base64_encode(short_vec(2) . str_repeat("\x00", 128) . $message);
+}
+
+function exact_payment_shell(array $state, string $blockhashByte = "\x00"): array
+{
+    return [
+        'x402Version' => 2,
+        'accepted' => exact_requirement($state),
+        'payload' => [
+            'transaction' => versioned_transaction_shell_for_requirement_checks($state, $blockhashByte),
+        ],
+    ];
+}
+
+function valid_exact_payment_shell(array $state, string $blockhashByte = "\x00"): array
+{
+    $payment = exact_payment_shell($state, $blockhashByte);
+    $payment['payload']['transaction'] = canonical_versioned_transaction_for_exact_payment($state, $blockhashByte);
+    return $payment;
+}
+
+function mutate_payment_transaction(array $payment, callable $mutate): array
+{
+    $transaction = base64_decode($payment['payload']['transaction'], true);
+    if ($transaction === false) {
+        throw new RuntimeException('test transaction is not base64');
+    }
+    $payment['payload']['transaction'] = base64_encode($mutate($transaction));
+    return $payment;
+}
+
+function transaction_instruction_offsets(string $transaction): array
+{
+    [$signatureCount, $offset] = read_short_vec($transaction, 0);
+    $messageOffset = $offset + ($signatureCount * 64);
+    $message = substr($transaction, $messageOffset);
+    [$accountCount, $accountOffset] = read_short_vec($message, 4);
+    $instructionCountOffset = $accountOffset + ($accountCount * 32) + 32;
+    [$instructionCount, $offset] = read_short_vec($message, $instructionCountOffset);
+    $instructions = [];
+    for ($i = 0; $i < $instructionCount; $i++) {
+        $programOffset = $offset;
+        $offset++;
+        [$accountIndexCount, $offset] = read_short_vec($message, $offset);
+        $accountsOffset = $offset;
+        $offset += $accountIndexCount;
+        [$dataLength, $offset] = read_short_vec($message, $offset);
+        $dataOffset = $offset;
+        $offset += $dataLength;
+        $instructions[] = [
+            'programOffset' => $messageOffset + $programOffset,
+            'accountsOffset' => $messageOffset + $accountsOffset,
+            'dataOffset' => $messageOffset + $dataOffset,
+        ];
+    }
+
+    return $instructions;
+}
+
+function assert_canonical_svm_transaction_gaps_documented(): void
+{
+    $documentedGaps = [
+        'source_ata_exists',
+        'destination_ata_exists_unless_create_ata_present',
+    ];
+
+    $expectedGaps = [
+        'source_ata_exists',
+        'destination_ata_exists_unless_create_ata_present',
+    ];
+
+    if ($documentedGaps !== $expectedGaps) {
+        fail('PHP canonical SVM transaction inspection gap list drifted');
+    }
+}
+
+if (normalize_amount('$0.001') !== '1000' || normalize_amount('1.25') !== '1250000') {
+    fail('PHP amount normalization failed');
+}
+
+$unitState = state_from_env([
+    'X402_INTEROP_RPC_URL' => 'http://127.0.0.1:8899',
+    'X402_INTEROP_NETWORK' => 'solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1',
+    'X402_INTEROP_MINT' => '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU',
+    'X402_INTEROP_PAY_TO' => '11111111111111111111111111111112',
+    'X402_INTEROP_FACILITATOR_SECRET_KEY' => secret_json("\x02"),
+    'X402_INTEROP_PRICE' => '$0.125',
+]);
+$unitRequirement = exact_requirement($unitState);
+if (($unitRequirement['amount'] ?? null) !== '125000' || ($unitRequirement['payTo'] ?? null) !== '11111111111111111111111111111112') {
+    fail('PHP exact requirement did not use runtime state');
+}
+
+assert_rejects_payment($unitState, 'not base64', 'invalid payment signature encoding');
+assert_rejects_payment($unitState, base64_encode('{not-json'), 'invalid payment signature JSON');
+assert_rejects_payment($unitState, base64_encode(json_encode(['not-an-envelope'], JSON_THROW_ON_ERROR)), 'payment signature must be a JSON object');
+
+$payment = exact_payment_shell($unitState);
+$mismatches = [
+    ['x402Version', static function (array $payment): array {
+        $payment['x402Version'] = 1;
+        return $payment;
+    }, 'unsupported x402Version: 1'],
+    ['scheme', static function (array $payment): array {
+        $payment['accepted']['scheme'] = 'unsupported';
+        return $payment;
+    }, 'scheme mismatch'],
+    ['network', static function (array $payment): array {
+        $payment['accepted']['network'] = 'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp';
+        return $payment;
+    }, 'network mismatch'],
+    ['amount', static function (array $payment): array {
+        $payment['accepted']['amount'] = '1';
+        return $payment;
+    }, 'amount mismatch'],
+    ['token', static function (array $payment): array {
+        $payment['accepted']['asset'] = 'So11111111111111111111111111111111111111112';
+        return $payment;
+    }, 'asset mismatch'],
+    ['payTo', static function (array $payment): array {
+        $payment['accepted']['payTo'] = '11111111111111111111111111111113';
+        return $payment;
+    }, 'payTo mismatch'],
+    ['maxTimeoutSeconds', static function (array $payment): array {
+        $payment['accepted']['maxTimeoutSeconds'] = 1;
+        return $payment;
+    }, 'maxTimeoutSeconds mismatch'],
+    ['feePayer', static function (array $payment): array {
+        unset($payment['accepted']['extra']['feePayer']);
+        return $payment;
+    }, 'feePayer mismatch'],
+    ['tokenProgram', static function (array $payment): array {
+        $payment['accepted']['extra']['tokenProgram'] = 'TokenzQdBNbLqP5VEhdkAS6EPFhviWbNFKxQ7D4yXf9u';
+        return $payment;
+    }, 'tokenProgram mismatch'],
+];
+foreach ($mismatches as [$label, $mutate, $expectedMessage]) {
+    assert_rejects_payment($unitState, encoded_payment($mutate($payment)), $expectedMessage);
+}
+
+$missingTransaction = $payment;
+unset($missingTransaction['payload']['transaction']);
+assert_rejects_payment($unitState, encoded_payment($missingTransaction), 'payment payload is missing transaction');
+
+$missingAccepted = $payment;
+unset($missingAccepted['accepted']);
+assert_rejects_payment($unitState, encoded_payment($missingAccepted), 'payment signature is missing accepted requirements');
+
+$listAccepted = $payment;
+$listAccepted['accepted'] = ['not-an-object'];
+assert_rejects_payment($unitState, encoded_payment($listAccepted), 'payment signature accepted requirements must be a JSON object');
+
+$driftingExtra = $payment;
+$driftingExtra['accepted']['extra']['memo'] = 'unexpected-route-binding';
+assert_rejects_payment($unitState, encoded_payment($driftingExtra), 'accepted requirements do not structurally match expected requirements');
+
+$numericAmount = $payment;
+$numericAmount['accepted']['amount'] = 125000;
+assert_rejects_payment($unitState, encoded_payment($numericAmount), 'accepted requirements do not structurally match expected requirements');
+
+$malformedPayloads = [
+    ['missingPayload', static function (array $payment): array {
+        unset($payment['payload']);
+        return $payment;
+    }, 'payment payload is missing transaction'],
+    ['listPayload', static function (array $payment): array {
+        $payment['payload'] = ['not-an-object'];
+        return $payment;
+    }, 'payment payload must be a JSON object'],
+    ['arrayTransaction', static function (array $payment): array {
+        $payment['payload']['transaction'] = ['not-a-string'];
+        return $payment;
+    }, 'payment payload is missing transaction'],
+];
+foreach ($malformedPayloads as [$label, $mutate, $expectedMessage]) {
+    assert_rejects_payment($unitState, encoded_payment($mutate($payment)), $expectedMessage);
+}
+
+$invalidTransaction = $payment;
+$invalidTransaction['payload']['transaction'] = '%%%';
+assert_rejects_payment($unitState, encoded_payment($invalidTransaction), 'payment payload transaction is not valid base64');
+assert_canonical_svm_transaction_gaps_documented();
+
+$emptyInstructionTransaction = exact_payment_shell($unitState, "\x08");
+assert_rejects_payment($unitState, encoded_payment($emptyInstructionTransaction), 'invalid_exact_svm_payload_transaction_instructions_length');
+
+$validCanonicalPayment = valid_exact_payment_shell($unitState, "\x09");
+
+$amountMismatchPayment = mutate_payment_transaction($validCanonicalPayment, static function (string $transaction): string {
+    $instructions = transaction_instruction_offsets($transaction);
+    $transaction = substr_replace($transaction, u64_le_test(999), $instructions[2]['dataOffset'] + 1, 8);
+    return $transaction;
+});
+assert_rejects_payment($unitState, encoded_payment($amountMismatchPayment), 'invalid_exact_svm_payload_amount_mismatch');
+
+$mintMismatchPayment = mutate_payment_transaction($validCanonicalPayment, static function (string $transaction): string {
+    $instructions = transaction_instruction_offsets($transaction);
+    $transaction[$instructions[2]['accountsOffset'] + 1] = chr(1);
+    return $transaction;
+});
+assert_rejects_payment($unitState, encoded_payment($mintMismatchPayment), 'invalid_exact_svm_payload_mint_mismatch');
+
+$destinationMismatchPayment = mutate_payment_transaction($validCanonicalPayment, static function (string $transaction): string {
+    $instructions = transaction_instruction_offsets($transaction);
+    $transaction[$instructions[2]['accountsOffset'] + 2] = chr(2);
+    return $transaction;
+});
+assert_rejects_payment($unitState, encoded_payment($destinationMismatchPayment), 'invalid_exact_svm_payload_recipient_mismatch');
+
+$feePayerAuthorityPayment = mutate_payment_transaction($validCanonicalPayment, static function (string $transaction): string {
+    $instructions = transaction_instruction_offsets($transaction);
+    $transaction[$instructions[2]['accountsOffset'] + 3] = chr(0);
+    return $transaction;
+});
+assert_rejects_payment($unitState, encoded_payment($feePayerAuthorityPayment), 'invalid_exact_svm_payload_transaction_fee_payer_transferring_funds');
+
+if (
+    settlement_cache_is_duplicate('php-cache-unit', 1_000) !== false
+    || settlement_cache_is_duplicate('php-cache-unit', 1_001) !== true
+    || settlement_cache_is_duplicate('php-cache-unit', 121_001) !== false
+) {
+    fail('PHP settlement cache did not reject duplicates within the TTL and expire old entries');
+}
+
+$settlementCalls = 0;
+$settled = settle_exact_payment($unitState, encoded_payment($validCanonicalPayment), static function () use (&$settlementCalls): string {
+    $settlementCalls++;
+    return 'settled-signature';
+});
+if ($settled !== 'settled-signature' || $settlementCalls !== 1) {
+    fail('PHP exact settlement did not call the sender exactly once');
+}
+assert_rejects_payment($unitState, encoded_payment($validCanonicalPayment), 'duplicate_settlement');
+if ($settlementCalls !== 1) {
+    fail('PHP duplicate settlement reached the sender');
+}
+
+[$invalidStatus, $invalidHeaders, $invalidBody] = protected_response(
+    ['PAYMENT-SIGNATURE' => 'not base64'],
+    $unitState,
+);
+if (
+    $invalidStatus !== 402
+    || !isset($invalidHeaders['PAYMENT-REQUIRED'])
+    || ($invalidBody['error'] ?? null) !== 'payment_error'
+    || ($invalidBody['status'] ?? null) !== 402
+    || !str_contains((string) ($invalidBody['message'] ?? ''), 'invalid payment signature encoding')
+) {
+    fail('PHP protected response did not normalize invalid payment errors: ' . json_encode($invalidBody));
+}
+
+$successPayment = valid_exact_payment_shell($unitState, "\x07");
+[$successStatus, $successHeaders, $successBody] = protected_response(
+    ['PAYMENT-SIGNATURE' => encoded_payment($successPayment)],
+    $unitState,
+    static fn (): string => 'settled-success',
+);
+$paymentResponse = json_decode((string) ($successHeaders['PAYMENT-RESPONSE'] ?? ''), true);
+if (
+    $successStatus !== 200
+    || ($successHeaders['x-fixture-settlement'] ?? null) !== 'settled-success'
+    || !is_array($paymentResponse)
+    || ($paymentResponse['success'] ?? null) !== true
+    || ($paymentResponse['network'] ?? null) !== $unitState['network']
+    || ($paymentResponse['transaction'] ?? null) !== 'settled-success'
+    || ($paymentResponse['payer'] ?? null) !== exact_requirement($unitState)['extra']['feePayer']
+    || ($paymentResponse['payer'] ?? null) !== ($successBody['settlement']['payer'] ?? null)
+    || ($successBody['settlement']['transaction'] ?? null) !== 'settled-success'
+) {
+    fail('PHP protected response did not expose settlement response headers: ' . json_encode([$successHeaders, $successBody]));
+}
+
+$feePayerSecret = secret_key_bytes(secret_json("\x03"));
+$clientPublicKey = substr(secret_key_bytes(secret_json("\x04")), 32, 32);
+$message = "\x80" . "\x02" . "\x01" . "\x00" . short_vec(2) . substr($feePayerSecret, 32, 32) . $clientPublicKey . str_repeat("\x00", 32) . short_vec(0) . short_vec(0);
+$transaction = short_vec(2) . str_repeat("\x00", 128) . $message;
+$signed = sign_transaction_with_fee_payer($transaction, $feePayerSecret);
+if (substr($signed, 1, 64) === str_repeat("\x00", 64) || substr($signed, 65, 64) !== str_repeat("\x00", 64)) {
+    fail('PHP fee payer signing did not update only the fee payer signature slot');
+}
+
+$descriptorSpec = [
+    0 => ['pipe', 'r'],
+    1 => ['pipe', 'w'],
+    2 => ['pipe', 'w'],
+];
+
+$socketProbe = @stream_socket_server('tcp://127.0.0.1:0', $probeErrno, $probeErrstr);
+if ($socketProbe === false) {
+    echo "PHP interop server contract SKIP: local socket bind unavailable ({$probeErrstr})\n";
+} else {
+    fclose($socketProbe);
+
+    $env = [
+        'X402_INTEROP_RPC_URL' => 'http://127.0.0.1:8899',
+        'X402_INTEROP_NETWORK' => 'solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1',
+        'X402_INTEROP_MINT' => '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU',
+        'X402_INTEROP_PAY_TO' => '11111111111111111111111111111112',
+        'X402_INTEROP_FACILITATOR_SECRET_KEY' => secret_json("\x05"),
+        'X402_INTEROP_PRICE' => '$0.001',
+    ];
+
+    $process = proc_open(['php', __DIR__ . '/../bin/interop-server.php'], $descriptorSpec, $pipes, null, $env);
+    if (!is_resource($process)) {
+        fail('failed to start PHP interop server');
+    }
+
+    try {
+        fclose($pipes[0]);
+        $readyLine = false;
+        while (($line = fgets($pipes[1])) !== false) {
+            if (trim($line) !== '') {
+                $readyLine = $line;
+                break;
+            }
+        }
+        if ($readyLine === false) {
+            fail('PHP interop server did not print readiness');
+        }
+
+        $ready = json_decode($readyLine, true, flags: JSON_THROW_ON_ERROR);
+        if (($ready['type'] ?? null) !== 'ready' || ($ready['implementation'] ?? null) !== 'php') {
+            fail('unexpected PHP interop server readiness payload');
+        }
+        if (($ready['capabilities'] ?? null) !== ['exact']) {
+            fail('unexpected PHP interop server capabilities');
+        }
+        $port = $ready['port'] ?? null;
+        if (!is_int($port) || $port <= 0) {
+            fail('PHP interop server readiness is missing a valid port');
+        }
+
+        $health = request_json($port, '/health');
+        if ($health['status'] !== 200 || $health['body'] !== ['ok' => true]) {
+            fail('unexpected PHP interop server health response: ' . json_encode($health));
+        }
+
+        $capabilities = request_json($port, '/capabilities');
+        if (
+            $capabilities['status'] !== 200
+            || $capabilities['body'] !== [
+                'implementation' => 'php',
+                'role' => 'server',
+                'capabilities' => ['exact'],
+            ]
+        ) {
+            fail('unexpected PHP interop server capabilities response: ' . json_encode($capabilities));
+        }
+
+        $protected = request_json($port, '/protected');
+        if ($protected['status'] !== 402 || $protected['body'] !== ['error' => 'payment_required']) {
+            fail('unexpected PHP interop server protected response: ' . json_encode($protected));
+        }
+
+        $protectedInvalid = request_json($port, '/protected', ['PAYMENT-SIGNATURE' => 'not base64']);
+        if (
+            $protectedInvalid['status'] !== 402
+            || ($protectedInvalid['body']['error'] ?? null) !== 'payment_error'
+            || ($protectedInvalid['body']['status'] ?? null) !== 402
+            || !str_contains((string) ($protectedInvalid['body']['message'] ?? ''), 'invalid payment signature encoding')
+            || !isset($protectedInvalid['headers']['payment-required'])
+        ) {
+            fail('unexpected PHP interop server protected invalid-payment response: ' . json_encode($protectedInvalid));
+        }
+
+        $exact = request_json($port, '/exact');
+        if ($exact['status'] !== 402 || $exact['body'] !== ['error' => 'payment_required']) {
+            fail('unexpected PHP interop server exact response: ' . json_encode($exact));
+        }
+        $exactPaymentRequired = json_decode(
+            base64_decode($exact['headers']['payment-required'] ?? '', true) ?: '',
+            true,
+            flags: JSON_THROW_ON_ERROR,
+        );
+        $exactAccepts = $exactPaymentRequired['accepts'][0] ?? null;
+        if (
+            ($exactPaymentRequired['resource']['url'] ?? null) !== '/protected'
+            || ($exactPaymentRequired['resource']['type'] ?? null) !== 'http'
+            || ($exactPaymentRequired['resource']['uri'] ?? null) !== '/protected'
+            || !is_array($exactAccepts)
+            || ($exactAccepts['scheme'] ?? null) !== 'exact'
+            || ($exactAccepts['network'] ?? null) !== 'solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1'
+            || ($exactAccepts['asset'] ?? null) !== '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU'
+            || ($exactAccepts['amount'] ?? null) !== '1000'
+            || ($exactAccepts['payTo'] ?? null) !== '11111111111111111111111111111112'
+            || !isset($exactAccepts['extra']['feePayer'])
+        ) {
+            fail('unexpected PHP interop server exact challenge: ' . json_encode($exactPaymentRequired));
+        }
+    } finally {
+        proc_terminate($process);
+        proc_close($process);
+    }
+}
+
+echo "PHP interop server contract OK\n";
+
+if ($coverageRequested) {
+    $coverage = xdebug_get_code_coverage();
+    $lines = is_string($coverageSource) ? ($coverage[$coverageSource] ?? []) : [];
+    $executable = 0;
+    $covered = 0;
+    foreach ($lines as $hits) {
+        if ($hits === -2) {
+            continue;
+        }
+        $executable++;
+        if ($hits > 0) {
+            $covered++;
+        }
+    }
+
+    $percent = $executable === 0 ? 0.0 : ($covered / $executable) * 100;
+    echo json_encode([
+        'file' => 'src/InteropServer.php',
+        'coveredLines' => $covered,
+        'executableLines' => $executable,
+        'lineCoveragePercent' => round($percent, 2),
+    ], JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR) . PHP_EOL;
+}
