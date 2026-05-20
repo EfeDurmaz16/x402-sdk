@@ -60,8 +60,8 @@ jobs:
       - name: Build Rust interop adapters
         run: cargo build --bin interop_client --bin interop_server
         working-directory: rust
-      - name: Test Go exact adapters
-        run: go test ./...
+      - name: Test Go exact adapters with coverage
+        run: go test ./... -cover
         working-directory: go
       - name: Install interop harness
         run: pnpm install
