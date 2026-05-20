@@ -729,16 +729,22 @@ function settle_exact_payment(array $state, string $paymentHeader, ?callable $se
 
     verify_exact_transaction($transactionBytes, $requirement, [$state['feePayerPublicKey']]);
     $signedTransaction = sign_transaction_with_fee_payer($transactionBytes, $state['feePayerSecretKey']);
-    if (settlement_cache_is_duplicate($transaction)) {
+    $cacheKey = base64_encode(hash('sha256', $transactionBytes, true));
+    if (settlement_cache_is_duplicate($cacheKey)) {
         throw new \RuntimeException('duplicate_settlement');
     }
 
-    return ($sender ?? __NAMESPACE__ . '\\send_transaction')($state, $signedTransaction);
+    try {
+        return ($sender ?? __NAMESPACE__ . '\\send_transaction')($state, $signedTransaction);
+    } catch (\Throwable $error) {
+        settlement_cache_release($cacheKey);
+        throw $error;
+    }
 }
 
 function settlement_cache_is_duplicate(string $key, ?int $nowMs = null): bool
 {
-    static $entries = [];
+    $entries = &settlement_cache_entries();
 
     $nowMs ??= (int) floor(microtime(true) * 1000);
     $cutoff = $nowMs - SETTLEMENT_CACHE_TTL_MS;
@@ -754,6 +760,18 @@ function settlement_cache_is_duplicate(string $key, ?int $nowMs = null): bool
 
     $entries[$key] = $nowMs;
     return false;
+}
+
+function settlement_cache_release(string $key): void
+{
+    $entries = &settlement_cache_entries();
+    unset($entries[$key]);
+}
+
+function &settlement_cache_entries(): array
+{
+    static $entries = [];
+    return $entries;
 }
 
 function send_transaction(array $state, string $signedTransaction): string

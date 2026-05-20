@@ -435,6 +435,27 @@ if ($settlementCalls !== 1) {
     fail('PHP duplicate settlement reached the sender');
 }
 
+$retryPayment = valid_exact_payment_shell($unitState, "\x0a");
+$retryCalls = 0;
+try {
+    settle_exact_payment($unitState, encoded_payment($retryPayment), static function () use (&$retryCalls): string {
+        $retryCalls++;
+        throw new RuntimeException('transient send failure');
+    });
+    fail('PHP exact settlement did not surface transient sender failure');
+} catch (RuntimeException $error) {
+    if ($error->getMessage() !== 'transient send failure') {
+        throw $error;
+    }
+}
+$retrySettlement = settle_exact_payment($unitState, encoded_payment($retryPayment), static function () use (&$retryCalls): string {
+    $retryCalls++;
+    return 'retry-settled';
+});
+if ($retrySettlement !== 'retry-settled' || $retryCalls !== 2) {
+    fail('PHP exact settlement did not release duplicate cache after sender failure');
+}
+
 [$invalidStatus, $invalidHeaders, $invalidBody] = protected_response(
     ['PAYMENT-SIGNATURE' => 'not base64'],
     $unitState,
