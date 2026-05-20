@@ -6,8 +6,8 @@ $coverageRequested = getenv('X402_PHP_COVERAGE') === '1';
 $coverageSource = realpath(__DIR__ . '/../src/InteropServer.php');
 if ($coverageRequested) {
     if (!function_exists('xdebug_start_code_coverage') || !function_exists('xdebug_get_code_coverage')) {
-        echo "PHP coverage SKIP: Xdebug coverage functions unavailable\n";
-        exit(0);
+        fwrite(STDERR, "PHP coverage requires Xdebug coverage functions\n");
+        exit(1);
     }
 
     $coverageFlags = 0;
@@ -638,4 +638,9 @@ if ($coverageRequested) {
         'executableLines' => $executable,
         'lineCoveragePercent' => round($percent, 2),
     ], JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR) . PHP_EOL;
+    $minimum = getenv('X402_PHP_COVERAGE_MIN');
+    if ($minimum !== false && $percent < (float) $minimum) {
+        fwrite(STDERR, sprintf("PHP coverage below %.2f%%: %.2f%%\n", (float) $minimum, $percent));
+        exit(1);
+    }
 }

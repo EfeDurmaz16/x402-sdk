@@ -42,8 +42,11 @@ jobs:
         with:
           php-version: "8.2"
           extensions: gmp
+          coverage: xdebug
       - name: Test PHP package
-        run: composer test
+        run: |
+          composer test
+          X402_PHP_COVERAGE_MIN=90 composer coverage
         working-directory: php
 
   interop:
