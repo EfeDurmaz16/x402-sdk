@@ -135,7 +135,7 @@ func selectSVMChallengeWithPreferences(headers map[string]string, body string, n
 					}
 				}
 			}
-			return nil, nil
+			continue
 		}
 		selected := candidates[0]
 		selectedAmount, selectedErr := strconv.ParseUint(selected.Amount, 10, 64)

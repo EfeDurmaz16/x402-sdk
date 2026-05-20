@@ -359,6 +359,15 @@ func paymentRequirementMatches(left paymentRequirement, right paymentRequirement
 	return reflect.DeepEqual(normalizeRequirement(left), normalizeRequirement(right))
 }
 
+func acceptedExactRequirement(state serverState, accepted paymentRequirement) (paymentRequirement, bool) {
+	for _, requirement := range exactChallengePayload(state).Accepts {
+		if paymentRequirementMatches(accepted, requirement) {
+			return requirement, true
+		}
+	}
+	return paymentRequirement{}, false
+}
+
 func normalizeRequirement(requirement paymentRequirement) paymentRequirement {
 	normalized := requirement
 	normalized.Extra = map[string]any{}
@@ -385,11 +394,11 @@ func settleExactPayment(state serverState, headerValue string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	requirement := exactRequirement(state)
 	if payload.X402Version != 2 {
 		return "", fmt.Errorf("unsupported x402Version: %d", payload.X402Version)
 	}
-	if !paymentRequirementMatches(payload.Accepted, requirement) {
+	requirement, ok := acceptedExactRequirement(state, payload.Accepted)
+	if !ok {
 		return "", fmt.Errorf("accepted payment requirement does not match server challenge")
 	}
 

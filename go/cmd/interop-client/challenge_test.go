@@ -201,6 +201,54 @@ func TestSelectSVMChallengeReturnsNilWhenPreferredCurrenciesDoNotMatch(t *testin
 	}
 }
 
+func TestSelectSVMChallengeChecksBodyWhenHeaderPreferencesDoNotMatch(t *testing.T) {
+	headerEnvelope, err := json.Marshal(map[string]any{
+		"accepts": []map[string]any{
+			{
+				"scheme":  "exact",
+				"network": "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1",
+				"asset":   "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU",
+				"amount":  "1000",
+			},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, err := json.Marshal(map[string]any{
+		"resource": map[string]any{"uri": "/body"},
+		"accepts": []map[string]any{
+			{
+				"scheme":  "exact",
+				"network": "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1",
+				"asset":   "CXk2AMBfi3TwaEL2468s6zP8xq9NxTXjp9gjMgzeUynM",
+				"amount":  "1000",
+			},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	selected, resource := selectSVMChallengeWithPreferences(
+		map[string]string{"PAYMENT-REQUIRED": base64.StdEncoding.EncodeToString(headerEnvelope)},
+		string(body),
+		"solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1",
+		"exact",
+		[]string{"PYUSD"},
+	)
+
+	if selected == nil {
+		t.Fatal("expected selected requirement from body")
+	}
+	if selected.Asset != "CXk2AMBfi3TwaEL2468s6zP8xq9NxTXjp9gjMgzeUynM" {
+		t.Fatalf("expected body PYUSD mint, got %s", selected.Asset)
+	}
+	if resource["uri"] != "/body" {
+		t.Fatalf("expected body resource, got %#v", resource)
+	}
+}
+
 func TestSelectSVMChallengeWithoutPreferencesPicksCheapestAmount(t *testing.T) {
 	body, err := json.Marshal(map[string]any{
 		"accepts": []map[string]any{

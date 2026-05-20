@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -370,6 +371,61 @@ func TestSettleExactPaymentRejectsVersionAndRequirementMismatch(t *testing.T) {
 	})
 	if _, err := settleExactPayment(state, driftHeader); err == nil || err.Error() != "accepted payment requirement does not match server challenge" {
 		t.Fatalf("expected requirement mismatch, got %v", err)
+	}
+}
+
+func successfulSettlementClient(t *testing.T, signature string) *http.Client {
+	t.Helper()
+	return &http.Client{
+		Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+			rawBody, err := io.ReadAll(request.Body)
+			if err != nil {
+				t.Fatal(err)
+			}
+			body := string(rawBody)
+			responseBody := `{"jsonrpc":"2.0","id":1,"result":{"value":{"data":["","base64"]}}}`
+			if strings.Contains(body, `"method":"sendTransaction"`) {
+				responseBody = fmt.Sprintf(`{"jsonrpc":"2.0","id":1,"result":%q}`, signature)
+			}
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Header:     http.Header{"content-type": []string{"application/json"}},
+				Body:       io.NopCloser(strings.NewReader(responseBody)),
+			}, nil
+		}),
+	}
+}
+
+func TestSettleExactPaymentAcceptsExtraOfferedMint(t *testing.T) {
+	settlementCache = newDuplicateSettlementCache()
+	client, err := solana.NewRandomPrivateKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	state := testServerState(t)
+	state.extraOfferedMints = []string{"CXk2AMBfi3TwaEL2468s6zP8xq9NxTXjp9gjMgzeUynM"}
+	state.memo = "extra-mint"
+	state.httpClient = successfulSettlementClient(t, "extra-mint-settlement")
+	defer func() {
+		settlementCache = newDuplicateSettlementCache()
+	}()
+
+	requirement := exactRequirementForMint(state, state.extraOfferedMints[0])
+	transaction := signedTransactionForTest(t, requirement, client)
+	header := encodePaymentSignatureForTest(t, paymentSignatureEnvelope{
+		X402Version: 2,
+		Accepted:    requirement,
+		Payload: map[string]string{
+			"transaction": transaction,
+		},
+	})
+
+	settlement, err := settleExactPayment(state, header)
+	if err != nil {
+		t.Fatalf("expected extra offered mint settlement to pass: %v", err)
+	}
+	if settlement != "extra-mint-settlement" {
+		t.Fatalf("settlement = %q", settlement)
 	}
 }
 
