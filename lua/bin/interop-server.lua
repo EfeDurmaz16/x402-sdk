@@ -696,8 +696,8 @@ local function verify_token_accounts_exist(parsed, requirement, transfer)
   end
 end
 
-local function transaction_cache_key(encoded_transaction)
-  return base64_encode(sodium.crypto_hash_sha256(encoded_transaction))
+local function transaction_cache_key(transaction)
+  return base64_encode(sodium.crypto_hash_sha256(transaction))
 end
 
 local function claim_settlement(cache_key)
@@ -752,7 +752,7 @@ local function settle_exact_payment(payment_header)
   end
   local parsed = parse_versioned_transaction(transaction)
   local transfer = verify_exact_transaction(parsed, payment.accepted)
-  local cache_key = transaction_cache_key(payment.payload.transaction)
+  local cache_key = transaction_cache_key(transaction)
   if not claim_settlement(cache_key) then
     error("duplicate_settlement")
   end

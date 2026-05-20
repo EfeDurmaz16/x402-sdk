@@ -35,6 +35,8 @@ describe("Lua exact server", () => {
     expect(server).toContain("send_transaction");
     expect(server).toContain("duplicate_settlement");
     expect(server).toContain("verify_token_accounts_exist");
+    expect(server).toContain("local cache_key = transaction_cache_key(transaction)");
+    expect(server).not.toContain("transaction_cache_key(payment.payload.transaction)");
     expect(server).not.toContain("lua_exact_server_not_implemented");
     expect(server).not.toContain("settlement_unavailable");
   });
