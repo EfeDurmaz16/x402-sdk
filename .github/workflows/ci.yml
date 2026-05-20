@@ -61,12 +61,15 @@ jobs:
         run: cargo build --bin interop_client --bin interop_server
         working-directory: rust
       - name: Install Python interop adapter
-        run: python -m pip install -e .
+        run: |
+          python -m pip install -e .
+          python -m pip install coverage
         working-directory: python
       - name: Test Python interop adapter
         run: |
           python -m compileall -q src tests
-          PYTHONPATH=src python -m unittest discover -s tests
+          PYTHONPATH=src python -m coverage run -m unittest discover -s tests
+          python -m coverage report --fail-under=90
         working-directory: python
       - name: Install interop harness
         run: pnpm install
