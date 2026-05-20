@@ -6,6 +6,7 @@ import signal
 import sys
 import base64
 import binascii
+import threading
 import time
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -83,6 +84,7 @@ class ServerState:
             if mint.strip()
         ]
         self.settlement_cache: dict[str, float] = {}
+        self.settlement_cache_lock = threading.Lock()
 
 
 def exact_requirement(state: ServerState) -> dict[str, Any]:
@@ -323,23 +325,33 @@ def _settlement_cache(state: ServerState) -> dict[str, float]:
     return cache
 
 
+def _settlement_cache_lock(state: ServerState) -> threading.Lock:
+    lock = getattr(state, "settlement_cache_lock", None)
+    if not hasattr(lock, "acquire") or not hasattr(lock, "release"):
+        lock = threading.Lock()
+        setattr(state, "settlement_cache_lock", lock)
+    return lock
+
+
 def _claim_settlement_payload(state: ServerState, transaction_payload: str) -> None:
-    now = time.monotonic()
-    cache = _settlement_cache(state)
-    expired = [
-        key
-        for key, claimed_at in cache.items()
-        if now - claimed_at > SETTLEMENT_CACHE_TTL_SECONDS
-    ]
-    for key in expired:
-        del cache[key]
-    if transaction_payload in cache:
-        raise RuntimeError("duplicate_settlement")
-    cache[transaction_payload] = now
+    with _settlement_cache_lock(state):
+        now = time.monotonic()
+        cache = _settlement_cache(state)
+        expired = [
+            key
+            for key, claimed_at in cache.items()
+            if now - claimed_at > SETTLEMENT_CACHE_TTL_SECONDS
+        ]
+        for key in expired:
+            del cache[key]
+        if transaction_payload in cache:
+            raise RuntimeError("duplicate_settlement")
+        cache[transaction_payload] = now
 
 
 def _release_settlement_payload(state: ServerState, transaction_payload: str) -> None:
-    _settlement_cache(state).pop(transaction_payload, None)
+    with _settlement_cache_lock(state):
+        _settlement_cache(state).pop(transaction_payload, None)
 
 
 def _send_transaction(state: ServerState, transaction: VersionedTransaction) -> str:
