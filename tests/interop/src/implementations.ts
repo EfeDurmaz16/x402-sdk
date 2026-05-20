@@ -42,6 +42,13 @@ export const clientImplementations: ImplementationDefinition[] = [
     ],
     enabled: isEnabled("rust", "X402_INTEROP_CLIENTS", true),
   },
+  {
+    id: "kotlin",
+    label: "Kotlin HTTP client scaffold",
+    role: "client",
+    command: ["gradle", "-q", "--project-dir", "../../kotlin", "runInteropClient"],
+    enabled: isEnabled("kotlin", "X402_INTEROP_CLIENTS", false),
+  },
 ];
 
 export const serverImplementations: ImplementationDefinition[] = [

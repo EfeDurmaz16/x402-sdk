@@ -5,3 +5,5 @@ Cargo.lock
 rust/target
 typescript/packages/x402/coverage
 typescript/packages/x402/dist
+kotlin/.gradle
+kotlin/build
