@@ -49,8 +49,12 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Install Lua toolchain
-        run: sudo apt-get update && sudo apt-get install -y lua5.4 lua5.4-dev luarocks libsodium-dev
+      - uses: leafo/gh-actions-lua@v11
+        with:
+          luaVersion: "5.4"
+      - uses: leafo/gh-actions-luarocks@v5
+      - name: Install Lua native libraries
+        run: sudo apt-get update && sudo apt-get install -y libsodium-dev
       - uses: pnpm/action-setup@v4
         with:
           version: 10.14.0
@@ -67,7 +71,7 @@ jobs:
         run: pnpm install
         working-directory: tests/interop
       - name: Install Lua exact server dependencies
-        run: luarocks make lua/x402-sdk-svm-0.0.0-1.rockspec
+        run: luarocks make --tree .luarocks-tree lua/x402-sdk-svm-0.0.0-1.rockspec
       - name: Typecheck interop harness
         run: pnpm typecheck
         working-directory: tests/interop
@@ -77,9 +81,15 @@ jobs:
       - name: Run optional Lua syntax probe
         run: pnpm test:probe:lua-syntax
         working-directory: tests/interop
+        env:
+          LUA_PATH: ${{ github.workspace }}/.luarocks-tree/share/lua/5.4/?.lua;${{ github.workspace }}/.luarocks-tree/share/lua/5.4/?/init.lua;;
+          LUA_CPATH: ${{ github.workspace }}/.luarocks-tree/lib/lua/5.4/?.so;;
       - name: Run Lua exact server interop smoke
         run: pnpm test:probe:lua-server
         working-directory: tests/interop
+        env:
+          LUA_PATH: ${{ github.workspace }}/.luarocks-tree/share/lua/5.4/?.lua;${{ github.workspace }}/.luarocks-tree/share/lua/5.4/?/init.lua;;
+          LUA_CPATH: ${{ github.workspace }}/.luarocks-tree/lib/lua/5.4/?.so;;
       - name: Run reference-spine interop smoke
         run: pnpm test:smoke
         working-directory: tests/interop

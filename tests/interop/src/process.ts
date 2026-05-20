@@ -1,4 +1,5 @@
 import { spawn, type ChildProcess } from "node:child_process";
+import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { createInterface } from "node:readline";
 import { setTimeout as delay } from "node:timers/promises";
@@ -60,6 +61,13 @@ function spawnAdapter(
   implementation: ImplementationDefinition,
   extraEnv: Record<string, string> = {},
 ): ChildProcess {
+  if (implementation.requiredManifest) {
+    const manifestPath = join(process.cwd(), implementation.requiredManifest);
+    if (!existsSync(manifestPath)) {
+      throw new Error(`Adapter ${implementation.id} required manifest is missing: ${manifestPath}`);
+    }
+  }
+
   const [command, ...args] = implementation.command;
   return spawn(command, args, {
     cwd: implementation.cwd ? join(process.cwd(), implementation.cwd) : process.cwd(),

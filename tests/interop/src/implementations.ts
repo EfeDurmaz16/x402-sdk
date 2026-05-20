@@ -75,7 +75,7 @@ export const serverImplementations: ImplementationDefinition[] = [
     role: "server",
     command: ["lua", "bin/interop-server.lua"],
     cwd: "../../lua",
-    requiredManifest: "../../lua/x402-sdk-svm.rockspec",
+    requiredManifest: "../../lua/x402-sdk-svm-0.0.0-1.rockspec",
     enabled: isEnabled("lua", "X402_INTEROP_SERVERS", false),
   },
 ];
