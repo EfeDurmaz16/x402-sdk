@@ -27,7 +27,9 @@ use function X402Sdk\Interop\exact_requirement;
 use function X402Sdk\Interop\normalize_amount;
 use function X402Sdk\Interop\protected_response;
 use function X402Sdk\Interop\read_short_vec;
+use function X402Sdk\Interop\response_for;
 use function X402Sdk\Interop\secret_key_bytes;
+use function X402Sdk\Interop\send_transaction;
 use function X402Sdk\Interop\short_vec;
 use function X402Sdk\Interop\sign_transaction_with_fee_payer;
 use function X402Sdk\Interop\settle_exact_payment;
@@ -38,6 +40,43 @@ function fail(string $message): never
 {
     fwrite(STDERR, $message . PHP_EOL);
     exit(1);
+}
+
+class MockRpcStream
+{
+    /** @var resource|null */
+    public $context;
+    public static string|false $response = '{"result":"mock-signature"}';
+    public static ?string $lastBody = null;
+    private int $offset = 0;
+
+    public function stream_open(string $path, string $mode, int $options, ?string &$openedPath): bool
+    {
+        $context = is_resource($this->context) ? stream_context_get_options($this->context) : [];
+        self::$lastBody = is_string($context['http']['content'] ?? null) ? $context['http']['content'] : null;
+        $this->offset = 0;
+        return self::$response !== false;
+    }
+
+    public function stream_read(int $count): string
+    {
+        if (self::$response === false) {
+            return '';
+        }
+        $chunk = substr(self::$response, $this->offset, $count);
+        $this->offset += strlen($chunk);
+        return $chunk;
+    }
+
+    public function stream_eof(): bool
+    {
+        return self::$response === false || $this->offset >= strlen(self::$response);
+    }
+
+    public function stream_stat(): array
+    {
+        return [];
+    }
 }
 
 function request_json(int $port, string $path, array $headers = []): array
@@ -498,6 +537,88 @@ $transaction = short_vec(2) . str_repeat("\x00", 128) . $message;
 $signed = sign_transaction_with_fee_payer($transaction, $feePayerSecret);
 if (substr($signed, 1, 64) === str_repeat("\x00", 64) || substr($signed, 65, 64) !== str_repeat("\x00", 64)) {
     fail('PHP fee payer signing did not update only the fee payer signature slot');
+}
+
+if (!in_array('mock-rpc', stream_get_wrappers(), true)) {
+    stream_wrapper_register('mock-rpc', MockRpcStream::class);
+}
+$rpcState = $unitState;
+$rpcState['rpcUrl'] = 'mock-rpc://send-transaction';
+MockRpcStream::$response = '{"result":"mock-signature"}';
+MockRpcStream::$lastBody = null;
+$rpcSignature = send_transaction($rpcState, 'signed-transaction-bytes');
+if ($rpcSignature !== 'mock-signature') {
+    fail('PHP send_transaction did not return the RPC signature');
+}
+$rpcRequest = json_decode((string) MockRpcStream::$lastBody, true, flags: JSON_THROW_ON_ERROR);
+if (
+    ($rpcRequest['method'] ?? null) !== 'sendTransaction'
+    || ($rpcRequest['params'][0] ?? null) !== base64_encode('signed-transaction-bytes')
+    || ($rpcRequest['params'][1]['encoding'] ?? null) !== 'base64'
+) {
+    fail('PHP send_transaction did not post the expected JSON-RPC request');
+}
+
+MockRpcStream::$response = '{"error":{"message":"rpc rejected"}}';
+try {
+    send_transaction($rpcState, 'signed-transaction-bytes');
+    fail('PHP send_transaction did not reject RPC errors');
+} catch (RuntimeException $error) {
+    if (!str_contains($error->getMessage(), 'sendTransaction RPC error')) {
+        throw $error;
+    }
+}
+
+MockRpcStream::$response = '{"result":""}';
+try {
+    send_transaction($rpcState, 'signed-transaction-bytes');
+    fail('PHP send_transaction did not reject empty RPC signatures');
+} catch (RuntimeException $error) {
+    if ($error->getMessage() !== 'sendTransaction returned empty signature') {
+        throw $error;
+    }
+}
+
+MockRpcStream::$response = false;
+try {
+    set_error_handler(static fn (): bool => true);
+    send_transaction($rpcState, 'signed-transaction-bytes');
+    fail('PHP send_transaction did not surface transport failures');
+} catch (RuntimeException $error) {
+    if ($error->getMessage() !== 'sendTransaction HTTP request failed') {
+        throw $error;
+    }
+} finally {
+    restore_error_handler();
+}
+
+[$healthStatus, $healthHeaders, $healthBody] = response_for('/health', [], $unitState);
+[$capabilityStatus, $capabilityHeaders, $capabilityBody] = response_for('/capabilities', [], $unitState);
+[$missingStatus, $missingHeaders, $missingBody] = response_for('/missing', [], $unitState);
+[$resourceStatus, $resourceHeaders, $resourceBody] = response_for('/protected', [], $unitState);
+if (
+    $healthStatus !== 200
+    || $healthHeaders !== []
+    || $healthBody !== ['ok' => true]
+    || $capabilityStatus !== 200
+    || $capabilityHeaders !== []
+    || ($capabilityBody['implementation'] ?? null) !== 'php'
+    || $missingStatus !== 404
+    || $missingHeaders !== []
+    || $missingBody !== ['error' => 'not_found']
+    || $resourceStatus !== 402
+    || !isset($resourceHeaders['PAYMENT-REQUIRED'])
+    || $resourceBody !== ['error' => 'payment_required']
+) {
+    fail('PHP response_for route contract drifted');
+}
+try {
+    response_for('/exact', [], null);
+    fail('PHP response_for did not require initialized state for exact routes');
+} catch (RuntimeException $error) {
+    if ($error->getMessage() !== 'PHP exact server runtime state is not initialized') {
+        throw $error;
+    }
 }
 
 $descriptorSpec = [
