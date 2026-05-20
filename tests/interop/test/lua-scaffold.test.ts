@@ -8,7 +8,7 @@ import {
 
 describe("Lua exact server", () => {
   const server = readFileSync("../../lua/bin/interop-server.lua", "utf8");
-  const rockspec = readFileSync("../../lua/x402-sdk-svm.rockspec", "utf8");
+  const rockspec = readFileSync("../../lua/x402-sdk-svm-0.0.0-1.rockspec", "utf8");
   const readme = readFileSync("../../lua/README.md", "utf8");
 
   it("publishes a server-only exact readiness contract", () => {

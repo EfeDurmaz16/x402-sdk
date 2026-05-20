@@ -21,6 +21,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - uses: leafo/gh-actions-lua@v11
+        with:
+          luaVersion: "5.4"
+      - uses: leafo/gh-actions-luarocks@v5
       - uses: pnpm/action-setup@v4
         with:
           version: 10.14.0
@@ -60,6 +64,8 @@ jobs:
       - name: Install interop harness
         run: pnpm install
         working-directory: tests/interop
+      - name: Install Lua exact server dependencies
+        run: luarocks make lua/x402-sdk-svm-0.0.0-1.rockspec
       - name: Typecheck interop harness
         run: pnpm typecheck
         working-directory: tests/interop
@@ -68,6 +74,9 @@ jobs:
         working-directory: tests/interop
       - name: Run optional Lua syntax probe
         run: pnpm test:probe:lua-syntax
+        working-directory: tests/interop
+      - name: Run Lua exact server interop smoke
+        run: pnpm test:probe:lua-server
         working-directory: tests/interop
       - name: Run reference-spine interop smoke
         run: pnpm test:smoke
