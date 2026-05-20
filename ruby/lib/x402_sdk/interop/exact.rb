@@ -555,7 +555,7 @@ module X402SDK
           byte = value & 0x7f
           value >>= 7
           byte |= 0x80 if value.positive?
-          output << byte.chr
+          output << byte
           break unless value.positive?
         end
         output.b

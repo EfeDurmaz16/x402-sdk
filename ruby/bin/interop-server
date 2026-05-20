@@ -70,12 +70,16 @@ while running
       break
     end
 
-    request_line = connection.gets.to_s
-    path = (request_line.split[1] || "/").split("?", 2).first
-    headers = read_headers(connection)
+    begin
+      request_line = connection.gets.to_s
+      path = (request_line.split[1] || "/").split("?", 2).first
+      headers = read_headers(connection)
 
-    status, response_headers, body = X402SDK::Interop::Server.response_for(path, headers, interop_state)
-    write_response(connection, status, response_headers, body)
+      status, response_headers, body = X402SDK::Interop::Server.response_for(path, headers, interop_state)
+      write_response(connection, status, response_headers, body)
+    rescue Errno::EPIPE, IOError => error
+      warn "dropped connection: #{error.class}: #{error.message}"
+    end
   ensure
     connection&.close
   end
