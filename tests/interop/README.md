@@ -56,6 +56,17 @@ example, the current smoke script selects the exact-payment tests by matching
 `client pays`, while the multi-currency vectors remain available in the full
 test suite.
 
+For the M5 `upto` readiness gate:
+
+```bash
+pnpm test:upto-readiness
+pnpm upto:readiness
+```
+
+This gate records current official `upto` availability as EVM-only and keeps
+Solana runtime support blocked until an official SVM scheme or
+maintainer-approved design exists.
+
 If the TypeScript adapter cannot resolve `@solana/x402/...` subpaths, rebuild
 the local package and refresh the interop package install:
 

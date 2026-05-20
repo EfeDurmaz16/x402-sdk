@@ -4,7 +4,9 @@
   "type": "module",
   "packageManager": "pnpm@10.14.0",
   "scripts": {
+    "upto:readiness": "node --import tsx -e \"import('./src/upto-readiness.ts').then(m => console.log(m.formatUptoReadinessReport()))\"",
     "test": "vitest run",
+    "test:upto-readiness": "vitest run test/upto-readiness.test.ts",
     "test:smoke": "vitest run test/e2e.test.ts --testNamePattern \"client pays\"",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit"
