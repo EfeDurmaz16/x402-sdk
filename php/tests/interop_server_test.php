@@ -312,6 +312,22 @@ function transaction_instruction_offsets(string $transaction): array
     return $instructions;
 }
 
+function replace_transaction_account_key_test(string $transaction, int $accountIndex, string $publicKey): string
+{
+    [$signatureCount, $offset] = read_short_vec($transaction, 0);
+    $messageOffset = $offset + ($signatureCount * 64);
+    $message = substr($transaction, $messageOffset);
+    [$accountCount, $accountOffset] = read_short_vec($message, 4);
+    if ($accountIndex < 0 || $accountIndex >= $accountCount) {
+        throw new RuntimeException('test account index is out of bounds');
+    }
+    if (strlen($publicKey) !== 32) {
+        throw new RuntimeException('test public key must be 32 bytes');
+    }
+
+    return substr_replace($transaction, $publicKey, $messageOffset + $accountOffset + ($accountIndex * 32), 32);
+}
+
 function assert_canonical_svm_transaction_gaps_documented(): void
 {
     $documentedGaps = [
@@ -468,6 +484,17 @@ $destinationMismatchPayment = mutate_payment_transaction($validCanonicalPayment,
     return $transaction;
 });
 assert_rejects_payment($unitState, encoded_payment($destinationMismatchPayment), 'invalid_exact_svm_payload_recipient_mismatch');
+
+$tokenProgramMismatchPayment = mutate_payment_transaction($validCanonicalPayment, static function (string $transaction) use ($unitRequirement): string {
+    $mint = base58_decode_test((string) $unitRequirement['asset']);
+    $payTo = base58_decode_test((string) $unitRequirement['payTo']);
+    $token2022Program = base58_decode_test('TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb');
+    $token2022Destination = associated_token_address_test($payTo, $token2022Program, $mint);
+
+    $transaction = replace_transaction_account_key_test($transaction, 4, $token2022Destination);
+    return replace_transaction_account_key_test($transaction, 6, $token2022Program);
+});
+assert_rejects_payment($unitState, encoded_payment($tokenProgramMismatchPayment), 'invalid_exact_svm_payload_no_transfer_instruction');
 
 $feePayerAuthorityPayment = mutate_payment_transaction($validCanonicalPayment, static function (string $transaction): string {
     $instructions = transaction_instruction_offsets($transaction);

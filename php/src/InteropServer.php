@@ -419,8 +419,7 @@ function verify_transfer_instruction(array $instruction, array $accountKeys, arr
 {
     $program = instruction_program($instruction, $accountKeys);
     $tokenProgram = public_key_from_base58((string) (($requirement['extra']['tokenProgram'] ?? DEFAULT_TOKEN_PROGRAM)), 'extra.tokenProgram');
-    $token2022Program = public_key_from_base58(TOKEN_2022_PROGRAM, 'token 2022 program');
-    if ($program !== $tokenProgram && $program !== $token2022Program) {
+    if ($program !== $tokenProgram) {
         throw new \RuntimeException('invalid_exact_svm_payload_no_transfer_instruction');
     }
 
@@ -446,7 +445,7 @@ function verify_transfer_instruction(array $instruction, array $accountKeys, arr
     }
 
     $payTo = public_key_from_base58((string) $requirement['payTo'], 'payTo');
-    $expectedDestination = associated_token_address($payTo, $program, $expectedMint);
+    $expectedDestination = associated_token_address($payTo, $tokenProgram, $expectedMint);
     if ($destination !== $expectedDestination) {
         throw new \RuntimeException('invalid_exact_svm_payload_recipient_mismatch');
     }
