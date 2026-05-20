@@ -63,6 +63,12 @@ jobs:
       - name: Typecheck interop harness
         run: pnpm typecheck
         working-directory: tests/interop
+      - name: Run optional Lua exact server static probe
+        run: pnpm test:probe:lua-static
+        working-directory: tests/interop
+      - name: Run optional Lua syntax probe
+        run: pnpm test:probe:lua-syntax
+        working-directory: tests/interop
       - name: Run reference-spine interop smoke
         run: pnpm test:smoke
         working-directory: tests/interop
