@@ -91,6 +91,10 @@ export function isUptoRuntimeReadyForNetwork(network: string): boolean {
   return network.startsWith("eip155:");
 }
 
+export function getUptoSvmRuntimeStatus(): "blocked" | "ready" {
+  return uptoLocalReadinessGaps.some((gap) => gap.blocksRuntime) ? "blocked" : "ready";
+}
+
 export function formatUptoReadinessReport(): string {
   const lines = [
     "x402 upto readiness",
@@ -98,7 +102,7 @@ export function formatUptoReadinessReport(): string {
     `availability: ${uptoSourceTruth.availability.networks}`,
     `authorization: ${uptoSourceTruth.authorization.evmPrimitive}`,
     `sdk-languages: ${uptoSourceTruth.availability.sdkLanguages.join(",")}`,
-    "svm-runtime: blocked",
+    `svm-runtime: ${getUptoSvmRuntimeStatus()}`,
     `docs: ${uptoSourceTruth.docs.schemeGuide}`,
   ];
 

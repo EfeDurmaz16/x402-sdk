@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { localSolanaInteropCapabilities } from "../src/contracts";
 import {
   formatUptoReadinessReport,
+  getUptoSvmRuntimeStatus,
   isUptoRuntimeReadyForNetwork,
   uptoLocalReadinessGaps,
   uptoSourceTruth,
@@ -61,7 +62,10 @@ describe("upto readiness", () => {
       "no-zero-settlement-proof",
       "no-over-maximum-enforcement",
     ]);
-    expect(uptoLocalReadinessGaps.every(gap => gap.blocksRuntime)).toBe(true);
+    for (const gap of uptoLocalReadinessGaps) {
+      expect(gap.blocksRuntime).toBe(true);
+    }
+    expect(getUptoSvmRuntimeStatus()).toBe("blocked");
   });
 
   it("prints a concise report for PR review", () => {
