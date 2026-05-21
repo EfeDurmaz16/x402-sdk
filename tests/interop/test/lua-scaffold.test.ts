@@ -54,12 +54,26 @@ describe("Lua exact server", () => {
   it("builds exact SVM challenges from interop env", () => {
     expect(server).toContain("exact_challenge_json");
     expect(server).toContain("exact_requirement_json");
+    expect(server).toContain("exact_accepts_json");
     expect(server).toContain('read_env("X402_INTEROP_PAY_TO"');
     expect(server).toContain('read_env("X402_INTEROP_FEE_PAYER"');
     expect(server).toContain('read_env("X402_INTEROP_MINT"');
     expect(server).toContain('read_env("X402_INTEROP_PRICE"');
     expect(server).toContain('"maxTimeoutSeconds", 60');
     expect(server).toContain("base64_encode(exact_challenge_json())");
+  });
+
+  it("adds extra offered mints to the exact challenge without changing payment terms", () => {
+    expect(server).toContain('read_env("X402_INTEROP_EXTRA_OFFERED_MINTS", "")');
+    expect(server).toContain("for raw_mint in extra_mints:gmatch");
+    expect(server).toContain("table.insert(mints, mint)");
+    expect(server).toContain("return token_2022_program");
+    expect(server).toContain("return default_token_program");
+    expect(server).toContain('"CXk2AMBfi3TwaEL2468s6zP8xq9NxTXjp9gjMgzeUynM"');
+    expect(server).toContain('"TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"');
+    expect(server).toContain("for _, mint in ipairs(exact_offered_mints()) do");
+    expect(server).toContain("exact_requirement_json(mint)");
+    expect(server).toContain("exact_requirement_table(mint)");
   });
 
   it("declares narrow Lua runtime dependencies", () => {

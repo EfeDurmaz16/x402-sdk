@@ -368,6 +368,29 @@ local function normalize_amount(price)
   return tostring((tonumber(whole) * 1000000) + tonumber(fraction))
 end
 
+local function trim(value)
+  return tostring(value):match("^%s*(.-)%s*$")
+end
+
+local function token_program_for_mint(mint)
+  if mint == "CXk2AMBfi3TwaEL2468s6zP8xq9NxTXjp9gjMgzeUynM" then
+    return token_2022_program
+  end
+  return default_token_program
+end
+
+local function exact_offered_mints()
+  local mints = { read_env("X402_INTEROP_MINT", default_mint) }
+  local extra_mints = read_env("X402_INTEROP_EXTRA_OFFERED_MINTS", "")
+  for raw_mint in extra_mints:gmatch("([^,]+)") do
+    local mint = trim(raw_mint)
+    if mint ~= "" then
+      table.insert(mints, mint)
+    end
+  end
+  return mints
+end
+
 local function required_env(name)
   local value = os.getenv(name)
   if value == nil or value == "" then
@@ -376,33 +399,35 @@ local function required_env(name)
   return value
 end
 
-local function exact_requirement_table()
+local function exact_requirement_table(asset)
+  local mint = asset or read_env("X402_INTEROP_MINT", default_mint)
   return {
     scheme = "exact",
     network = read_env("X402_INTEROP_NETWORK", default_network),
-    asset = read_env("X402_INTEROP_MINT", default_mint),
+    asset = mint,
     amount = normalize_amount(read_env("X402_INTEROP_PRICE", "$0.001")),
     payTo = read_env("X402_INTEROP_PAY_TO", default_pay_to),
     maxTimeoutSeconds = 60,
     extra = {
       decimals = 6,
       feePayer = read_env("X402_INTEROP_FEE_PAYER", default_fee_payer),
-      tokenProgram = default_token_program,
+      tokenProgram = token_program_for_mint(mint),
     }
   }
 end
 
-local function exact_requirement_json()
+local function exact_requirement_json(asset)
+  local mint = asset or read_env("X402_INTEROP_MINT", default_mint)
   local extra = json_object({
     { "decimals", 6 },
     { "feePayer", read_env("X402_INTEROP_FEE_PAYER", default_fee_payer) },
-    { "tokenProgram", default_token_program }
+    { "tokenProgram", token_program_for_mint(mint) }
   })
 
   return json_object({
     { "scheme", "exact" },
     { "network", read_env("X402_INTEROP_NETWORK", default_network) },
-    { "asset", read_env("X402_INTEROP_MINT", default_mint) },
+    { "asset", mint },
     { "amount", normalize_amount(read_env("X402_INTEROP_PRICE", "$0.001")) },
     { "payTo", read_env("X402_INTEROP_PAY_TO", default_pay_to) },
     { "maxTimeoutSeconds", 60 },
@@ -410,10 +435,18 @@ local function exact_requirement_json()
   })
 end
 
+local function exact_accepts_json()
+  local offers = {}
+  for _, mint in ipairs(exact_offered_mints()) do
+    table.insert(offers, exact_requirement_json(mint))
+  end
+  return "[" .. table.concat(offers, ",") .. "]"
+end
+
 local function exact_challenge_json()
   return json_object({
     { "x402Version", 2 },
-    { "accepts", raw_json("[" .. exact_requirement_json() .. "]") },
+    { "accepts", raw_json(exact_accepts_json()) },
     { "resource", raw_json(json_object({ { "type", "http" }, { "uri", default_resource_path } })) }
   })
 end
@@ -423,18 +456,23 @@ local function exact_payment_required_header()
 end
 
 local function accepted_requirement_matches(accepted)
-  local expected = exact_requirement_table()
   if type(accepted) ~= "table" or type(accepted.extra) ~= "table" then
     return false
   end
-  return accepted.scheme == expected.scheme and
-    accepted.network == expected.network and
-    accepted.asset == expected.asset and
-    tostring(accepted.amount) == expected.amount and
-    accepted.payTo == expected.payTo and
-    tostring(accepted.extra.decimals) == tostring(expected.extra.decimals) and
-    accepted.extra.feePayer == expected.extra.feePayer and
-    accepted.extra.tokenProgram == expected.extra.tokenProgram
+  for _, mint in ipairs(exact_offered_mints()) do
+    local expected = exact_requirement_table(mint)
+    if accepted.scheme == expected.scheme and
+      accepted.network == expected.network and
+      accepted.asset == expected.asset and
+      tostring(accepted.amount) == expected.amount and
+      accepted.payTo == expected.payTo and
+      tostring(accepted.extra.decimals) == tostring(expected.extra.decimals) and
+      accepted.extra.feePayer == expected.extra.feePayer and
+      accepted.extra.tokenProgram == expected.extra.tokenProgram then
+      return true
+    end
+  end
+  return false
 end
 
 local function decode_payment_signature(payment_header)

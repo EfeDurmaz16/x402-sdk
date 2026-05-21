@@ -8,7 +8,7 @@ This package is a server-only Lua adapter for Solana x402 exact interop probes.
 - `/capabilities` reports the Lua server role and exact capability.
 - `/exact` exposes the exact challenge for harness drift checks.
 - `/protected` requires a `PAYMENT-SIGNATURE` header before any settlement attempt.
-- `/exact` builds the Solana SVM challenge from the interop environment (`X402_INTEROP_NETWORK`, `X402_INTEROP_MINT`, `X402_INTEROP_PRICE`, `X402_INTEROP_PAY_TO`, and `X402_INTEROP_FEE_PAYER`).
+- `/exact` builds the Solana SVM challenge from the interop environment (`X402_INTEROP_NETWORK`, `X402_INTEROP_MINT`, `X402_INTEROP_EXTRA_OFFERED_MINTS`, `X402_INTEROP_PRICE`, `X402_INTEROP_PAY_TO`, and `X402_INTEROP_FEE_PAYER`).
 - When a payment envelope is present, the server decodes the x402 envelope, validates the versioned Solana transaction shape, patches the fee-payer signature, checks duplicate settlements, and submits the signed transaction through JSON-RPC.
 
 The Lua rockspec declares `lua >= 5.4`, `luasocket`, `dkjson`, `luasodium`, and `luazen`.
