@@ -70,5 +70,10 @@ private func readSecretKey(_ name: String) throws -> [UInt8] {
           let parsed = try JSONSerialization.jsonObject(with: data) as? [Int] else {
         throw X402SwiftExactError.rpc("\(name) is required")
     }
-    return parsed.map(UInt8.init)
+    return try parsed.map {
+        guard let byte = UInt8(exactly: $0) else {
+            throw X402SwiftExactError.invalidSecretKeyLength($0)
+        }
+        return byte
+    }
 }
