@@ -24,14 +24,17 @@ X402_INTEROP_CLIENTS=swift X402_INTEROP_SERVERS=typescript pnpm test -- --run
 
 ## Current PR readiness
 
-This is not ready to enable by default in the interop matrix. The associated
-token account resolver has the right injection point, but the default PDA path
-currently fails closed until a vetted Ed25519 compressed-point check is added.
-Runtime interop should not be treated as canonical before that lands.
+The default associated token account resolver now performs pure-Swift PDA
+derivation with an Ed25519 compressed-point curve check, and unit tests pin the
+derived ATA addresses against Solana Kit reference output.
 
-The unit tests use an injected ATA resolver to pin the x402 challenge selection,
-signer abstraction, blockhash injection, transaction serialization, and payment
-header envelope without depending on live RPC.
+The Swift adapter remains opt-in in the interop matrix until a full chain-backed
+Swift client smoke run is green and reviewed. Do not treat Swift as part of the
+default reference spine until that runtime lane is enabled in CI.
+
+The unit tests cover x402 challenge selection, signer abstraction, blockhash
+injection, default and injected ATA resolution, transaction serialization, and
+payment header envelope construction without depending on live RPC.
 
 ## Verification
 

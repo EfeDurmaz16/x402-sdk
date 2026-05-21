@@ -34,10 +34,19 @@ jobs:
         run: pnpm --filter @solana/x402 test:coverage
         working-directory: typescript
 
+  swift:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Swift tests
+        run: swift test
+        working-directory: swift
+
   interop:
     runs-on: ubuntu-latest
     needs:
       - rust
+      - swift
       - typescript
     steps:
       - uses: actions/checkout@v4

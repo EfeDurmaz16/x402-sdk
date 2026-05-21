@@ -19,9 +19,9 @@ The current reference flow is chain-backed and CI-friendly:
 - the TypeScript reference client uses `@x402/core` HTTP client wrappers and `@solana/x402/client`
 - the Rust reference server uses the Rust crate's exact verifier, facilitator fee-payer co-signing, Surfpool RPC simulation, and transaction submission
 - the Rust reference client uses the Rust crate's exact challenge parser and v2 `PAYMENT-SIGNATURE` builder
-- the Swift adapter is registered as an opt-in client-only lane while the Swift
-  transaction builder matures; it is disabled by default and is not part of the
-  reference smoke matrix yet
+- the Swift adapter is registered as an opt-in client-only lane with default
+  ATA PDA derivation covered by unit tests; it is disabled by default until the
+  chain-backed Swift smoke lane is green and reviewed
 - the suite starts an embedded Surfpool simnet, funds a client signer with devnet USDC, pays a protected endpoint, and verifies the recipient ATA balance increases on-chain
 
 That means the harness now validates end-to-end HTTP x402 interoperability, real Solana transaction construction, facilitator co-signing, settlement, and on-chain balance changes.

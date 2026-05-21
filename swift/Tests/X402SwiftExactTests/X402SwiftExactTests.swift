@@ -25,6 +25,34 @@ private struct FixedATAResolver: AssociatedTokenAddressResolver {
     }
 }
 
+@Test func ed25519CurveCheckAcceptsBasepointAndRejectsNonCanonicalY() throws {
+    let basepoint = try Data(hex: "5866666666666666666666666666666666666666666666666666666666666666")
+    #expect(Ed25519CompressedPoint.isOnCurve(basepoint))
+
+    let fieldModulus = try Data(hex: "edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f")
+    #expect(!Ed25519CompressedPoint.isOnCurve(fieldModulus))
+}
+
+@Test func defaultATAResolverDerivesCanonicalAssociatedTokenAccounts() throws {
+    let resolver = DefaultAssociatedTokenAddressResolver()
+    let mint = try SolanaPublicKey("4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU")
+    let tokenProgram = try SolanaPublicKey(X402SwiftExact.tokenProgram)
+
+    let source = try resolver.associatedTokenAddress(
+        owner: try SolanaPublicKey("11111111111111111111111111111112"),
+        mint: mint,
+        tokenProgram: tokenProgram
+    )
+    let destination = try resolver.associatedTokenAddress(
+        owner: try SolanaPublicKey("11111111111111111111111111111115"),
+        mint: mint,
+        tokenProgram: tokenProgram
+    )
+
+    #expect(source.base58 == "4tRapEGgJZKuGoeeMRrpHsxAEuvo5YnDCzTXykqDhrK9")
+    #expect(destination.base58 == "CFGbKktYnf4cVvvkVYXPCFfHKq6TE7zc9XdBKxqS5P4q")
+}
+
 @Test func parsesSolanaExactChallengeFromBody() throws {
     let json = """
     {"x402Version":2,"accepts":[
@@ -72,4 +100,55 @@ private struct FixedATAResolver: AssociatedTokenAddressResolver {
     let payload = try #require(object["payload"] as? [String: Any])
     let tx = try #require(payload["transaction"] as? String)
     #expect(Data(base64Encoded: tx) != nil)
+}
+
+@Test func buildsPaymentHeaderWithDefaultATAResolver() async throws {
+    let signer = FixedSigner(
+        address: try SolanaPublicKey("11111111111111111111111111111112"),
+        signature: Data(repeating: 9, count: 64)
+    )
+    let builder = ExactTransactionBuilder(
+        signer: signer,
+        blockhashProvider: FixedBlockhashProvider(blockhash: "11111111111111111111111111111111")
+    )
+    let requirement = PaymentRequirement(
+        scheme: "exact",
+        network: X402SwiftExact.solanaDevnet,
+        amount: "1000",
+        asset: "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU",
+        payTo: "11111111111111111111111111111115",
+        maxTimeoutSeconds: 300,
+        extra: [
+            "feePayer": .string("11111111111111111111111111111111"),
+            "decimals": .number(6),
+            "memo": .string("x402-swift-default-ata-test"),
+        ]
+    )
+
+    let header = try await builder.buildPaymentHeader(for: requirement)
+    let decoded = try #require(Data(base64Encoded: header))
+    let object = try #require(JSONSerialization.jsonObject(with: decoded) as? [String: Any])
+    let payload = try #require(object["payload"] as? [String: Any])
+    let tx = try #require(payload["transaction"] as? String)
+    #expect(Data(base64Encoded: tx) != nil)
+}
+
+private extension Data {
+    init(hex: String) throws {
+        guard hex.count.isMultiple(of: 2) else {
+            throw X402SwiftExactError.invalidBase58(hex)
+        }
+
+        var bytes = [UInt8]()
+        var index = hex.startIndex
+        while index < hex.endIndex {
+            let next = hex.index(index, offsetBy: 2)
+            guard let byte = UInt8(hex[index..<next], radix: 16) else {
+                throw X402SwiftExactError.invalidBase58(hex)
+            }
+            bytes.append(byte)
+            index = next
+        }
+        self = Data(bytes)
+    }
 }
