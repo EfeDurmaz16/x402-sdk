@@ -56,7 +56,7 @@ fun main() {
                     "amount" to selected.requirement.amount,
                 ),
             ),
-            error = "Kotlin exact client scaffold can parse/select challenges; Solana transaction construction and PAYMENT-SIGNATURE signing are not implemented yet.",
+            error = "Kotlin exact client scaffold can parse/select challenges and encode PAYMENT-SIGNATURE with injected transaction/signing adapters; a production Solana transaction builder is not implemented yet.",
         ),
     )
 }
@@ -82,4 +82,3 @@ private fun get(url: String): HttpResponse {
 
     return HttpResponse(status, headers, body)
 }
-
