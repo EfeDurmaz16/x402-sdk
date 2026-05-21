@@ -66,7 +66,7 @@ export function formatBatchSettlementReadinessReport(): string {
     "x402 batch-settlement readiness",
     "",
     `scheme: ${batchSettlementScheme}`,
-    "implemented bindings:",
+    "network bindings:",
     ...currentBatchSettlementBindings.map((binding) => {
       const suffix = binding.reason ? ` (${binding.reason})` : "";
       return `- ${binding.network}: ${binding.status}${suffix}`;
