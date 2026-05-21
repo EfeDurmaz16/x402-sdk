@@ -5,9 +5,12 @@ This note records the current source-truth boundary for adding
 
 ## Current source truth
 
+- Checked against official docs on 2026-05-21.
 - The x402 scheme exists for high-throughput payments using escrow, off-chain
   cumulative vouchers, claim, settle, and refund phases.
-- The current public binding is EVM-specific.
+- The current public runtime binding is EVM-specific: buyers deposit ERC-20
+  funds into escrow, sign cumulative off-chain vouchers, and sellers claim,
+  settle, and refund through the EVM binding.
 - x402 uses CAIP-2 network identifiers, including `solana:<genesisHash>` for
   Solana networks.
 - A Solana/SVM binding still needs an explicit commitment format and on-chain
@@ -39,3 +42,6 @@ The interop harness may track `batch-settlement` readiness and fail if someone
 marks Solana runtime support as implemented before the binding requirements are
 resolved. Runtime support should remain blocked until the spec answers the
 required SVM decisions above.
+
+Local Solana interop adapters should advertise only `exact` until that happens.
+They must not advertise `batch-settlement` or `session` capability names.

@@ -11,6 +11,7 @@ export const batchSettlementScheme = "batch-settlement" as const;
 export const batchSettlementSourceTruth = {
   docs: "https://docs.x402.org/schemes/batch-settlement",
   networkDocs: "https://docs.x402.org/core-concepts/network-and-token-support",
+  sourceCheckedAt: "2026-05-21",
   genericSpec:
     "https://github.com/x402-foundation/x402/blob/main/specs/schemes/batch-settlement/scheme_batch_settlement.md",
   evmSpec:
@@ -32,11 +33,12 @@ export const currentBatchSettlementBindings: BatchSettlementNetworkBinding[] = [
   {
     network: "eip155:*",
     status: "implemented",
+    reason: "Official docs describe the current runtime as EVM escrow, off-chain vouchers, and batched redemption.",
   },
   {
     network: "solana:*",
     status: "blocked",
-    reason: "No public SVM batch-settlement binding exists yet.",
+    reason: "No public SVM escrow/voucher batch-settlement binding exists yet.",
   },
 ];
 
@@ -73,7 +75,10 @@ export function formatBatchSettlementReadinessReport(): string {
     ...requiredSvmBindingDecisions.map((decision) => `- ${decision}`),
     "",
     "source truth:",
-    ...Object.values(batchSettlementSourceTruth).map((url) => `- ${url}`),
+    `- checked: ${batchSettlementSourceTruth.sourceCheckedAt}`,
+    ...Object.entries(batchSettlementSourceTruth)
+      .filter(([key]) => key !== "sourceCheckedAt")
+      .map(([key, url]) => `- ${key}: ${url}`),
   ];
 
   return lines.join("\n");
