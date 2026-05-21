@@ -173,7 +173,7 @@ class DefaultSolanaExactTransactionBuilder(
             ),
             memoInstruction(request.memo ?: randomMemo()),
         )
-        val message = SolanaTransactionCodec.compileLegacyMessage(
+        val message = SolanaTransactionCodec.compileV0Message(
             feePayer = feePayer,
             signers = listOf(feePayer, payer),
             instructions = instructions,
@@ -224,7 +224,7 @@ data class CompiledMessage(
 )
 
 object SolanaTransactionCodec {
-    fun compileLegacyMessage(
+    fun compileV0Message(
         feePayer: SolanaPublicKey,
         signers: List<SolanaPublicKey>,
         instructions: List<SolanaInstruction>,
@@ -251,6 +251,7 @@ object SolanaTransactionCodec {
             writableNonSigners.toList() + readOnlyNonSigners.toList()
         val requiredSignatures = writableSigners.size + readOnlySigners.size
         val out = ByteArrayBuilder()
+        out.byte(0x80)
         out.byte(requiredSignatures)
         out.byte(readOnlySigners.size)
         out.byte(readOnlyNonSigners.size)
@@ -265,6 +266,7 @@ object SolanaTransactionCodec {
             out.compactU16(instruction.data.size)
             out.bytes(instruction.data)
         }
+        out.compactU16(0)
         return CompiledMessage(out.toByteArray(), accountKeys, requiredSignatures)
     }
 

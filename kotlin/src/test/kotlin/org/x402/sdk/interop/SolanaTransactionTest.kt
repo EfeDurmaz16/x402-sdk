@@ -66,7 +66,8 @@ class SolanaTransactionTest {
 
         assertEquals(2, tx.signatures.size)
         assertEquals(1, tx.signerIndex)
-        assertEquals(2, tx.message[0].toInt())
+        assertEquals(0x80, tx.message[0].toInt() and 0xff)
+        assertEquals(2, tx.message[1].toInt())
         assertContentEquals(ByteArray(64), tx.signatures[0])
     }
 }
