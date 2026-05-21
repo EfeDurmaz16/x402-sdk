@@ -10,6 +10,8 @@ Current official x402 references describe `upto` as a usage-based scheme where
 the client authorizes a maximum amount and the server/facilitator settles the
 actual amount after the request.
 
+Source checked at: 2026-05-21.
+
 The current implementation boundary is:
 
 - `upto` is available on EVM networks only.
@@ -25,9 +27,9 @@ The current implementation boundary is:
 
 References:
 
-- https://docs.cdp.coinbase.com/x402/quickstart-for-sellers
-- https://github.com/coinbase/x402/blob/main/specs/schemes/upto/scheme_upto.md
-- https://github.com/coinbase/x402/blob/main/specs/schemes/upto/scheme_upto_evm.md
+- https://docs.x402.org/schemes/upto
+- https://docs.x402.org/getting-started/quickstart-for-sellers
+- https://docs.x402.org/llms.txt
 
 ## Local gaps
 
@@ -51,7 +53,8 @@ The first PR should only add:
 
 - source-truth fixture data for official `upto` availability
 - a local readiness report
-- tests that prevent Solana `upto` runtime from being marked ready
+- tests that prevent Solana `upto` runtime from being marked ready or locally
+  advertised
 - this documentation note
 
 The first PR should not add:

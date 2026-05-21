@@ -1,5 +1,6 @@
 export type UptoSourceTruth = {
   scheme: "upto";
+  sourceCheckedAt: string;
   availability: {
     networks: "evm-only";
     sdkLanguages: Array<"typescript" | "go" | "python">;
@@ -16,9 +17,9 @@ export type UptoSourceTruth = {
     singleUseAuthorization: true;
   };
   docs: {
-    sellerQuickstart: string;
-    schemeSpec: string;
-    evmSchemeSpec: string;
+    quickstartForSellers: string;
+    schemeGuide: string;
+    docsIndex: string;
   };
 };
 
@@ -35,6 +36,7 @@ export type UptoLocalReadinessGap = {
 
 export const uptoSourceTruth: UptoSourceTruth = {
   scheme: "upto",
+  sourceCheckedAt: "2026-05-21",
   availability: {
     networks: "evm-only",
     sdkLanguages: ["typescript", "go", "python"],
@@ -51,11 +53,9 @@ export const uptoSourceTruth: UptoSourceTruth = {
     singleUseAuthorization: true,
   },
   docs: {
-    sellerQuickstart: "https://docs.cdp.coinbase.com/x402/quickstart-for-sellers",
-    schemeSpec:
-      "https://github.com/coinbase/x402/blob/main/specs/schemes/upto/scheme_upto.md",
-    evmSchemeSpec:
-      "https://github.com/coinbase/x402/blob/main/specs/schemes/upto/scheme_upto_evm.md",
+    quickstartForSellers: "https://docs.x402.org/getting-started/quickstart-for-sellers",
+    schemeGuide: "https://docs.x402.org/schemes/upto",
+    docsIndex: "https://docs.x402.org/llms.txt",
   },
 };
 
@@ -94,10 +94,12 @@ export function isUptoRuntimeReadyForNetwork(network: string): boolean {
 export function formatUptoReadinessReport(): string {
   const lines = [
     "x402 upto readiness",
+    `source-checked-at: ${uptoSourceTruth.sourceCheckedAt}`,
     `availability: ${uptoSourceTruth.availability.networks}`,
     `authorization: ${uptoSourceTruth.authorization.evmPrimitive}`,
     `sdk-languages: ${uptoSourceTruth.availability.sdkLanguages.join(",")}`,
     "svm-runtime: blocked",
+    `docs: ${uptoSourceTruth.docs.schemeGuide}`,
   ];
 
   for (const gap of uptoLocalReadinessGaps) {

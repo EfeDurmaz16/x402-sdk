@@ -1,5 +1,7 @@
 export type AdapterKind = "client" | "server";
 
+export const localSolanaInteropCapabilities = ["exact"] as const;
+
 export type InteropScenario = {
   scheme: "exact";
   network: string;
@@ -14,7 +16,7 @@ export type ReadyMessage = {
   implementation: string;
   role: AdapterKind;
   port?: number;
-  capabilities?: string[];
+  capabilities?: readonly string[];
 };
 
 export type ClientRunResult = {

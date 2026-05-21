@@ -64,8 +64,8 @@ pnpm upto:readiness
 ```
 
 This gate records current official `upto` availability as EVM-only and keeps
-Solana runtime support blocked until an official SVM scheme or
-maintainer-approved design exists.
+Solana runtime support and local `upto` capability advertising blocked until an
+official SVM scheme or maintainer-approved design exists.
 
 If the TypeScript adapter cannot resolve `@solana/x402/...` subpaths, rebuild
 the local package and refresh the interop package install:
