@@ -172,6 +172,7 @@ object ExactChallenge {
         status: Int,
         responseHeaders: Map<String, String> = emptyMap(),
         responseBody: Any? = null,
+        settlement: Any? = null,
         error: String? = null,
     ): String {
         val payload = linkedMapOf<String, Any?>(
@@ -186,6 +187,9 @@ object ExactChallenge {
         if (error != null) {
             payload["error"] = error
         }
+        if (settlement != null) {
+            payload["settlement"] = settlement
+        }
         return gson.toJson(payload)
     }
 }
@@ -195,4 +199,3 @@ private fun JsonElement.asJsonObjectOrNull(): JsonObject? =
 
 private fun JsonObject.string(name: String): String? =
     get(name)?.takeIf { it.isJsonPrimitive }?.asString
-

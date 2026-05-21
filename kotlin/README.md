@@ -1,6 +1,6 @@
-# x402 Kotlin client scaffold
+# x402 Kotlin client
 
-This directory is a client-only Kotlin/JVM scaffold for Solana x402 `exact`.
+This directory is a client-only Kotlin/JVM adapter for Solana x402 `exact`.
 It is intentionally not a published package and does not add Maven Central,
 Gradle publishing, Android, or multiplatform packaging.
 
@@ -14,16 +14,16 @@ Gradle publishing, Android, or multiplatform packaging.
 - Validate the selected Solana exact requirement before signing:
   `payTo`, `extra.feePayer`, unsigned integer `amount`, and SPL memo byte
   limits.
-- Build the canonical x402 v2 `PAYMENT-SIGNATURE` envelope when an injected
-  transaction builder and signer provide serialized transaction bytes.
+- Build the canonical x402 v2 `PAYMENT-SIGNATURE` envelope with a production
+  JVM Solana transaction builder and injected signer.
 - Expose a disabled interop client command for harness registration.
 
 ## Client signing boundary
 
-The core Kotlin scaffold intentionally uses injected interfaces instead of
+The core Kotlin adapter intentionally uses injected interfaces instead of
 depending on Android Mobile Wallet Adapter:
 
-- `SolanaExactTransactionBuilder` owns Solana transaction construction.
+- `DefaultSolanaExactTransactionBuilder` owns Solana transaction construction.
 - `SolanaTransactionSigner` owns wallet/key signing.
 - `ExactPaymentClient` validates the selected requirement, calls the builder,
   calls the signer, base64 encodes the signed transaction, and wraps it as:
@@ -39,27 +39,20 @@ depending on Android Mobile Wallet Adapter:
 
 That JSON is itself base64 encoded as the `PAYMENT-SIGNATURE` header value.
 This mirrors the Rust and TypeScript v2 wire contract while keeping wallet UI
-integration outside the core SDK.
+integration outside the core SDK. Android MWA can adapt to the signer boundary
+at the app layer, but it is not a core dependency here.
 
-## Not implemented yet / runtime blocker
+## Runtime support
 
-The scaffold is not runtime-interoperable until it can construct and sign the
-canonical Solana exact payment payload:
+The JVM builder:
 
-1. Add a production `SolanaExactTransactionBuilder` using official Solana
-   Kotlin primitives such as `com.solanamobile:web3-solana` plus lightweight
-   RPC support.
-2. Fetch the selected mint account and derive the token program.
-3. Derive source and destination associated token accounts.
-4. Build a versioned Solana transaction with compute-budget, SPL
-   `transferChecked`, and memo instructions.
-5. Connect a production signer. Android MWA can satisfy this at the app layer,
-   but should stay isolated from this core scaffold because it is wallet UI and
-   activity/session plumbing, not generic SDK transaction logic.
-
-The interop CLI exits successfully and emits a machine-readable `result`
-payload, but reports `ok: false` once it reaches the missing production
-transaction-builder boundary.
+1. Fetches the selected mint account when metadata is not present in the
+   payment requirement.
+2. Resolves SPL Token vs Token-2022.
+3. Derives source and destination associated token accounts.
+4. Builds compute-budget, SPL `transferChecked`, and memo instructions.
+5. Signs only the client authority slot, leaving the managed fee payer slot for
+   the facilitator/server side.
 
 ## Local checks
 
@@ -68,10 +61,10 @@ cd kotlin
 gradle test
 ```
 
-The broader interop harness should keep Kotlin disabled by default until the
-transaction/signing boundary above is implemented:
+Focused interop:
 
 ```bash
 cd tests/interop
 X402_INTEROP_CLIENTS=kotlin X402_INTEROP_SERVERS=rust pnpm test:smoke
+X402_INTEROP_CLIENTS=kotlin X402_INTEROP_SERVERS=typescript pnpm test:smoke
 ```

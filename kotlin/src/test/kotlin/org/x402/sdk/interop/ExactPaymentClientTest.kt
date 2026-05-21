@@ -13,7 +13,7 @@ class ExactPaymentClientTest {
     @Test
     fun `creates v2 payment signature header with injected transaction signer`() {
         val builder = RecordingTransactionBuilder(byteArrayOf(1, 2, 3))
-        val signer = RecordingTransactionSigner(byteArrayOf(9, 8, 7))
+        val signer = RecordingTransactionSigner(ByteArray(64) { 9 })
         val client = ExactPaymentClient(builder, signer)
 
         val headers = client.createPaymentHeaders(
@@ -36,7 +36,11 @@ class ExactPaymentClientTest {
         assertEquals(ExactChallenge.DEFAULT_NETWORK, envelope["accepted"].asJsonObject["network"].asString)
         assertEquals("4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU", envelope["accepted"].asJsonObject["asset"].asString)
         assertEquals("PayTo111111111111111111111111111111111", envelope["accepted"].asJsonObject["payTo"].asString)
-        assertEquals("CQgH", envelope["payload"].asJsonObject["transaction"].asString)
+        val transaction = Base64.getDecoder().decode(envelope["payload"].asJsonObject["transaction"].asString)
+        assertEquals(68, transaction.size)
+        assertEquals(1, transaction[0].toInt())
+        assertContentEquals(ByteArray(64) { 9 }, transaction.copyOfRange(1, 65))
+        assertContentEquals(byteArrayOf(1, 2, 3), transaction.copyOfRange(65, 68))
         assertEquals("http://127.0.0.1:3000/protected", envelope["resource"].asJsonObject["url"].asString)
 
         assertEquals(1, builder.requests.size)
@@ -107,13 +111,17 @@ class ExactPaymentClientTest {
 }
 
 private class RecordingTransactionBuilder(
-    private val unsignedTransaction: ByteArray,
+    private val message: ByteArray,
 ) : SolanaExactTransactionBuilder {
     val requests = mutableListOf<SolanaExactPaymentRequest>()
 
-    override fun buildUnsignedTransaction(request: SolanaExactPaymentRequest): ByteArray {
+    override fun buildUnsignedTransaction(request: SolanaExactPaymentRequest): UnsignedSolanaTransaction {
         requests.add(request)
-        return unsignedTransaction
+        return UnsignedSolanaTransaction(
+            message = message,
+            signatures = listOf(ByteArray(64)),
+            signerIndex = 0,
+        )
     }
 }
 
@@ -122,8 +130,8 @@ private class RecordingTransactionSigner(
 ) : SolanaTransactionSigner {
     val inputs = mutableListOf<ByteArray>()
 
-    override fun signTransaction(unsignedTransaction: ByteArray): ByteArray {
-        inputs.add(unsignedTransaction)
+    override fun signMessage(message: ByteArray): ByteArray {
+        inputs.add(message)
         return signedTransaction
     }
 }

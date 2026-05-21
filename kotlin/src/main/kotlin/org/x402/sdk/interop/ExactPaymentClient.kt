@@ -20,12 +20,38 @@ data class SolanaExactPaymentRequest(
     val accepted: JsonObject,
 )
 
+data class UnsignedSolanaTransaction(
+    val message: ByteArray,
+    val signatures: List<ByteArray>,
+    val signerIndex: Int,
+) {
+    init {
+        require(message.isNotEmpty()) { "message is required" }
+        require(signatures.isNotEmpty()) { "at least one signature slot is required" }
+        require(signerIndex in signatures.indices) { "signerIndex is outside signature slots" }
+        signatures.forEach { signature ->
+            require(signature.size == SIGNATURE_LENGTH) { "signature slots must be 64 bytes" }
+        }
+    }
+
+    fun signedWith(signature: ByteArray): ByteArray {
+        require(signature.size == SIGNATURE_LENGTH) { "signature must be 64 bytes" }
+        val finalSignatures = signatures.toMutableList()
+        finalSignatures[signerIndex] = signature
+        return SolanaTransactionCodec.serializeTransaction(finalSignatures, message)
+    }
+
+    companion object {
+        const val SIGNATURE_LENGTH = 64
+    }
+}
+
 fun interface SolanaExactTransactionBuilder {
-    fun buildUnsignedTransaction(request: SolanaExactPaymentRequest): ByteArray
+    fun buildUnsignedTransaction(request: SolanaExactPaymentRequest): UnsignedSolanaTransaction
 }
 
 fun interface SolanaTransactionSigner {
-    fun signTransaction(unsignedTransaction: ByteArray): ByteArray
+    fun signMessage(message: ByteArray): ByteArray
 }
 
 data class ExactPaymentPayload(
@@ -77,10 +103,8 @@ class ExactPaymentClient(
 
         val request = selected.toRequest(payer)
         val unsignedTransaction = transactionBuilder.buildUnsignedTransaction(request)
-        require(unsignedTransaction.isNotEmpty()) { "transactionBuilder returned an empty transaction" }
 
-        val signedTransaction = signer.signTransaction(unsignedTransaction)
-        require(signedTransaction.isNotEmpty()) { "signer returned an empty transaction" }
+        val signedTransaction = unsignedTransaction.signedWith(signer.signMessage(unsignedTransaction.message))
 
         return ExactPaymentPayload(
             x402Version = x402Version,
