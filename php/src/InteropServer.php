@@ -18,6 +18,7 @@ const DEFAULT_TOKEN_DECIMALS = 6;
 const DEFAULT_MAX_TIMEOUT_SECONDS = 60;
 const DEFAULT_NETWORK = 'solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1';
 const DEFAULT_MINT = '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU';
+const PYUSD_DEVNET_MINT = 'CXk2AMBfi3TwaEL2468s6zP8xq9NxTXjp9gjMgzeUynM';
 const SETTLEMENT_CACHE_TTL_MS = 120_000;
 const BASE58_ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
 const COMPUTE_BUDGET_PROGRAM = 'ComputeBudget111111111111111111111111111111';
@@ -128,6 +129,7 @@ function state_from_env(array $env): array
         'rpcUrl' => (string) $env['X402_INTEROP_RPC_URL'],
         'network' => (string) ($env['X402_INTEROP_NETWORK'] ?? DEFAULT_NETWORK),
         'mint' => (string) ($env['X402_INTEROP_MINT'] ?? DEFAULT_MINT),
+        'extraOfferedMints' => offered_mints_from_env((string) ($env['X402_INTEROP_EXTRA_OFFERED_MINTS'] ?? '')),
         'payTo' => (string) $env['X402_INTEROP_PAY_TO'],
         'feePayerSecretKey' => $secretKey,
         'feePayerPublicKey' => substr($secretKey, 32, 32),
@@ -135,21 +137,45 @@ function state_from_env(array $env): array
     ];
 }
 
-function exact_requirement(array $state): array
+function offered_mints_from_env(string $raw): array
 {
+    return array_values(array_filter(
+        array_map(static fn (string $mint): string => trim($mint), explode(',', $raw)),
+        static fn (string $mint): bool => $mint !== '',
+    ));
+}
+
+function token_program_for_mint(string $mint): string
+{
+    return $mint === PYUSD_DEVNET_MINT ? TOKEN_2022_PROGRAM : DEFAULT_TOKEN_PROGRAM;
+}
+
+function exact_requirement(array $state, ?string $mint = null): array
+{
+    $asset = $mint ?? $state['mint'];
     return [
         'scheme' => 'exact',
         'network' => $state['network'],
-        'asset' => $state['mint'],
+        'asset' => $asset,
         'amount' => $state['amount'],
         'payTo' => $state['payTo'],
         'maxTimeoutSeconds' => DEFAULT_MAX_TIMEOUT_SECONDS,
         'extra' => [
             'feePayer' => base58_encode_binary($state['feePayerPublicKey']),
             'decimals' => DEFAULT_TOKEN_DECIMALS,
-            'tokenProgram' => DEFAULT_TOKEN_PROGRAM,
+            'tokenProgram' => token_program_for_mint($asset),
         ],
     ];
+}
+
+function exact_requirements(array $state): array
+{
+    $requirements = [exact_requirement($state)];
+    foreach (($state['extraOfferedMints'] ?? []) as $mint) {
+        $requirements[] = exact_requirement($state, (string) $mint);
+    }
+
+    return $requirements;
 }
 
 function exact_challenge(array $state): array
@@ -161,8 +187,23 @@ function exact_challenge(array $state): array
             'type' => 'http',
             'uri' => DEFAULT_RESOURCE_PATH,
         ],
-        'accepts' => [exact_requirement($state)],
+        'accepts' => exact_requirements($state),
     ];
+}
+
+function find_matching_exact_requirement(array $accepted, array $state): array
+{
+    $firstError = null;
+    foreach (exact_requirements($state) as $requirement) {
+        try {
+            assert_exact_requirement_matches($accepted, $requirement);
+            return $requirement;
+        } catch (\RuntimeException $error) {
+            $firstError ??= $error;
+        }
+    }
+
+    throw $firstError ?? new \RuntimeException('accepted requirements do not match any advertised exact requirement');
 }
 
 function assert_exact_requirement_matches(array $accepted, array $expected): void
@@ -705,11 +746,10 @@ function settle_exact_payment(array $state, string $paymentHeader, ?callable $se
     }
 
     $accepted = $decoded['accepted'] ?? null;
-    $requirement = exact_requirement($state);
     if (!is_array($accepted)) {
         throw new \RuntimeException('payment signature is missing accepted requirements');
     }
-    assert_exact_requirement_matches($accepted, $requirement);
+    $requirement = find_matching_exact_requirement($accepted, $state);
 
     $payload = $decoded['payload'] ?? null;
     if ($payload !== null && (!is_array($payload) || ($payload !== [] && array_is_list($payload)))) {

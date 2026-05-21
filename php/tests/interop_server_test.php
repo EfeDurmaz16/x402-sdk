@@ -23,6 +23,7 @@ if ($coverageRequested) {
 require_once __DIR__ . '/../src/InteropServer.php';
 
 use function X402Sdk\Interop\associated_token_address;
+use function X402Sdk\Interop\exact_challenge;
 use function X402Sdk\Interop\exact_requirement;
 use function X402Sdk\Interop\normalize_amount;
 use function X402Sdk\Interop\protected_response;
@@ -367,6 +368,43 @@ $unitState = state_from_env([
 $unitRequirement = exact_requirement($unitState);
 if (($unitRequirement['amount'] ?? null) !== '125000' || ($unitRequirement['payTo'] ?? null) !== '11111111111111111111111111111112') {
     fail('PHP exact requirement did not use runtime state');
+}
+
+$multiCurrencyState = state_from_env([
+    'X402_INTEROP_RPC_URL' => 'http://127.0.0.1:8899',
+    'X402_INTEROP_NETWORK' => 'solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1',
+    'X402_INTEROP_MINT' => '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU',
+    'X402_INTEROP_EXTRA_OFFERED_MINTS' => 'CXk2AMBfi3TwaEL2468s6zP8xq9NxTXjp9gjMgzeUynM, So11111111111111111111111111111111111111112',
+    'X402_INTEROP_PAY_TO' => '11111111111111111111111111111112',
+    'X402_INTEROP_FACILITATOR_SECRET_KEY' => secret_json("\x02"),
+    'X402_INTEROP_PRICE' => '$0.125',
+]);
+$multiCurrencyChallenge = exact_challenge($multiCurrencyState);
+$multiCurrencyAccepts = $multiCurrencyChallenge['accepts'] ?? null;
+if (!is_array($multiCurrencyAccepts) || count($multiCurrencyAccepts) !== 3) {
+    fail('PHP exact challenge did not include base plus extra offered mints');
+}
+$expectedAssets = [
+    '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU',
+    'CXk2AMBfi3TwaEL2468s6zP8xq9NxTXjp9gjMgzeUynM',
+    'So11111111111111111111111111111111111111112',
+];
+$expectedTokenPrograms = [
+    'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA',
+    'TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb',
+    'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA',
+];
+foreach ($multiCurrencyAccepts as $index => $offer) {
+    if (
+        ($offer['asset'] ?? null) !== $expectedAssets[$index]
+        || ($offer['amount'] ?? null) !== '125000'
+        || ($offer['payTo'] ?? null) !== '11111111111111111111111111111112'
+        || ($offer['extra']['feePayer'] ?? null) !== ($unitRequirement['extra']['feePayer'] ?? null)
+        || ($offer['extra']['decimals'] ?? null) !== 6
+        || ($offer['extra']['tokenProgram'] ?? null) !== $expectedTokenPrograms[$index]
+    ) {
+        fail('PHP exact challenge extra offered mint shape mismatch: ' . json_encode($multiCurrencyChallenge));
+    }
 }
 
 assert_rejects_payment($unitState, 'not base64', 'invalid payment signature encoding');
