@@ -26,15 +26,20 @@ module X402SDK
       DEFAULT_MAX_TIMEOUT_SECONDS = 60
       DEFAULT_NETWORK = "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1"
       DEFAULT_MINT = "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU"
+      DEVNET_PYUSD_MINT = "CXk2AMBfi3TwaEL2468s6zP8xq9NxTXjp9gjMgzeUynM"
 
       class State
-        attr_reader :rpc_url, :network, :mint, :pay_to, :fee_payer, :fee_payer_secret_key, :amount,
+        attr_reader :rpc_url, :network, :mint, :extra_offered_mints, :pay_to, :fee_payer, :fee_payer_secret_key, :amount,
                     :transaction_sender, :settlement_cache, :account_checker
 
         def initialize(env: ENV, transaction_sender: nil, settlement_cache: nil, account_checker: nil)
           @rpc_url = required_env(env, "X402_INTEROP_RPC_URL")
           @network = env.fetch("X402_INTEROP_NETWORK", DEFAULT_NETWORK)
           @mint = env.fetch("X402_INTEROP_MINT", DEFAULT_MINT)
+          @extra_offered_mints = env.fetch("X402_INTEROP_EXTRA_OFFERED_MINTS", "")
+                                    .split(",")
+                                    .map(&:strip)
+                                    .reject(&:empty?)
           @pay_to = required_env(env, "X402_INTEROP_PAY_TO")
           @fee_payer_secret_key = required_env(env, "X402_INTEROP_FACILITATOR_SECRET_KEY")
           @fee_payer = Exact.private_key_from_json(@fee_payer_secret_key)
@@ -91,20 +96,26 @@ module X402SDK
         ((Integer(whole, 10) * 1_000_000) + Integer(fraction.empty? ? "0" : fraction, 10)).to_s
       end
 
-      def exact_requirement(state)
+      def exact_requirement(state, mint: state.mint)
         {
           "scheme" => "exact",
           "network" => state.network,
-          "asset" => state.mint,
+          "asset" => mint,
           "amount" => state.amount,
           "payTo" => state.pay_to,
           "maxTimeoutSeconds" => DEFAULT_MAX_TIMEOUT_SECONDS,
           "extra" => {
             "feePayer" => Exact.base58_encode(state.fee_payer.raw_public_key),
             "decimals" => DEFAULT_TOKEN_DECIMALS,
-            "tokenProgram" => DEFAULT_TOKEN_PROGRAM
+            "tokenProgram" => token_program_for_mint(mint)
           }
         }
+      end
+
+      def exact_requirements(state)
+        ([state.mint] + state.extra_offered_mints).map do |mint|
+          exact_requirement(state, mint: mint)
+        end
       end
 
       def exact_challenge(state)
@@ -114,8 +125,12 @@ module X402SDK
             "type" => "http",
             "uri" => DEFAULT_RESOURCE_PATH
           },
-          "accepts" => [exact_requirement(state)]
+          "accepts" => exact_requirements(state)
         }
+      end
+
+      def token_program_for_mint(mint)
+        mint == DEVNET_PYUSD_MINT ? Exact::TOKEN_2022_PROGRAM : DEFAULT_TOKEN_PROGRAM
       end
 
       def payment_requirement_matches?(left, right)
@@ -134,11 +149,14 @@ module X402SDK
 
       def settle_exact_payment(state, payment_header)
         decoded = decode_payment_signature(payment_header)
-        requirement = exact_requirement(state)
+        requirements = exact_requirements(state)
         raise "unsupported x402Version: #{decoded["x402Version"]}" unless decoded["x402Version"] == 2
 
         accepted = decoded["accepted"]
-        unless accepted.is_a?(Hash) && payment_requirement_matches?(accepted, requirement)
+        requirement = if accepted.is_a?(Hash)
+                        requirements.find { |candidate| payment_requirement_matches?(accepted, candidate) }
+                      end
+        unless requirement
           raise "accepted payment requirement does not match server challenge"
         end
 

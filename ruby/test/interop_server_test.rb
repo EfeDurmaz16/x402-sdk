@@ -9,6 +9,8 @@ require "x402_sdk/interop/server"
 class InteropServerTest < Minitest::Test
   NETWORK = "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1"
   ASSET = "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU"
+  EXTRA_ASSET = "ExtraMint11111111111111111111111111111"
+  PYUSD_DEVNET_MINT = "CXk2AMBfi3TwaEL2468s6zP8xq9NxTXjp9gjMgzeUynM"
   PAY_TO = "11111111111111111111111111111112"
   BLOCKHASH = "11111111111111111111111111111111"
 
@@ -29,6 +31,25 @@ class InteropServerTest < Minitest::Test
     assert_equal PAY_TO, requirement.fetch("payTo")
     assert_equal X402SDK::Interop::Exact.base58_encode(state.fee_payer.raw_public_key),
                  requirement.fetch("extra").fetch("feePayer")
+  end
+
+  def test_exact_challenge_includes_extra_offered_mints
+    state = build_state(extra_offered_mints: " #{PYUSD_DEVNET_MINT}, #{EXTRA_ASSET} ")
+    accepts = X402SDK::Interop::Server.exact_challenge(state).fetch("accepts")
+    base, pyusd, extra = accepts
+
+    assert_equal [ASSET, PYUSD_DEVNET_MINT, EXTRA_ASSET], accepts.map { |requirement| requirement.fetch("asset") }
+    assert_equal 3, accepts.length
+
+    [pyusd, extra].each do |requirement|
+      assert_equal base.fetch("amount"), requirement.fetch("amount")
+      assert_equal base.fetch("payTo"), requirement.fetch("payTo")
+      assert_equal base.fetch("extra").fetch("feePayer"), requirement.fetch("extra").fetch("feePayer")
+      assert_equal base.fetch("extra").fetch("decimals"), requirement.fetch("extra").fetch("decimals")
+    end
+
+    assert_equal X402SDK::Interop::Exact::TOKEN_2022_PROGRAM, pyusd.fetch("extra").fetch("tokenProgram")
+    assert_equal X402SDK::Interop::Server::DEFAULT_TOKEN_PROGRAM, extra.fetch("extra").fetch("tokenProgram")
   end
 
   def test_payment_requirement_matches_binds_settlement_fields
@@ -535,18 +556,22 @@ class InteropServerTest < Minitest::Test
 
   def build_state(
     price: "$0.001",
+    extra_offered_mints: nil,
     sender: ->(_state, _transaction) { "unit-settlement" },
     account_checker: ->(_state, _account) { true }
   )
+    env = {
+      "X402_INTEROP_RPC_URL" => "http://127.0.0.1:8899",
+      "X402_INTEROP_NETWORK" => NETWORK,
+      "X402_INTEROP_MINT" => ASSET,
+      "X402_INTEROP_PAY_TO" => PAY_TO,
+      "X402_INTEROP_FACILITATOR_SECRET_KEY" => JSON.generate(secret(65)),
+      "X402_INTEROP_PRICE" => price
+    }
+    env["X402_INTEROP_EXTRA_OFFERED_MINTS"] = extra_offered_mints unless extra_offered_mints.nil?
+
     X402SDK::Interop::Server::State.new(
-      env: {
-        "X402_INTEROP_RPC_URL" => "http://127.0.0.1:8899",
-        "X402_INTEROP_NETWORK" => NETWORK,
-        "X402_INTEROP_MINT" => ASSET,
-        "X402_INTEROP_PAY_TO" => PAY_TO,
-        "X402_INTEROP_FACILITATOR_SECRET_KEY" => JSON.generate(secret(65)),
-        "X402_INTEROP_PRICE" => price
-      },
+      env: env,
       transaction_sender: sender,
       account_checker: account_checker
     )
