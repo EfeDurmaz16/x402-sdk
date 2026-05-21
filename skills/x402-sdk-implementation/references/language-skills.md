@@ -4,7 +4,7 @@ Use the x402 skill for protocol and PR readiness. Pair it with one language
 skill only for idioms, tests, and maintainability. Language skills are not
 protocol authority.
 
-| Language | Suggested skill or guide | Confidence |
+| Language | Suggested skill or guide | Usage notes |
 |---|---|---|
 | TypeScript | `0xbigboss/claude-code/typescript-best-practices` | Strong style checklist; high installs and audit pass. Still follow local TypeScript package patterns. |
 | Rust | Local Rust reference plus `cargo fmt`, `cargo clippy`, `cargo test` | Strongest local authority. Generic Rust skills are optional only. |

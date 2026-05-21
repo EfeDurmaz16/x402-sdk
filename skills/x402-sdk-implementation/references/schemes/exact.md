@@ -20,8 +20,7 @@ Exact SVM payments must verify:
 - amount and decimals match the accepted requirement.
 - destination account is the expected recipient ATA.
 - optional ATA creation, when supported, creates the expected ATA.
-- transfer source is not the managed fee payer unless explicitly valid for the
-  payer wallet.
+- managed fee payer is not the transfer source.
 - managed fee payer signs only as fee payer and never as token authority.
 - route/resource binding prevents cross-route replay.
 - duplicate settlement detection uses decoded transaction bytes or an
