@@ -5,7 +5,7 @@
   "packageManager": "pnpm@10.14.0",
   "scripts": {
     "test": "vitest run",
-    "batch:readiness": "node --import tsx -e \"import('./src/batch-settlement-readiness.ts').then(m => console.log(m.formatBatchSettlementReadinessReport()))\"",
+    "batch:readiness": "node --import tsx -e \"import('./src/batch-settlement-readiness.ts').then(m => console.log(m.formatBatchSettlementReadinessReport())).catch(error => { console.error(error); process.exit(1); })\"",
     "test:batch-readiness": "vitest run test/batch-settlement-readiness.test.ts",
     "test:smoke": "vitest run test/e2e.test.ts --testNamePattern \"client pays\"",
     "test:watch": "vitest",

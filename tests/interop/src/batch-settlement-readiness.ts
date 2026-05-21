@@ -45,7 +45,8 @@ export const currentBatchSettlementBindings: BatchSettlementNetworkBinding[] = [
 export function getBatchSettlementBinding(network: string): BatchSettlementNetworkBinding | undefined {
   return currentBatchSettlementBindings.find((binding) => {
     if (binding.network.endsWith(":*")) {
-      return network.startsWith(binding.network.slice(0, -1));
+      const networkPrefix = binding.network.slice(0, -1);
+      return network.startsWith(networkPrefix);
     }
 
     return binding.network === network;
