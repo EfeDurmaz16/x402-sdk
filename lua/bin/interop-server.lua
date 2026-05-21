@@ -513,11 +513,11 @@ local function valid_destination_ata_create_instruction(instruction, account_key
   if #instruction.accounts < 6 then
     return false
   end
-  return account_key_for_index(account_keys, instruction.accounts[1]) == transfer.destination and
-    account_key_for_index(account_keys, instruction.accounts[2]) == base58_decode(requirement.payTo) and
-    account_key_for_index(account_keys, instruction.accounts[3]) == transfer.mint and
-    account_key_for_index(account_keys, instruction.accounts[4]) == base58_decode(system_program) and
-    account_key_for_index(account_keys, instruction.accounts[5]) == transfer.token_program
+  return account_key_for_index(account_keys, instruction.accounts[2]) == transfer.destination and
+    account_key_for_index(account_keys, instruction.accounts[3]) == base58_decode(requirement.payTo) and
+    account_key_for_index(account_keys, instruction.accounts[4]) == transfer.mint and
+    account_key_for_index(account_keys, instruction.accounts[5]) == base58_decode(system_program) and
+    account_key_for_index(account_keys, instruction.accounts[6]) == transfer.token_program
 end
 
 local function verify_optional_instructions(instructions, account_keys, requirement, transfer)
@@ -562,13 +562,6 @@ local function verify_exact_transaction(parsed, requirement)
   verify_optional_instructions(instructions, parsed.account_keys, requirement, transfer)
 
   local fee_payer = base58_decode(requirement.extra.feePayer)
-  for _, instruction in ipairs(instructions) do
-    for _, account_index in ipairs(instruction.accounts) do
-      if account_key_for_index(parsed.account_keys, account_index) == fee_payer then
-        error("invalid_exact_svm_payload_transaction_fee_payer_transferring_funds")
-      end
-    end
-  end
   if transfer.authority == fee_payer or transfer.source == fee_payer then
     error("invalid_exact_svm_payload_transaction_fee_payer_transferring_funds")
   end

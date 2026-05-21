@@ -41,6 +41,16 @@ describe("Lua exact server", () => {
     expect(server).not.toContain("settlement_unavailable");
   });
 
+  it("keeps ATA creation compatible with managed fee payer funding", () => {
+    expect(server).toContain("account_key_for_index(account_keys, instruction.accounts[2]) == transfer.destination");
+    expect(server).toContain("account_key_for_index(account_keys, instruction.accounts[3]) == base58_decode(requirement.payTo)");
+    expect(server).toContain("account_key_for_index(account_keys, instruction.accounts[4]) == transfer.mint");
+    expect(server).toContain("account_key_for_index(account_keys, instruction.accounts[5]) == base58_decode(system_program)");
+    expect(server).toContain("account_key_for_index(account_keys, instruction.accounts[6]) == transfer.token_program");
+    expect(server).not.toMatch(/for _, instruction in ipairs\\(instructions\\)[\\s\\S]*fee_payer_transferring_funds/);
+    expect(server).toContain("if transfer.authority == fee_payer or transfer.source == fee_payer then");
+  });
+
   it("builds exact SVM challenges from interop env", () => {
     expect(server).toContain("exact_challenge_json");
     expect(server).toContain("exact_requirement_json");
