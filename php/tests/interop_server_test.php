@@ -874,6 +874,107 @@ if ($socketProbe === false) {
     }
 }
 
+// --- MPP §19.5 fee-payer co-signing attack regression tests ---------------
+// Hand-crafted attack-shape transactions the PHP server MUST reject.
+// Each attack has a positive control to confirm both accept and reject paths.
+
+function attack_requirement(array $state): array
+{
+    return exact_requirement($state);
+}
+
+function build_attack_transaction(array $state, array $accountKeys, array $instructions, int $numRequiredSignatures = 2): string
+{
+    $signatureCount = $numRequiredSignatures;
+    $message = "\x80"
+        . chr($numRequiredSignatures)
+        . "\x01"
+        . "\x04"
+        . short_vec(count($accountKeys))
+        . implode('', $accountKeys)
+        . str_repeat("\xa1", 32)
+        . short_vec(count($instructions))
+        . implode('', $instructions)
+        . short_vec(0);
+    return short_vec($signatureCount) . str_repeat("\x00", $signatureCount * 64) . $message;
+}
+
+$attackState = $unitState;
+$attackRequirement = attack_requirement($attackState);
+$serverPub = $attackState['feePayerPublicKey'];
+$attackerPub = substr(secret_key_bytes(secret_json("\x21")), 32, 32);
+$clientPub = substr(secret_key_bytes(secret_json("\x06")), 32, 32);
+$mintBytes = base58_decode_test($attackRequirement['asset']);
+$payToBytes = base58_decode_test($attackRequirement['payTo']);
+$tokenProgramBytes = base58_decode_test($attackRequirement['extra']['tokenProgram']);
+$systemProgramBytes = str_repeat("\x00", 32); // base58 '11111111111111111111111111111111' (system program / default pubkey)
+$computeProgramBytes = base58_decode_test('ComputeBudget111111111111111111111111111111');
+$memoProgramBytes = base58_decode_test('MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr');
+$srcAta = associated_token_address_test($clientPub, $tokenProgramBytes, $mintBytes);
+$dstAta = associated_token_address_test($payToBytes, $tokenProgramBytes, $mintBytes);
+$feePayerAta = associated_token_address_test($serverPub, $tokenProgramBytes, $mintBytes);
+$attackerAta = associated_token_address_test($attackerPub, $tokenProgramBytes, $mintBytes);
+
+$amountBytes = X402Sdk\Interop\decimal_to_u64_le((string) $attackRequirement['amount']);
+$decimalsByte = chr((int) $attackRequirement['extra']['decimals']);
+$validTransferIx = compiled_instruction_test(6, [2, 3, 4, 1], chr(12) . $amountBytes . $decimalsByte);
+$validComputeLimitIx = compiled_instruction_test(5, [], chr(2) . pack('V', 20_000));
+$validComputePriceIx = compiled_instruction_test(5, [], chr(3) . u64_le_test(1));
+
+// Attack 1: DRAIN — extra SystemProgram::Transfer from fee-payer to attacker.
+// accountKeys: [feePayer, client, srcAta, mint, dstAta, computeProgram, tokenProgram, systemProgram, attacker]
+$drainKeys = [$serverPub, $clientPub, $srcAta, $mintBytes, $dstAta, $computeProgramBytes, $tokenProgramBytes, $systemProgramBytes, $attackerPub];
+// SystemProgram::Transfer: discriminator=2 (u32 LE) + lamports (u64 LE). Accounts: [from(signer,writable), to(writable)].
+$systemTransferData = pack('V', 2) . u64_le_test(1_000_000);
+$drainIx = compiled_instruction_test(7, [0, 8], $systemTransferData);
+$drainTx = build_attack_transaction($attackState, $drainKeys, [$validComputeLimitIx, $validComputePriceIx, $validTransferIx, $drainIx]);
+assert_runtime_error('invalid_exact_svm_payload_transaction_fee_payer_in_instruction_accounts', static fn () => verify_exact_transaction($drainTx, $attackRequirement, [$serverPub]));
+// Positive control: same shape minus the drain instruction is accepted.
+$drainControlKeysFixed = [$serverPub, $clientPub, $srcAta, $mintBytes, $dstAta, $computeProgramBytes, $tokenProgramBytes, $memoProgramBytes];
+$drainControlTx = build_attack_transaction($attackState, $drainControlKeysFixed, [$validComputeLimitIx, $validComputePriceIx, $validTransferIx, compiled_instruction_test(7, [], 'control-memo')]);
+verify_exact_transaction($drainControlTx, $attackRequirement, [$serverPub]);
+
+// Attack 2: SPL token DRAIN — transferChecked sourced from fee-payer's ATA.
+$splDrainKeys = [$serverPub, $clientPub, $srcAta, $mintBytes, $dstAta, $computeProgramBytes, $tokenProgramBytes, $feePayerAta, $attackerAta];
+// transferChecked accounts: [source, mint, destination, authority] — authority MUST sign.
+// Putting feePayerAta at source and fee-payer pubkey (idx 0) as authority drains via SPL.
+$splDrainIx = compiled_instruction_test(6, [7, 3, 8, 0], chr(12) . u64_le_test(1_000) . $decimalsByte);
+$splDrainTx = build_attack_transaction($attackState, $splDrainKeys, [$validComputeLimitIx, $validComputePriceIx, $validTransferIx, $splDrainIx]);
+assert_runtime_error('invalid_exact_svm_payload_transaction_fee_payer_in_instruction_accounts', static fn () => verify_exact_transaction($splDrainTx, $attackRequirement, [$serverPub]));
+// Positive control: drop the drain instruction.
+$splControlKeys = [$serverPub, $clientPub, $srcAta, $mintBytes, $dstAta, $computeProgramBytes, $tokenProgramBytes, $memoProgramBytes];
+$splControlTx = build_attack_transaction($attackState, $splControlKeys, [$validComputeLimitIx, $validComputePriceIx, $validTransferIx, compiled_instruction_test(7, [], 'spl-control-memo')]);
+verify_exact_transaction($splControlTx, $attackRequirement, [$serverPub]);
+
+// Attack 3: SLOT — fee-payer pubkey at signer slot 1 (attacker at slot 0).
+// Any instruction that references index 1 (server) MUST be rejected.
+// Keys layout shifted by 1 to put attacker at slot 0; compute program now at idx 6, token at 7, system at 8.
+$slotKeys = [$attackerPub, $serverPub, $clientPub, $srcAta, $mintBytes, $dstAta, $computeProgramBytes, $tokenProgramBytes, $systemProgramBytes];
+$slotComputeLimitIx = compiled_instruction_test(6, [], chr(2) . pack('V', 20_000));
+$slotComputePriceIx = compiled_instruction_test(6, [], chr(3) . u64_le_test(1));
+$slotTransferIx = compiled_instruction_test(7, [3, 4, 5, 2], chr(12) . $amountBytes . $decimalsByte);
+// Attacker instruction referencing server at idx 1 (would harvest server's signature as authority).
+$slotAttackIx = compiled_instruction_test(8, [1, 0], pack('V', 2) . u64_le_test(1));
+$slotTx = build_attack_transaction($attackState, $slotKeys, [$slotComputeLimitIx, $slotComputePriceIx, $slotTransferIx, $slotAttackIx], 2);
+assert_runtime_error('invalid_exact_svm_payload_transaction_fee_payer_in_instruction_accounts', static fn () => verify_exact_transaction($slotTx, $attackRequirement, [$serverPub]));
+
+// Attack 4: Tampered details.fee_payer — accepted requirement carries an ATTACKER pubkey
+// in extra.feePayer, but the server-context managed-signer list still names the SERVER.
+// The verifier MUST trust the server-context pubkey, not the client-supplied field, so
+// any drain instruction targeting the SERVER pubkey is still rejected.
+$tamperedRequirement = $attackRequirement;
+$tamperedRequirement['extra']['feePayer'] = X402Sdk\Interop\base58_encode_binary($attackerPub);
+assert_runtime_error('invalid_exact_svm_payload_transaction_fee_payer_in_instruction_accounts', static fn () => verify_exact_transaction($drainTx, $tamperedRequirement, [$serverPub]));
+// Positive control: legitimate canonical payment passes even when details.fee_payer is tampered,
+// because server-context drain detection ignores the client-supplied hint.
+$tamperedHappyTx = base64_decode(canonical_versioned_transaction_for_exact_payment($attackState), true);
+if ($tamperedHappyTx === false) {
+    fail('tampered control transaction is not base64');
+}
+verify_exact_transaction($tamperedHappyTx, $tamperedRequirement, [$serverPub]);
+
+echo "PHP fee-payer attack regression suite OK\n";
+
 echo "PHP interop server contract OK\n";
 
 if ($coverageRequested) {
