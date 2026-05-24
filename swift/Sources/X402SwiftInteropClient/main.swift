@@ -10,6 +10,8 @@ struct InteropClient {
         let target = try readRequiredURL("X402_INTEROP_TARGET_URL")
         let rpc = try readRequiredURL("X402_INTEROP_RPC_URL")
         let network = ProcessInfo.processInfo.environment["X402_INTEROP_NETWORK"] ?? X402SwiftExact.solanaDevnet
+        let currencies = ProcessInfo.processInfo.environment["X402_INTEROP_CURRENCIES"]
+            .map { $0.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty } }
         let secret = try readSecretKey("X402_INTEROP_CLIENT_SECRET_KEY")
         #if canImport(CryptoKit)
         let signer = try MemorySolanaSigner(secretKey: secret)
@@ -23,7 +25,11 @@ struct InteropClient {
                 partial[key] = value
             }
         } ?? [:]
-        guard let requirement = try parseX402Challenge(headers: headers, body: challengeData, selection: ChallengeSelection(network: network)) else {
+        guard let requirement = try parseX402Challenge(
+            headers: headers,
+            body: challengeData,
+            selection: ChallengeSelection(network: network, currencies: currencies)
+        ) else {
             throw X402SwiftExactError.missingChallenge
         }
 
