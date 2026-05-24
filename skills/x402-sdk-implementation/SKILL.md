@@ -33,7 +33,12 @@ green.
 | `x402/exact` | [exact.md](references/schemes/exact.md) | Implemented locally in Rust/TypeScript; language ports must mirror the reference behavior. |
 | `x402/upto` | [upto.md](references/schemes/upto.md) | Official docs describe EVM Permit2 support. Solana runtime stays blocked/planned until an SVM binding exists. |
 | `x402/batch-settlement` | [batch-settlement.md](references/schemes/batch-settlement.md) | Official docs describe EVM escrow/vouchers. Solana runtime stays blocked/planned until an SVM binding exists. |
-| `x402/session` | [batch-settlement.md](references/schemes/batch-settlement.md) | Do not invent a separate cell. Treat session-like x402 work as batch-settlement unless maintainers confirm otherwise. |
+
+`x402/session` is **not** an official x402 scheme. The published x402 scheme
+set is `exact`, `upto`, and `batch-settlement`. If MPP session-style work
+needs to land on x402, treat it as a batch-settlement extension (see
+[batch-settlement.md](references/schemes/batch-settlement.md)) until
+maintainers confirm a distinct scheme exists.
 
 ## Workflow
 

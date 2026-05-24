@@ -43,17 +43,21 @@ positive control:
 For each shape, the positive control uses the same envelope minus the attack
 mutation. Both reject and accept paths are confirmed in one test pass.
 
-## L8 broadcast-then-consume-then-await ordering
+## L8 claim-then-broadcast-then-confirm ordering
 
-Pull-mode settlement MUST follow this order on every server SDK:
+Pull-mode settlement MUST follow this order on every server SDK so a crash
+between any two steps cannot result in a double-broadcast:
 
-1. `send_raw_transaction` (broadcast)
-2. `consume_signature` in the durable replay store (write the marker)
-3. `await_confirmation` (poll until confirmed or timeout)
+1. `claim_signature` in the durable replay store (write the marker / acquire
+   the idempotency slot **before** the network call).
+2. `send_raw_transaction` (broadcast).
+3. `await_confirmation` (poll until confirmed or timeout).
+4. On confirmation failure or timeout: `release_claim` so a legitimate retry
+   can proceed once the operator decides the prior attempt was lost.
 
-If consume comes after await and the await times out, a retry can broadcast
-the same signature twice = double-pay. The Rust spine is the canonical
-reference.
+If broadcast happens before the claim is written and the process crashes
+between broadcast and the marker write, a retry will broadcast the same
+signature again = double-pay. The Rust spine is the canonical reference.
 
 ## Local Codex review (second opinion)
 
