@@ -31,6 +31,7 @@ public enum X402SwiftExactError: Error, Equatable, CustomStringConvertible {
     case memoTooLarge(Int)
     case invalidDecimals(Double)
     case publicKeyMismatch(expected: String, derived: String)
+    case unsupportedTokenProgram(String)
     case rpc(String)
 
     public var description: String {
@@ -49,6 +50,7 @@ public enum X402SwiftExactError: Error, Equatable, CustomStringConvertible {
         case .memoTooLarge(let count): return "extra.memo exceeds \(X402SwiftExact.maxMemoBytes) bytes: \(count)"
         case .invalidDecimals(let value): return "invalid extra.decimals value: \(value) (must be an integer in 0...255)"
         case .publicKeyMismatch(let expected, let derived): return "secret key public component \(derived) does not match supplied address \(expected)"
+        case .unsupportedTokenProgram(let value): return "unsupported extra.tokenProgram: \(value) (allowed: \(X402SwiftExact.tokenProgram), \(X402SwiftExact.token2022Program))"
         case .rpc(let value): return value
         }
     }

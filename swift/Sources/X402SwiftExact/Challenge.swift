@@ -31,6 +31,20 @@ public struct PaymentRequirement: Equatable, Codable {
         extra?["tokenProgram"]?.string ?? X402SwiftExact.tokenProgram
     }
 
+    /// Resolve `extra.tokenProgram` against the canonical SPL allowlist.
+    /// Defaults to the SPL Token classic program when the field is absent.
+    /// Throws `X402SwiftExactError.unsupportedTokenProgram` for any value
+    /// outside `{ SPL Token, Token-2022 }` so a malicious server cannot
+    /// trick the client into signing a transaction that invokes an
+    /// arbitrary executable program.
+    public func validatedTokenProgram() throws -> String {
+        let value = extra?["tokenProgram"]?.string ?? X402SwiftExact.tokenProgram
+        guard value == X402SwiftExact.tokenProgram || value == X402SwiftExact.token2022Program else {
+            throw X402SwiftExactError.unsupportedTokenProgram(value)
+        }
+        return value
+    }
+
     /// Parse the `extra.decimals` field from the payment requirement.
     /// Throws `X402SwiftExactError.invalidDecimals` if the value is non-integral or outside `0...255`.
     /// Defaults to `6` when the field is absent (canonical USDC precision).
@@ -78,6 +92,11 @@ private func selectRequirement(from data: Data, selection: ChallengeSelection) t
     let preferredNetwork = canonicalNetwork(selection.network ?? X402SwiftExact.solanaMainnet)
     let solana = envelope.accepts.filter { requirement in
         requirement.scheme == X402SwiftExact.exactScheme && requirement.network.starts(with: "solana:")
+    }
+    // Reject any requirement that pins extra.tokenProgram to a program outside
+    // the canonical SPL allowlist before it can ever reach the transaction builder.
+    for requirement in solana {
+        _ = try requirement.validatedTokenProgram()
     }
     let onNetwork = solana.filter { canonicalNetwork($0.network) == preferredNetwork }
     let candidates = onNetwork.isEmpty ? solana : onNetwork

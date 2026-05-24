@@ -97,7 +97,10 @@ public struct ExactTransactionBuilder {
         let payer = try SolanaPublicKey(feePayer)
         let mint = try SolanaPublicKey(requirement.asset)
         let payTo = try SolanaPublicKey(requirement.payTo)
-        let tokenProgram = try SolanaPublicKey(requirement.tokenProgram)
+        // Independent defense-in-depth allowlist check: even if a caller bypasses
+        // `parseX402Challenge` and constructs a `PaymentRequirement` directly, the
+        // builder must refuse to sign for an arbitrary executable program.
+        let tokenProgram = try SolanaPublicKey(requirement.validatedTokenProgram())
         let sourceATA = try ataResolver.associatedTokenAddress(owner: signer.address, mint: mint, tokenProgram: tokenProgram)
         let destinationATA = try ataResolver.associatedTokenAddress(owner: payTo, mint: mint, tokenProgram: tokenProgram)
         let instructions = [

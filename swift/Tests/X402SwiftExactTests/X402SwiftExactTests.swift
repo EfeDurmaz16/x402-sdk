@@ -215,6 +215,76 @@ private struct FixedATAResolver: AssociatedTokenAddressResolver {
 }
 #endif
 
+@Test func challengeRejectsUnsupportedTokenProgram() throws {
+    // A malicious server tries to pin extra.tokenProgram to an arbitrary executable
+    // program. The challenge parser must reject the whole envelope so the client
+    // never even reaches the transaction builder.
+    let json = """
+    {"x402Version":2,"accepts":[
+      {"scheme":"exact","network":"solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1","amount":"1000","asset":"4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU","payTo":"11111111111111111111111111111111","extra":{"feePayer":"11111111111111111111111111111111","decimals":6,"tokenProgram":"EvilProgram11111111111111111111111111111111"}}
+    ]}
+    """
+    #expect(throws: X402SwiftExactError.unsupportedTokenProgram("EvilProgram11111111111111111111111111111111")) {
+        _ = try parseX402Challenge(headers: [:], body: Data(json.utf8), selection: ChallengeSelection(network: "devnet"))
+    }
+}
+
+@Test func acceptsSplTokenProgram() throws {
+    let json = """
+    {"x402Version":2,"accepts":[
+      {"scheme":"exact","network":"solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1","amount":"1000","asset":"4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU","payTo":"11111111111111111111111111111111","extra":{"feePayer":"11111111111111111111111111111111","decimals":6,"tokenProgram":"TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"}}
+    ]}
+    """
+    let parsed = try parseX402Challenge(headers: [:], body: Data(json.utf8), selection: ChallengeSelection(network: "devnet"))
+    let requirement = try #require(parsed)
+    #expect(try requirement.validatedTokenProgram() == X402SwiftExact.tokenProgram)
+}
+
+@Test func acceptsToken2022Program() throws {
+    let json = """
+    {"x402Version":2,"accepts":[
+      {"scheme":"exact","network":"solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1","amount":"1000","asset":"4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU","payTo":"11111111111111111111111111111111","extra":{"feePayer":"11111111111111111111111111111111","decimals":6,"tokenProgram":"TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"}}
+    ]}
+    """
+    let parsed = try parseX402Challenge(headers: [:], body: Data(json.utf8), selection: ChallengeSelection(network: "devnet"))
+    let requirement = try #require(parsed)
+    #expect(try requirement.validatedTokenProgram() == X402SwiftExact.token2022Program)
+}
+
+@Test func transactionBuilderRejectsUnsupportedTokenProgram() async throws {
+    // Independent layer: even when a caller bypasses parseX402Challenge and
+    // hand-constructs a PaymentRequirement, the builder MUST refuse to sign
+    // for any tokenProgram outside the canonical SPL allowlist.
+    let signer = FixedSigner(
+        address: try SolanaPublicKey("11111111111111111111111111111112"),
+        signature: Data(repeating: 7, count: 64)
+    )
+    let builder = ExactTransactionBuilder(
+        signer: signer,
+        blockhashProvider: FixedBlockhashProvider(blockhash: "11111111111111111111111111111111"),
+        ataResolver: FixedATAResolver(
+            source: try SolanaPublicKey("11111111111111111111111111111113"),
+            destination: try SolanaPublicKey("11111111111111111111111111111114")
+        )
+    )
+    let requirement = PaymentRequirement(
+        scheme: "exact",
+        network: X402SwiftExact.solanaDevnet,
+        amount: "1000",
+        asset: "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU",
+        payTo: "11111111111111111111111111111115",
+        maxTimeoutSeconds: 300,
+        extra: [
+            "feePayer": .string("11111111111111111111111111111111"),
+            "decimals": .number(6),
+            "tokenProgram": .string("EvilProgram11111111111111111111111111111111"),
+        ]
+    )
+    await #expect(throws: X402SwiftExactError.unsupportedTokenProgram("EvilProgram11111111111111111111111111111111")) {
+        _ = try await builder.buildTransaction(for: requirement)
+    }
+}
+
 private extension Data {
     init(hex: String) throws {
         guard hex.count.isMultiple(of: 2) else {
