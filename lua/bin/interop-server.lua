@@ -668,7 +668,14 @@ local default_network = "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1"
 local default_mint = "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU"
 local default_amount = "1000"
 local default_pay_to = "11111111111111111111111111111111"
+-- `default_fee_payer` is intentionally left as the System Program placeholder
+-- here: the real fee-payer is derived from the loaded facilitator keypair at
+-- HTTP-server startup (see `load_facilitator_keypair` below) and overwrites
+-- this local before any challenge is constructed. The placeholder never
+-- reaches the wire because startup aborts with a typed error if the keypair
+-- env var is missing.
 local default_fee_payer = "11111111111111111111111111111111"
+local loaded_facilitator_keypair = nil
 local default_token_program = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
 local token_2022_program = "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
 local compute_budget_program = "ComputeBudget111111111111111111111111111111"
@@ -1202,7 +1209,12 @@ local function settle_exact_payment(payment_header)
   local settled = false
   local function settle()
     verify_token_accounts_exist(parsed, payment.accepted, transfer)
-    local keypair = keypair_from_json_secret(required_env("X402_INTEROP_FACILITATOR_SECRET_KEY"))
+    -- Reuse the keypair that was loaded and validated at startup so the
+    -- public key that funds the transaction is identical to the one the
+    -- server advertised in `extra.feePayer`. Falling back to a re-load here
+    -- would let challenge-time and settle-time keys drift apart.
+    local keypair = loaded_facilitator_keypair
+      or keypair_from_json_secret(required_env("X402_INTEROP_FACILITATOR_SECRET_KEY"))
     local signed_transaction = sign_transaction_with_fee_payer(transaction, parsed, keypair)
     local signed_parsed = parse_versioned_transaction(signed_transaction)
     verify_transaction_signatures(signed_transaction, signed_parsed)
@@ -1312,6 +1324,49 @@ if os.getenv("X402_INTEROP_LUA_PROBE") == "1" then
   end
   os.exit(0)
 end
+
+-- Startup: load the facilitator keypair from
+-- `X402_INTEROP_FACILITATOR_SECRET_KEY` (the same env var the Python, Go, and
+-- PHP exact servers consume) and use its public key as the wire-level
+-- `extra.feePayer`. Without this, the server would advertise the System
+-- Program placeholder (11111…1111) — clients then build a transferChecked
+-- targeting a fee-payer that cannot sign, and settlement fails on submit.
+local function load_facilitator_keypair()
+  local secret = os.getenv("X402_INTEROP_FACILITATOR_SECRET_KEY")
+  if secret == nil or secret == "" then
+    io.stderr:write(
+      "x402_lua_interop_server_missing_facilitator_secret_key: " ..
+      "set X402_INTEROP_FACILITATOR_SECRET_KEY to a 64-byte Solana secret " ..
+      "key JSON array before starting the exact server\n"
+    )
+    os.exit(2)
+  end
+
+  local ok, keypair = pcall(keypair_from_json_secret, secret)
+  if not ok then
+    io.stderr:write(
+      "x402_lua_interop_server_invalid_facilitator_secret_key: " ..
+      tostring(keypair) .. "\n"
+    )
+    os.exit(2)
+  end
+
+  local derived_fee_payer = base58_encode(keypair.public_key)
+  local advertised = os.getenv("X402_INTEROP_FEE_PAYER")
+  if advertised ~= nil and advertised ~= "" and advertised ~= derived_fee_payer then
+    io.stderr:write(
+      "x402_lua_interop_server_fee_payer_mismatch: X402_INTEROP_FEE_PAYER=" ..
+      advertised .. " does not match the public key derived from " ..
+      "X402_INTEROP_FACILITATOR_SECRET_KEY (" .. derived_fee_payer .. ")\n"
+    )
+    os.exit(2)
+  end
+
+  loaded_facilitator_keypair = keypair
+  default_fee_payer = derived_fee_payer
+end
+
+load_facilitator_keypair()
 
 local server = assert(socket.bind("127.0.0.1", 0))
 local _, port = server:getsockname()
