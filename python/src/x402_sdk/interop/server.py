@@ -282,6 +282,18 @@ def _verify_optional_instructions(
             memo_instructions.append(instruction)
             continue
         if program == LIGHTHOUSE_PROGRAM_ID:
+            # Parity note: Lighthouse instructions are accepted *unconditionally*
+            # (no discriminator allowlist, no account-count bound). This matches
+            # the canonical spine implementations:
+            #   - Rust:       rust/src/protocol/schemes/exact/verify.rs L260-272
+            #                 (`program == programs::LIGHTHOUSE_PROGRAM` -> continue)
+            #   - TypeScript: typescript/packages/x402/src/facilitator/exact/scheme.ts L289-296
+            #                 (`programAddress === LIGHTHOUSE_PROGRAM_ADDRESS` -> continue)
+            # A bounded Lighthouse discriminator/account allowlist would be a
+            # protocol-wide hardening (the facilitator co-signs and therefore
+            # pays compute fees for any Lighthouse payload); diverging unilaterally
+            # would break cross-implementation parity. Tracked separately for the
+            # Rust spine in notes/lighthouse-allowlist-tracking.md.
             continue
         raise RuntimeError(
             invalid_reason_by_index[index]

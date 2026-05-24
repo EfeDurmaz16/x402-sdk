@@ -636,6 +636,60 @@ class InteropServerTest(unittest.TestCase):
         with patch("x402_sdk.interop.server._send_transaction", return_value="signature-1"):
             self.assertEqual(settle_exact_payment(State(), header_from_transaction(transaction)), "signature-1")
 
+    def test_settle_accepts_lighthouse_with_varied_discriminators_and_accounts(self):
+        # Parity regression: the Rust spine
+        # (rust/src/protocol/schemes/exact/verify.rs L260-272) and the TS spine
+        # (typescript/packages/x402/src/facilitator/exact/scheme.ts L289-296)
+        # both accept any Lighthouse instruction unconditionally — no
+        # discriminator allowlist, no account-count cap. The Python adapter
+        # MUST mirror this until a protocol-wide hardening lands in the
+        # canonical Rust spine (see notes/lighthouse-allowlist-tracking.md).
+        # Diverging here unilaterally would silently break interop with real
+        # Phantom / Solflare-signed mainnet transactions.
+        lighthouse_program = Pubkey.from_string(
+            "L2TExMFKdjpN9kozasaurPirfHy9P8sbXoAN1qA3S95"
+        )
+        scenarios = [
+            # (label, discriminator_byte, payload_tail, account_count)
+            ("empty_payload_no_accounts", None, b"", 0),
+            ("known_discriminator_2_accounts", 0x02, b"\x00" * 32, 2),
+            ("unrecognized_discriminator_high_byte", 0xFE, b"\x11" * 8, 1),
+            ("oversized_payload_many_accounts", 0x05, b"\x42" * 256, 16),
+        ]
+        for label, disc, tail, account_count in scenarios:
+            with self.subTest(scenario=label):
+                client = Keypair()
+                requirement = exact_requirement(State())
+                data = b"" if disc is None else bytes([disc]) + tail
+                # Fresh dummy account metas (read-only, non-signer); per the
+                # spine, the optional-instruction account-list shape is not
+                # inspected at all.
+                from solders.instruction import AccountMeta
+                accounts = [
+                    AccountMeta(Keypair().pubkey(), False, False)
+                    for _ in range(account_count)
+                ]
+                transaction = transaction_from_instructions(
+                    State.fee_payer.pubkey(),
+                    [
+                        set_compute_unit_limit(20_000),
+                        set_compute_unit_price(1),
+                        transfer_checked_instruction(client, requirement),
+                        Instruction(lighthouse_program, data, accounts),
+                    ],
+                    signers=(client,),
+                )
+                with patch(
+                    "x402_sdk.interop.server._send_transaction",
+                    return_value=f"signature-{label}",
+                ):
+                    self.assertEqual(
+                        settle_exact_payment(
+                            State(), header_from_transaction(transaction)
+                        ),
+                        f"signature-{label}",
+                    )
+
     def test_settle_rejects_unknown_optional_instruction_before_broadcast(self):
         client = Keypair()
         requirement = exact_requirement(State())
