@@ -1198,3 +1198,172 @@ func mustPanicClient(t *testing.T, fn func()) {
 	}()
 	fn()
 }
+
+// --- Greptile PR #18 follow-up: cross-envelope preference / fallback parity ---
+//
+// These three tests pin the cross-envelope behavior Greptile flagged as
+// "absent regression coverage". They exercise the boundary between header and
+// body envelopes — both with and without a currency preference — so future
+// refactors can't silently regress the fallback path.
+
+// TestSelectSVMChallengeFallsBackToBodyWhenHeaderPreferenceMisses verifies
+// that when the PAYMENT-REQUIRED header offers only USDC but the body offers
+// PYUSD and the caller prefers ["PYUSD"], the client falls through the header
+// envelope and selects the PYUSD entry from the body envelope.
+func TestSelectSVMChallengeFallsBackToBodyWhenHeaderPreferenceMisses(t *testing.T) {
+	network := "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1"
+	headerEnvelope, err := json.Marshal(map[string]any{
+		"resource": map[string]any{"uri": "/header"},
+		"accepts": []map[string]any{
+			{
+				"scheme":  "exact",
+				"network": network,
+				"asset":   "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU", // devnet USDC
+				"amount":  "1000",
+			},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, err := json.Marshal(map[string]any{
+		"resource": map[string]any{"uri": "/body"},
+		"accepts": []map[string]any{
+			{
+				"scheme":  "exact",
+				"network": network,
+				"asset":   "CXk2AMBfi3TwaEL2468s6zP8xq9NxTXjp9gjMgzeUynM", // devnet PYUSD
+				"amount":  "2000",
+			},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	selected, resource := selectSVMChallengeWithPreferences(
+		map[string]string{"PAYMENT-REQUIRED": base64.StdEncoding.EncodeToString(headerEnvelope)},
+		string(body),
+		network,
+		"exact",
+		[]string{"PYUSD"},
+	)
+
+	if selected == nil {
+		t.Fatal("expected fallback selection from body envelope")
+	}
+	if selected.Asset != "CXk2AMBfi3TwaEL2468s6zP8xq9NxTXjp9gjMgzeUynM" {
+		t.Fatalf("expected body PYUSD mint, got %s", selected.Asset)
+	}
+	if resource["uri"] != "/body" {
+		t.Fatalf("expected body resource attribution, got %#v", resource)
+	}
+}
+
+// TestSelectSVMChallengeReturnsNilWhenNoEnvelopeMatchesPreference verifies
+// that a strict preference list with no match across any envelope returns nil
+// rather than silently downgrading to "any" selection. This locks the caller's
+// opt-in: if you said "I only accept BOGUS", you get nothing, not USDC.
+func TestSelectSVMChallengeReturnsNilWhenNoEnvelopeMatchesPreference(t *testing.T) {
+	network := "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1"
+	headerEnvelope, err := json.Marshal(map[string]any{
+		"accepts": []map[string]any{
+			{
+				"scheme":  "exact",
+				"network": network,
+				"asset":   "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU", // USDC
+				"amount":  "1000",
+			},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, err := json.Marshal(map[string]any{
+		"accepts": []map[string]any{
+			{
+				"scheme":  "exact",
+				"network": network,
+				"asset":   "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU", // USDC
+				"amount":  "1500",
+			},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	selected, resource := selectSVMChallengeWithPreferences(
+		map[string]string{"PAYMENT-REQUIRED": base64.StdEncoding.EncodeToString(headerEnvelope)},
+		string(body),
+		network,
+		"exact",
+		[]string{"BOGUS"},
+	)
+
+	if selected != nil {
+		t.Fatalf("expected nil selection for unmet preference, got %+v", selected)
+	}
+	if resource != nil {
+		t.Fatalf("expected nil resource for unmet preference, got %#v", resource)
+	}
+}
+
+// TestSelectSVMChallengePicksCheapestAcrossEnvelopesWhenNoPreference verifies
+// that, when no preference is supplied, the selector aggregates valid
+// candidates across the header and body envelopes and picks the globally
+// cheapest amount — not merely the cheapest within the first envelope it sees.
+// Header: 2000 USDC. Body: 1000 PYUSD. Expected: 1000 PYUSD with body's
+// resource block.
+func TestSelectSVMChallengePicksCheapestAcrossEnvelopesWhenNoPreference(t *testing.T) {
+	network := "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1"
+	headerEnvelope, err := json.Marshal(map[string]any{
+		"resource": map[string]any{"uri": "/header"},
+		"accepts": []map[string]any{
+			{
+				"scheme":  "exact",
+				"network": network,
+				"asset":   "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU", // USDC
+				"amount":  "2000",
+			},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, err := json.Marshal(map[string]any{
+		"resource": map[string]any{"uri": "/body"},
+		"accepts": []map[string]any{
+			{
+				"scheme":  "exact",
+				"network": network,
+				"asset":   "CXk2AMBfi3TwaEL2468s6zP8xq9NxTXjp9gjMgzeUynM", // PYUSD
+				"amount":  "1000",
+			},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	selected, resource := selectSVMChallengeWithPreferences(
+		map[string]string{"PAYMENT-REQUIRED": base64.StdEncoding.EncodeToString(headerEnvelope)},
+		string(body),
+		network,
+		"exact",
+		nil,
+	)
+
+	if selected == nil {
+		t.Fatal("expected cross-envelope cheapest selection")
+	}
+	if selected.Asset != "CXk2AMBfi3TwaEL2468s6zP8xq9NxTXjp9gjMgzeUynM" {
+		t.Fatalf("expected body PYUSD (cheapest), got %s @ %s", selected.Asset, selected.Amount)
+	}
+	if selected.Amount != "1000" {
+		t.Fatalf("expected amount 1000, got %s", selected.Amount)
+	}
+	if resource["uri"] != "/body" {
+		t.Fatalf("expected body resource attribution, got %#v", resource)
+	}
+}

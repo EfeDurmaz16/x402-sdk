@@ -106,27 +106,19 @@ func selectSVMChallengeWithPreferences(headers map[string]string, body string, n
 		loadPaymentRequiredBody(body),
 	}
 
-	for _, envelope := range envelopes {
-		if envelope == nil {
-			continue
-		}
-		candidates := []paymentRequirement{}
-		for _, requirement := range envelope.Accepts {
-			if requirement.Scheme != scheme {
+	// Preference path: envelope-by-envelope fallback. Each preferred currency
+	// is searched against each envelope in order; the first match wins. If no
+	// envelope satisfies the preference list we return nil (caller's strict
+	// opt-in is preserved instead of silently downgrading to "any" selection).
+	if len(preferredCurrencies) > 0 {
+		for _, envelope := range envelopes {
+			if envelope == nil {
 				continue
 			}
-			if requirement.Network != network {
+			candidates := filterCandidates(envelope.Accepts, scheme, network)
+			if len(candidates) == 0 {
 				continue
 			}
-			if requirement.Asset == "" || requirement.Amount == "" {
-				continue
-			}
-			candidates = append(candidates, requirement)
-		}
-		if len(candidates) == 0 {
-			continue
-		}
-		if len(preferredCurrencies) > 0 {
 			for _, preferred := range preferredCurrencies {
 				for _, requirement := range candidates {
 					if currenciesMatch(requirement.Asset, preferred, network) {
@@ -135,27 +127,64 @@ func selectSVMChallengeWithPreferences(headers map[string]string, body string, n
 					}
 				}
 			}
-			continue
 		}
-		selected := candidates[0]
-		selectedAmount, selectedErr := strconv.ParseUint(selected.Amount, 10, 64)
-		if selectedErr != nil {
-			selectedAmount = ^uint64(0)
-		}
-		for _, candidate := range candidates[1:] {
-			candidateAmount, err := strconv.ParseUint(candidate.Amount, 10, 64)
-			if err != nil {
-				candidateAmount = ^uint64(0)
-			}
-			if candidateAmount < selectedAmount {
-				selected = candidate
-				selectedAmount = candidateAmount
-			}
-		}
-		return &selected, envelope.Resource
+		return nil, nil
 	}
 
-	return nil, nil
+	// No-preference path: aggregate valid candidates from ALL envelopes and
+	// pick the globally cheapest amount. Resource attribution follows the
+	// envelope that contributed the winning candidate so downstream telemetry
+	// and signing flows see the correct context.
+	type candidateEntry struct {
+		requirement paymentRequirement
+		resource    map[string]any
+	}
+	var entries []candidateEntry
+	for _, envelope := range envelopes {
+		if envelope == nil {
+			continue
+		}
+		for _, requirement := range filterCandidates(envelope.Accepts, scheme, network) {
+			entries = append(entries, candidateEntry{requirement: requirement, resource: envelope.Resource})
+		}
+	}
+	if len(entries) == 0 {
+		return nil, nil
+	}
+	winner := entries[0]
+	winnerAmount, err := strconv.ParseUint(winner.requirement.Amount, 10, 64)
+	if err != nil {
+		winnerAmount = ^uint64(0)
+	}
+	for _, entry := range entries[1:] {
+		amount, err := strconv.ParseUint(entry.requirement.Amount, 10, 64)
+		if err != nil {
+			amount = ^uint64(0)
+		}
+		if amount < winnerAmount {
+			winner = entry
+			winnerAmount = amount
+		}
+	}
+	selected := winner.requirement
+	return &selected, winner.resource
+}
+
+func filterCandidates(accepts []paymentRequirement, scheme string, network string) []paymentRequirement {
+	candidates := make([]paymentRequirement, 0, len(accepts))
+	for _, requirement := range accepts {
+		if requirement.Scheme != scheme {
+			continue
+		}
+		if requirement.Network != network {
+			continue
+		}
+		if requirement.Asset == "" || requirement.Amount == "" {
+			continue
+		}
+		candidates = append(candidates, requirement)
+	}
+	return candidates
 }
 
 func parseCSVEnv(name string) []string {
