@@ -106,11 +106,40 @@ async function main() {
     }),
   );
 
+  // Cross-server / replay scenarios reuse a credential built against a
+  // different server (or against this server on a prior request). When
+  // X402_INTEROP_REUSE_CREDENTIAL is set, skip payload construction
+  // entirely and submit the supplied PAYMENT-SIGNATURE / X-PAYMENT header
+  // verbatim. The header name is chosen based on x402Version probing of
+  // the first 402 response (defaults to v2 PAYMENT-SIGNATURE).
+  const reuseCredential = process.env.X402_INTEROP_REUSE_CREDENTIAL?.trim();
+
   const firstResponse = await fetch(targetUrl);
-  const paymentRequired = client.getPaymentRequiredResponse(name => firstResponse.headers.get(name));
-  const paymentPayload = await client.createPaymentPayload(paymentRequired);
-  applyPaymentPayloadMutations(paymentPayload);
-  const paymentHeaders = client.encodePaymentSignatureHeader(paymentPayload);
+
+  let paymentHeaders: Record<string, string>;
+  if (reuseCredential) {
+    // Probe the version so we send under the matching header name. If the
+    // server speaks v2, PAYMENT-SIGNATURE; otherwise X-PAYMENT.
+    let useV2 = true;
+    try {
+      const paymentRequired = client.getPaymentRequiredResponse(name =>
+        firstResponse.headers.get(name),
+      );
+      useV2 = (paymentRequired?.x402Version ?? 2) === 2;
+    } catch {
+      // Fall through with default v2.
+    }
+    paymentHeaders = useV2
+      ? { "PAYMENT-SIGNATURE": reuseCredential }
+      : { "X-PAYMENT": reuseCredential };
+  } else {
+    const paymentRequired = client.getPaymentRequiredResponse(name =>
+      firstResponse.headers.get(name),
+    );
+    const paymentPayload = await client.createPaymentPayload(paymentRequired);
+    applyPaymentPayloadMutations(paymentPayload);
+    paymentHeaders = client.encodePaymentSignatureHeader(paymentPayload);
+  }
 
   const paidResponse = await fetch(targetUrl, {
     headers: paymentHeaders,
@@ -134,6 +163,8 @@ async function main() {
       responseHeaders: Object.fromEntries(paidResponse.headers.entries()),
       responseBody,
       settlement: paidResponse.headers.get(fixtureSettlementHeader),
+      paymentHeader:
+        paymentHeaders["PAYMENT-SIGNATURE"] ?? paymentHeaders["X-PAYMENT"] ?? null,
     }),
   );
 }
