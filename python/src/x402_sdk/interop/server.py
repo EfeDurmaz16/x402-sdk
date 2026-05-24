@@ -343,16 +343,21 @@ def _verify_exact_transaction(
 def _settlement_cache(state: ServerState) -> dict[str, float]:
     cache = getattr(state, "settlement_cache", None)
     if not isinstance(cache, dict):
-        cache = {}
-        setattr(state, "settlement_cache", cache)
+        raise RuntimeError(
+            "server_state_missing_settlement_cache: state must eagerly initialise"
+            " 'settlement_cache' as a dict (see ServerState.__init__)"
+        )
     return cache
 
 
 def _settlement_cache_lock(state: ServerState) -> threading.Lock:
     lock = getattr(state, "settlement_cache_lock", None)
-    if not hasattr(lock, "acquire") or not hasattr(lock, "release"):
-        lock = threading.Lock()
-        setattr(state, "settlement_cache_lock", lock)
+    if lock is None or not hasattr(lock, "acquire") or not hasattr(lock, "release"):
+        raise RuntimeError(
+            "server_state_missing_settlement_cache_lock: state must eagerly"
+            " initialise 'settlement_cache_lock' as a threading.Lock (see"
+            " ServerState.__init__)"
+        )
     return lock
 
 

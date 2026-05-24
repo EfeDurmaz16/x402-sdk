@@ -53,6 +53,13 @@ class State:
     pay_to = "11111111111111111111111111111112"
     fee_payer = Keypair()
 
+    def __init__(self) -> None:
+        # Mirror ServerState.__init__ so the shared lock actually serialises
+        # concurrent claim attempts during stress tests, instead of falling
+        # through to a per-call lazy-init fallback.
+        self.settlement_cache: dict[str, float] = {}
+        self.settlement_cache_lock = threading.Lock()
+
 
 class MultiCurrencyState(State):
     extra_offered_mints = ["CXk2AMBfi3TwaEL2468s6zP8xq9NxTXjp9gjMgzeUynM"]
@@ -1168,6 +1175,23 @@ class SettlementCacheConcurrencyTest(unittest.TestCase):
         self.assertEqual(len(successes), 1)
         self.assertEqual(len(failures), 31)
         self.assertTrue(all("duplicate_settlement" in f for f in failures))
+
+    def test_claim_settlement_payload_fails_loudly_without_eager_cache(self):
+        """Regression: the helpers must refuse to operate on a state object
+        missing the eager-init fields. Previously they lazy-initialised a
+        per-call Lock, which silently defeated the concurrency guard."""
+
+        class BareState:
+            pass
+
+        bare = BareState()
+        with self.assertRaisesRegex(RuntimeError, "settlement_cache_lock"):
+            _claim_settlement_payload(bare, "payload-key")
+
+        # Even with a lock present, a missing cache must also fail loudly.
+        bare.settlement_cache_lock = threading.Lock()
+        with self.assertRaisesRegex(RuntimeError, "settlement_cache"):
+            _claim_settlement_payload(bare, "payload-key")
 
 
 if __name__ == "__main__":
