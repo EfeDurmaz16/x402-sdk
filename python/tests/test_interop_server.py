@@ -486,6 +486,44 @@ class InteropServerTest(unittest.TestCase):
         ):
             settle_exact_payment(State(), header_from_transaction(transaction))
 
+    def test_compute_limit_intentionally_unbounded_matches_rust_spine(self):
+        """Parity check: the CU *limit* value is intentionally unbounded.
+
+        Mirrors verify_compute_limit_instruction in
+        rust/src/protocol/schemes/exact/verify.rs (~L317) and
+        verifyComputeLimitInstruction in
+        typescript/packages/x402/src/facilitator/exact/scheme.ts (~L444),
+        both of which only validate program id / payload length /
+        SetComputeUnitLimit discriminator and do NOT bound the limit value.
+        Greptile P1 flagged the lack of an upper bound; the deliberate
+        decision is to keep cross-implementation parity until the spine
+        introduces a cap. If a cap is added upstream, this test should
+        flip to assert rejection above the cap.
+        """
+        from x402_sdk.interop import server as server_module
+
+        client = Keypair()
+        requirement = exact_requirement(State())
+        # Solana's per-transaction max compute units (1.4M) — the exact
+        # value flagged by Greptile as a fee-drain risk if combined with
+        # the price cap. Expected behavior today: accepted at the
+        # instruction-shape layer (no upper bound enforced).
+        max_per_tx_cu = 1_400_000
+        transaction = transaction_from_instructions(
+            State.fee_payer.pubkey(),
+            [
+                set_compute_unit_limit(max_per_tx_cu),
+                set_compute_unit_price(1),
+                transfer_checked_instruction(client, requirement),
+            ],
+            signers=(client,),
+        )
+        compiled = transaction.message.instructions
+        account_keys = list(transaction.message.account_keys)
+
+        # Must NOT raise — parity with Rust + TS spine.
+        server_module._verify_compute_limit_instruction(compiled[0], account_keys)
+
     def test_settle_rejects_fee_payer_as_transfer_authority_before_broadcast(self):
         header = build_exact_payment_signature(
             requirement=exact_requirement(State()),

@@ -185,6 +185,17 @@ def _instruction_account(index: int, instruction: Any, account_keys: list[Pubkey
 
 
 def _verify_compute_limit_instruction(instruction: Any, account_keys: list[Pubkey]) -> None:
+    # Parity note: the compute-unit *limit* value itself is intentionally NOT
+    # bounded here. Only the program id, payload length (5 bytes) and the
+    # SetComputeUnitLimit discriminator (0x02) are validated. This matches the
+    # canonical spine implementations:
+    #   - Rust:       rust/src/protocol/schemes/exact/verify.rs (verify_compute_limit_instruction, ~L317)
+    #   - TypeScript: typescript/packages/x402/src/facilitator/exact/scheme.ts (verifyComputeLimitInstruction, ~L444)
+    # Both only enforce program/length/discriminator and leave the CU limit
+    # itself unbounded; only the compute *price* is capped (see
+    # MAX_COMPUTE_UNIT_PRICE_MICROLAMPORTS below). Diverging here would break
+    # cross-implementation parity. A protocol-wide CU-limit cap is tracked as a
+    # follow-up to be decided in the Rust spine first.
     if (
         _instruction_program(instruction, account_keys) != COMPUTE_BUDGET_PROGRAM_ID
         or len(instruction.data) != 5
