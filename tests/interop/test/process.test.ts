@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { runClient, startServer } from "../src/process";
 import type { ImplementationDefinition } from "../src/implementations";
+import { supportedInteropCapabilities } from "../src/contracts";
 
 function implementation(command: string[], role: "client" | "server"): ImplementationDefinition {
   return {
@@ -8,6 +9,7 @@ function implementation(command: string[], role: "client" | "server"): Implement
     label: "Expected adapter",
     role,
     command,
+    capabilities: supportedInteropCapabilities,
     enabled: true,
   };
 }

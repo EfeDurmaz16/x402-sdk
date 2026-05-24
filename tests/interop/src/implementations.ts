@@ -1,8 +1,11 @@
+import { supportedInteropCapabilities } from "./contracts";
+
 export type ImplementationDefinition = {
   id: string;
   label: string;
   role: "client" | "server";
   command: string[];
+  capabilities: readonly string[];
   enabled: boolean;
 };
 
@@ -59,6 +62,7 @@ export const clientImplementations: ImplementationDefinition[] = defineImplement
       label: "TypeScript HTTP client",
       role: "client",
       command: ["pnpm", "exec", "node", "--import", "tsx", "src/fixtures/typescript/client.ts"],
+      capabilities: supportedInteropCapabilities,
     },
     {
       id: "rust",
@@ -73,6 +77,7 @@ export const clientImplementations: ImplementationDefinition[] = defineImplement
         "--bin",
         "interop_client",
       ],
+      capabilities: supportedInteropCapabilities,
     },
   ],
 );
@@ -86,6 +91,7 @@ export const serverImplementations: ImplementationDefinition[] = defineImplement
       label: "TypeScript HTTP server",
       role: "server",
       command: ["pnpm", "exec", "node", "--import", "tsx", "src/fixtures/typescript/server.ts"],
+      capabilities: supportedInteropCapabilities,
     },
     {
       id: "rust",
@@ -100,6 +106,7 @@ export const serverImplementations: ImplementationDefinition[] = defineImplement
         "--bin",
         "interop_server",
       ],
+      capabilities: supportedInteropCapabilities,
     },
   ],
 );

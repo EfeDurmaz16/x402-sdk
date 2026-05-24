@@ -11,6 +11,10 @@ export type InteropScenario = {
   settlementHeader: string;
 };
 
+export const supportedInteropCapabilities = ["exact"] as const;
+
+export const unsupportedReadinessCapabilities = ["batch-settlement", "session"] as const;
+
 export type ReadyMessage = {
   type: "ready";
   implementation: string;
