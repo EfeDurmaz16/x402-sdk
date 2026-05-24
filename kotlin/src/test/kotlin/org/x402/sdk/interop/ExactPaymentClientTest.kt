@@ -8,6 +8,7 @@ import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
+import kotlin.test.assertTrue
 
 class ExactPaymentClientTest {
     @Test
@@ -153,6 +154,71 @@ class ExactPaymentClientTest {
         assertEquals("payTo must differ from payer (self-transfer)", error.message)
         assertEquals(0, builder.requests.size)
         assertEquals(0, signer.inputs.size)
+    }
+
+    @Test
+    fun `client_rejects_challenge_with_unsupported_tokenProgram`() {
+        // P1 security: a malicious server can set extra.tokenProgram to an
+        // arbitrary executable program ID. The client must reject anything
+        // outside the canonical SPL allowlist (TokenkegQ... / TokenzQd...)
+        // before any builder, RPC, or signing work runs.
+        val builder = RecordingTransactionBuilder(byteArrayOf(1))
+        val signer = RecordingTransactionSigner(byteArrayOf(2))
+        val client = ExactPaymentClient(builder, signer)
+
+        val error = assertFailsWith<IllegalArgumentException> {
+            client.createPaymentHeaders(
+                selected = selectedRequirement(
+                    extra = mapOf(
+                        "feePayer" to "FeePayer1111111111111111111111111111",
+                        "tokenProgram" to "EvilProgram1111111111111111111111111111",
+                    ),
+                ),
+                payer = "Payer11111111111111111111111111111111",
+            )
+        }
+        assertTrue(
+            error.message?.contains("unsupported tokenProgram") == true,
+            "expected unsupported-tokenProgram rejection, got: ${error.message}",
+        )
+        assertEquals(0, builder.requests.size)
+        assertEquals(0, signer.inputs.size)
+    }
+
+    @Test
+    fun `client_accepts_challenge_with_canonical_spl_token_program`() {
+        val builder = RecordingTransactionBuilder(byteArrayOf(1, 2, 3))
+        val signer = RecordingTransactionSigner(ByteArray(64) { 9 })
+        val client = ExactPaymentClient(builder, signer)
+
+        client.createPaymentHeaders(
+            selected = selectedRequirement(
+                extra = mapOf(
+                    "feePayer" to "FeePayer1111111111111111111111111111",
+                    "tokenProgram" to "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+                ),
+            ),
+            payer = "Payer11111111111111111111111111111111",
+        )
+        assertEquals(1, builder.requests.size)
+    }
+
+    @Test
+    fun `client_accepts_challenge_with_canonical_token_2022_program`() {
+        val builder = RecordingTransactionBuilder(byteArrayOf(1, 2, 3))
+        val signer = RecordingTransactionSigner(ByteArray(64) { 9 })
+        val client = ExactPaymentClient(builder, signer)
+
+        client.createPaymentHeaders(
+            selected = selectedRequirement(
+                extra = mapOf(
+                    "feePayer" to "FeePayer1111111111111111111111111111",
+                    "tokenProgram" to "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+                ),
+            ),
+            payer = "Payer11111111111111111111111111111111",
+        )
+        assertEquals(1, builder.requests.size)
     }
 
     @Test

@@ -161,6 +161,124 @@ class SolanaTransactionTest {
             "expected signed-u64 overflow guard, got: ${error.message}",
         )
     }
+
+    @Test
+    fun `transferChecked_rejects_unsupported_program`() {
+        // P1 security: builder is a public entry point. If accepted.tokenProgram
+        // (or RPC owner) ever points at an arbitrary program, fail loudly
+        // before serializing transferChecked into the message.
+        val accepted = JsonObject().apply {
+            addProperty("scheme", "exact")
+            addProperty("network", ExactChallenge.DEFAULT_NETWORK)
+            addProperty("asset", "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU")
+            addProperty("amount", "1")
+            addProperty("payTo", "11111111111111111111111111111115")
+            addProperty("tokenProgram", "EvilProgram1111111111111111111111111111")
+            add(
+                "extra",
+                JsonObject().apply {
+                    addProperty("feePayer", "11111111111111111111111111111111")
+                    addProperty("decimals", 6)
+                },
+            )
+        }
+        val request = SolanaExactPaymentRequest(
+            payer = "11111111111111111111111111111112",
+            network = ExactChallenge.DEFAULT_NETWORK,
+            asset = "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU",
+            amount = "1",
+            payTo = "11111111111111111111111111111115",
+            feePayer = "11111111111111111111111111111111",
+            memo = null,
+            maxTimeoutSeconds = 60,
+            accepted = accepted,
+        )
+        val error = assertFailsWith<IllegalArgumentException> {
+            DefaultSolanaExactTransactionBuilder(FixedRpc).buildUnsignedTransaction(request)
+        }
+        assertTrue(
+            error.message?.contains("unsupported tokenProgram") == true,
+            "expected unsupported-tokenProgram rejection, got: ${error.message}",
+        )
+    }
+
+    @Test
+    fun `transferChecked_rejects_unsupported_program_from_rpc_owner`() {
+        // Even if the server omits tokenProgram entirely, the RPC metadata
+        // owner is untrusted data — must also be on the SPL allowlist.
+        val accepted = JsonObject().apply {
+            addProperty("scheme", "exact")
+            addProperty("network", ExactChallenge.DEFAULT_NETWORK)
+            addProperty("asset", "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU")
+            addProperty("amount", "1")
+            addProperty("payTo", "11111111111111111111111111111115")
+            add(
+                "extra",
+                JsonObject().apply {
+                    addProperty("feePayer", "11111111111111111111111111111111")
+                    addProperty("decimals", 6)
+                },
+            )
+        }
+        val request = SolanaExactPaymentRequest(
+            payer = "11111111111111111111111111111112",
+            network = ExactChallenge.DEFAULT_NETWORK,
+            asset = "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU",
+            amount = "1",
+            payTo = "11111111111111111111111111111115",
+            feePayer = "11111111111111111111111111111111",
+            memo = null,
+            maxTimeoutSeconds = 60,
+            accepted = accepted,
+        )
+        val hostileRpc = object : SolanaRpc {
+            override fun latestBlockhash(): String = "11111111111111111111111111111111"
+            override fun tokenMetadata(mint: String): SolanaTokenMetadata =
+                SolanaTokenMetadata(
+                    tokenProgram = "EvilProgram1111111111111111111111111111",
+                    decimals = 6,
+                )
+        }
+        val error = assertFailsWith<IllegalArgumentException> {
+            DefaultSolanaExactTransactionBuilder(hostileRpc).buildUnsignedTransaction(request)
+        }
+        assertTrue(
+            error.message?.contains("unsupported tokenProgram") == true,
+            "expected unsupported-tokenProgram rejection, got: ${error.message}",
+        )
+    }
+
+    @Test
+    fun `transferChecked_accepts_token_2022_program`() {
+        val accepted = JsonObject().apply {
+            addProperty("scheme", "exact")
+            addProperty("network", ExactChallenge.DEFAULT_NETWORK)
+            addProperty("asset", "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU")
+            addProperty("amount", "1000")
+            addProperty("payTo", "11111111111111111111111111111115")
+            add(
+                "extra",
+                JsonObject().apply {
+                    addProperty("feePayer", "11111111111111111111111111111111")
+                    addProperty("decimals", 6)
+                    addProperty("tokenProgram", "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb")
+                },
+            )
+        }
+        val request = SolanaExactPaymentRequest(
+            payer = "11111111111111111111111111111112",
+            network = ExactChallenge.DEFAULT_NETWORK,
+            asset = "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU",
+            amount = "1000",
+            payTo = "11111111111111111111111111111115",
+            feePayer = "11111111111111111111111111111111",
+            memo = null,
+            maxTimeoutSeconds = 60,
+            accepted = accepted,
+        )
+        val tx = DefaultSolanaExactTransactionBuilder(FixedRpc).buildUnsignedTransaction(request)
+        assertEquals(2, tx.signatures.size)
+    }
 }
 
 private object FixedRpc : SolanaRpc {

@@ -147,6 +147,13 @@ class ExactPaymentClient(
         // Mirror server-side defensive check: payTo must not collide with the
         // fee payer (would create a self-pay loop) or with the payer wallet.
         require(payTo != feePayer) { "payTo must differ from the managed fee payer" }
+        // Reject server-supplied tokenProgram values that are not on the
+        // canonical SPL allowlist (classic SPL Token or Token-2022). Otherwise
+        // a malicious server can set extra.tokenProgram to an arbitrary
+        // executable program ID and have the user sign a transferChecked
+        // instruction routed through that program. Validate before any
+        // transaction-building, RPC or signing work happens.
+        requirement.extra.string("tokenProgram")?.let { requireAllowedTokenProgram(it) }
         val memo = requirement.extra.string("memo")
         if (memo != null && memo.toByteArray(Charsets.UTF_8).size > MAX_MEMO_BYTES) {
             throw IllegalArgumentException("extra.memo exceeds maximum $MAX_MEMO_BYTES bytes")

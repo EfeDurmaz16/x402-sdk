@@ -13,8 +13,25 @@ import java.security.spec.EdECPrivateKeySpec
 import java.security.spec.NamedParameterSpec
 import kotlin.experimental.and
 
-private const val TOKEN_PROGRAM = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
-private const val TOKEN_2022_PROGRAM = "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
+internal const val TOKEN_PROGRAM = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+internal const val TOKEN_2022_PROGRAM = "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
+
+/**
+ * Canonical SPL token-program allowlist. The exact-svm scheme only supports
+ * the classic SPL Token program and Token-2022. Any other program ID coming
+ * in via `accepted.tokenProgram`, `accepted.extra.tokenProgram`, or the RPC
+ * mint-owner field is rejected — otherwise a malicious server could supply
+ * an arbitrary executable program ID and have the user sign a transaction
+ * routed through it under the guise of `transferChecked`.
+ */
+internal val ALLOWED_TOKEN_PROGRAMS = setOf(TOKEN_PROGRAM, TOKEN_2022_PROGRAM)
+
+internal fun requireAllowedTokenProgram(value: String): String {
+    require(value in ALLOWED_TOKEN_PROGRAMS) {
+        "unsupported tokenProgram: $value (must be SPL Token or Token-2022)"
+    }
+    return value
+}
 private const val ASSOCIATED_TOKEN_PROGRAM = "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
 private const val COMPUTE_BUDGET_PROGRAM = "ComputeBudget111111111111111111111111111111"
 private const val MEMO_PROGRAM = "MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr"
@@ -141,12 +158,16 @@ class DefaultSolanaExactTransactionBuilder(
         require(payer != feePayer) { "managed fee payer must not be the transfer authority" }
 
         val metadata = rpc.tokenMetadata(request.asset)
-        val tokenProgram = SolanaPublicKey.fromBase58(
-            request.accepted.string("tokenProgram")
-                ?: request.accepted.extraString("tokenProgram")
-                ?: metadata?.tokenProgram
-                ?: stablecoinTokenProgram(request.asset),
-        )
+        val tokenProgramId = request.accepted.string("tokenProgram")
+            ?: request.accepted.extraString("tokenProgram")
+            ?: metadata?.tokenProgram
+            ?: stablecoinTokenProgram(request.asset)
+        // Defence in depth: even though `ExactPaymentClient` already validates
+        // tokenProgram from the server challenge, the builder is a public
+        // entry point and the RPC `owner` field is untrusted data from a
+        // remote node. Reject anything outside the canonical SPL allowlist
+        // before it becomes the programId of the transferChecked instruction.
+        val tokenProgram = SolanaPublicKey.fromBase58(requireAllowedTokenProgram(tokenProgramId))
         val decimals = request.accepted.int("decimals")
             ?: request.accepted.extraInt("decimals")
             ?: metadata?.decimals
