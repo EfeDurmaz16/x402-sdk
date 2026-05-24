@@ -100,7 +100,12 @@ function base58_encode_binary(string $bytes): string
 
 function base58_decode_binary(string $value): string
 {
-    $bytes = [0];
+    // No sentinel byte: an all-'1' input (e.g. the System Program ID
+    // "11111111111111111111111111111111") otherwise leaves the seed [0] in
+    // place, producing a 33-byte output that fails the 32-byte public-key
+    // length check and rejects every transaction carrying a Create-ATA
+    // optional instruction.
+    $bytes = [];
     foreach (str_split($value) as $char) {
         $alphabetIndex = strpos(BASE58_ALPHABET, $char);
         if ($alphabetIndex === false) {

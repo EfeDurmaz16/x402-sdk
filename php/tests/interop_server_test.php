@@ -1277,6 +1277,22 @@ foreach (
 
 echo "PHP lighthouse spine-parity regression suite OK\n";
 
+// Base58 decoder: the System Program ID and other all-'1' addresses must
+// round-trip to 32 zero bytes. A prior sentinel-byte bug produced 33 bytes
+// here and silently rejected every Create-ATA optional instruction.
+$systemProgramBytes = X402Sdk\Interop\public_key_from_base58('11111111111111111111111111111111', 'system_program');
+if (strlen($systemProgramBytes) !== 32) {
+    fail('public_key_from_base58 did not return 32 bytes for System Program ID');
+}
+if ($systemProgramBytes !== str_repeat("\x00", 32)) {
+    fail('public_key_from_base58 did not return all-zero bytes for System Program ID');
+}
+$usdcMintBytes = X402Sdk\Interop\public_key_from_base58('EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v', 'usdc');
+if (strlen($usdcMintBytes) !== 32) {
+    fail('public_key_from_base58 did not return 32 bytes for USDC mint');
+}
+echo "PHP base58 decoder regression suite OK\n";
+
 // u64 parser branch coverage: both read_u64_le_int and read_u64_le_gmp must
 // reject malformed lengths and round-trip the full unsigned range.
 assert_runtime_error('invalid u64 length', static fn () => read_u64_le_int("\x00\x00\x00\x00\x00\x00\x00"));
