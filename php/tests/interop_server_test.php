@@ -29,6 +29,8 @@ use function X402Sdk\Interop\normalize_amount;
 use function X402Sdk\Interop\protected_response;
 use function X402Sdk\Interop\public_key_from_base58;
 use function X402Sdk\Interop\read_short_vec;
+use function X402Sdk\Interop\read_u64_le_gmp;
+use function X402Sdk\Interop\read_u64_le_int;
 use function X402Sdk\Interop\response_for;
 use function X402Sdk\Interop\secret_key_bytes;
 use function X402Sdk\Interop\send_transaction;
@@ -992,6 +994,24 @@ if ($tamperedHappyTx === false) {
 verify_exact_transaction($tamperedHappyTx, $tamperedRequirement, [$serverPub]);
 
 echo "PHP fee-payer attack regression suite OK\n";
+
+// u64 parser branch coverage: both read_u64_le_int and read_u64_le_gmp must
+// reject malformed lengths and round-trip the full unsigned range.
+assert_runtime_error('invalid u64 length', static fn () => read_u64_le_int("\x00\x00\x00\x00\x00\x00\x00"));
+assert_runtime_error('invalid u64 length', static fn () => read_u64_le_gmp("\x00\x00\x00\x00\x00\x00\x00"));
+assert_runtime_error('u64 value exceeds signed int range; use read_u64_le_gmp', static fn () => read_u64_le_int("\x00\x00\x00\x00\x00\x00\x00\x80"));
+$gmpMax = read_u64_le_gmp("\xff\xff\xff\xff\xff\xff\xff\xff");
+if (gmp_cmp($gmpMax, gmp_init('18446744073709551615', 10)) !== 0) {
+    fail('read_u64_le_gmp did not round-trip the u64 max value');
+}
+$gmpZero = read_u64_le_gmp("\x00\x00\x00\x00\x00\x00\x00\x00");
+if (gmp_cmp($gmpZero, gmp_init('0', 10)) !== 0) {
+    fail('read_u64_le_gmp did not round-trip zero');
+}
+$intLow = read_u64_le_int("\x01\x00\x00\x00\x00\x00\x00\x00");
+if ($intLow !== 1) {
+    fail('read_u64_le_int did not round-trip a small low-bit value');
+}
 
 echo "PHP interop server contract OK\n";
 
