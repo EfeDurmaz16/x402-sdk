@@ -14,18 +14,37 @@ export type InteropAcceptEntry = {
   scheme: string;
   network: string;
   payTo: string;
-  price: { amount: string; asset: string; extra: { decimals: number } };
+  price: { amount: string; asset: string; extra: { decimals: number; tokenProgram: string } };
 };
+
+const TOKEN_PROGRAM_ADDRESS = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA";
+const TOKEN_2022_PROGRAM_ADDRESS = "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb";
+
+// Mints that ship as Token-2022. USDC is canonical SPL Token classic;
+// PYUSD/USDG/CASH are Token-2022 on every network. Mirrors
+// STABLECOIN_TOKEN_PROGRAMS at
+// typescript/packages/x402/src/protocol/schemes/exact/constants.ts:113.
+const TOKEN_2022_MINTS: ReadonlySet<string> = new Set([
+  "2b1kV6DkPAnxd5ixfnxCpjxmKwqjjaYmCZfHsFu24GXo", // PYUSD mainnet
+  "CXk2AMBfi3TwaEL2468s6zP8xq9NxTXjp9gjMgzeUynM", // PYUSD devnet/testnet
+  "2u1tszSeqZ3qBWF3uNGPFc8TzMk2tdiwknnRMWGWjGWH", // USDG mainnet
+  "4F6PM96JJxngmHnZLBh9n58RH4aTVNWvDs2nuwrT5BP7", // USDG devnet/testnet
+  "CASHx9KJUStyftLFWGvEVf59SGeG9sh5FfcnZMVPCASH", // CASH mainnet
+]);
+
+function tokenProgramForMint(mint: string): string {
+  return TOKEN_2022_MINTS.has(mint) ? TOKEN_2022_PROGRAM_ADDRESS : TOKEN_PROGRAM_ADDRESS;
+}
 
 /**
  * Build the `accepts` list advertised by the TypeScript interop server.
  *
- * The canonical x402 wire shape requires every exact-SVM accept entry to
- * carry an integer `extra.decimals` so foreign clients (Go, Ruby, etc.)
- * can build the SPL transfer with the correct base-unit scaling. The
- * upstream string-price helper resolves `$0.001` to USDC (6 decimals) but
- * emits `extra: {}`, dropping the field on the wire — we expand the
- * primary entry into the object form so every accept advertises decimals.
+ * Every accept entry must carry both `extra.decimals` (so foreign clients
+ * scale the SPL transfer correctly) and `extra.tokenProgram` (so they
+ * target SPL Token classic vs Token-2022 correctly). The upstream
+ * string-price helper resolves `$0.001` to USDC + 6 decimals but emits
+ * `extra: {}`; we expand every entry into the object form so the wire
+ * shape stays canonical.
  *
  * Extracted from `main` so the wire shape can be asserted in unit tests
  * without spawning the HTTP server.
@@ -43,14 +62,18 @@ export function buildInteropAcceptsList(options: {
       price: {
         amount: "1000",
         asset: interopScenario.asset,
-        extra: { decimals: 6 },
+        extra: { decimals: 6, tokenProgram: tokenProgramForMint(interopScenario.asset) },
       },
     },
     ...options.extraOfferedMints.map(mint => ({
       scheme: interopScenario.scheme,
       network: options.network,
       payTo: options.payTo,
-      price: { amount: "1000", asset: mint, extra: { decimals: 6 } },
+      price: {
+        amount: "1000",
+        asset: mint,
+        extra: { decimals: 6, tokenProgram: tokenProgramForMint(mint) },
+      },
     })),
   ];
 }
