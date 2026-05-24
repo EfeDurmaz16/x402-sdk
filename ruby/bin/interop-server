@@ -81,6 +81,6 @@ while running
       warn "dropped connection: #{error.class}: #{error.message}"
     end
   ensure
-    connection&.close
+    connection&.close unless connection&.closed?
   end
 end

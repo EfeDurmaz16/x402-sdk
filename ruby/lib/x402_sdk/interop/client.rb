@@ -75,7 +75,7 @@ module X402SDK
         encoded = header_value(headers, "PAYMENT-REQUIRED")
         return nil if encoded.nil? || encoded.empty?
 
-        JSON.parse(Base64.decode64(encoded))
+        JSON.parse(Base64.strict_decode64(encoded))
       rescue ArgumentError, JSON::ParserError
         nil
       end
