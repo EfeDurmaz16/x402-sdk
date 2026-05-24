@@ -67,14 +67,17 @@ func TestEnvHelpersAndReadState(t *testing.T) {
 	t.Setenv("X402_INTEROP_RPC_URL", "http://rpc.test")
 	t.Setenv("X402_INTEROP_PAY_TO", payTo)
 	t.Setenv("X402_INTEROP_FACILITATOR_SECRET_KEY", string(encodedKey))
-	t.Setenv("X402_INTEROP_NETWORK", "localnet")
+	t.Setenv("X402_INTEROP_NETWORK", solanaMainnetCAIP2)
 	t.Setenv("X402_INTEROP_MINT", "USDG")
 	t.Setenv("X402_INTEROP_PRICE", "$1.25")
 	t.Setenv("X402_INTEROP_EXTRA_OFFERED_MINTS", " PYUSD, , CASH ")
 
 	state := readState()
-	if state.rpcURL != "http://rpc.test" || state.network != "localnet" || state.mint != "USDG" {
+	if state.rpcURL != "http://rpc.test" || state.network != solanaMainnetCAIP2 {
 		t.Fatalf("unexpected state: %+v", state)
+	}
+	if state.mint != "2u1tszSeqZ3qBWF3uNGPFc8TzMk2tdiwknnRMWGWjGWH" {
+		t.Fatalf("expected resolved USDG mainnet mint, got %s", state.mint)
 	}
 	if state.payTo != payTo || !state.feePayer.PublicKey().Equals(privateKey.PublicKey()) {
 		t.Fatalf("readState did not preserve configured keys")
@@ -82,13 +85,15 @@ func TestEnvHelpersAndReadState(t *testing.T) {
 	if state.amount != "1250000" {
 		t.Fatalf("amount = %s, want 1250000", state.amount)
 	}
-	if len(state.extraOfferedMints) != 2 || state.extraOfferedMints[0] != "PYUSD" || state.extraOfferedMints[1] != "CASH" {
+	if len(state.extraOfferedMints) != 2 ||
+		state.extraOfferedMints[0] != "2b1kV6DkPAnxd5ixfnxCpjxmKwqjjaYmCZfHsFu24GXo" ||
+		state.extraOfferedMints[1] != "CASHx9KJUStyftLFWGvEVf59SGeG9sh5FfcnZMVPCASH" {
 		t.Fatalf("unexpected extra mints: %#v", state.extraOfferedMints)
 	}
 	if state.httpClient == nil {
 		t.Fatal("expected readState to configure an HTTP client")
 	}
-	if got := readEnvWithDefault("X402_INTEROP_NETWORK", "fallback"); got != "localnet" {
+	if got := readEnvWithDefault("X402_INTEROP_NETWORK", "fallback"); got != solanaMainnetCAIP2 {
 		t.Fatalf("readEnvWithDefault configured = %q", got)
 	}
 	if got := readEnvWithDefault("X402_INTEROP_MISSING", "fallback"); got != "fallback" {
@@ -1966,6 +1971,164 @@ func compiledInstructionWithAccountsForTest(t *testing.T, tx *solana.Transaction
 		ProgramIDIndex: uint16(programIndex),
 		Accounts:       accountIndexes,
 		Data:           data,
+	}
+}
+
+func TestResolveMintAlias(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		network string
+		want    string
+		wantErr bool
+	}{
+		{name: "USDG mainnet alias", input: "USDG", network: solanaMainnetCAIP2, want: "2u1tszSeqZ3qBWF3uNGPFc8TzMk2tdiwknnRMWGWjGWH"},
+		{name: "USDG devnet alias", input: "usdg", network: solanaDevnetCAIP2, want: "4F6PM96JJxngmHnZLBh9n58RH4aTVNWvDs2nuwrT5BP7"},
+		{name: "PYUSD mainnet alias", input: "PYUSD", network: solanaMainnetCAIP2, want: "2b1kV6DkPAnxd5ixfnxCpjxmKwqjjaYmCZfHsFu24GXo"},
+		{name: "PYUSD devnet alias", input: "pyusd", network: solanaDevnetCAIP2, want: "CXk2AMBfi3TwaEL2468s6zP8xq9NxTXjp9gjMgzeUynM"},
+		{name: "CASH mainnet alias", input: "CASH", network: solanaMainnetCAIP2, want: "CASHx9KJUStyftLFWGvEVf59SGeG9sh5FfcnZMVPCASH"},
+		{name: "USDC devnet alias", input: " usdc ", network: solanaDevnetCAIP2, want: "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU"},
+		{name: "passthrough base58 mint", input: "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU", network: solanaDevnetCAIP2, want: "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU"},
+		{name: "CASH has no devnet mint", input: "CASH", network: solanaDevnetCAIP2, wantErr: true},
+		{name: "unknown alias", input: "WEIRDO", network: solanaMainnetCAIP2, wantErr: true},
+		{name: "empty input", input: "  ", network: solanaMainnetCAIP2, wantErr: true},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got, err := resolveMintAlias(test.input, test.network)
+			if test.wantErr {
+				if err == nil {
+					t.Fatalf("expected error for %q on %q, got %q", test.input, test.network, got)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if got != test.want {
+				t.Fatalf("resolveMintAlias(%q,%q) = %q, want %q", test.input, test.network, got, test.want)
+			}
+		})
+	}
+}
+
+func TestReadStateResolvesMintAliases(t *testing.T) {
+	privateKey, err := solana.NewRandomPrivateKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	encodedKey, err := json.Marshal([]byte(privateKey))
+	if err != nil {
+		t.Fatal(err)
+	}
+	payTo := solana.NewWallet().PublicKey().String()
+
+	t.Setenv("X402_INTEROP_RPC_URL", "http://rpc.test")
+	t.Setenv("X402_INTEROP_PAY_TO", payTo)
+	t.Setenv("X402_INTEROP_FACILITATOR_SECRET_KEY", string(encodedKey))
+	t.Setenv("X402_INTEROP_NETWORK", solanaDevnetCAIP2)
+	t.Setenv("X402_INTEROP_MINT", "PYUSD")
+	t.Setenv("X402_INTEROP_EXTRA_OFFERED_MINTS", "USDG, USDC")
+
+	state := readState()
+
+	challenge := exactChallengePayload(state)
+	if len(challenge.Accepts) != 3 {
+		t.Fatalf("expected 3 challenge entries, got %d", len(challenge.Accepts))
+	}
+	if challenge.Accepts[0].Asset != "CXk2AMBfi3TwaEL2468s6zP8xq9NxTXjp9gjMgzeUynM" {
+		t.Fatalf("primary Asset = %q, expected resolved PYUSD devnet mint", challenge.Accepts[0].Asset)
+	}
+	if _, err := solana.PublicKeyFromBase58(challenge.Accepts[0].Asset); err != nil {
+		t.Fatalf("primary Asset is not valid base58: %v", err)
+	}
+	if challenge.Accepts[1].Asset != "4F6PM96JJxngmHnZLBh9n58RH4aTVNWvDs2nuwrT5BP7" {
+		t.Fatalf("extra[0] Asset = %q, expected resolved USDG devnet mint", challenge.Accepts[1].Asset)
+	}
+	if challenge.Accepts[2].Asset != "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU" {
+		t.Fatalf("extra[1] Asset = %q, expected resolved USDC devnet mint", challenge.Accepts[2].Asset)
+	}
+	for index, requirement := range challenge.Accepts {
+		if _, err := solana.PublicKeyFromBase58(requirement.Asset); err != nil {
+			t.Fatalf("Accepts[%d].Asset is not base58 after resolution: %v", index, err)
+		}
+	}
+}
+
+func TestReadStatePanicsOnUnknownMintAlias(t *testing.T) {
+	privateKey, err := solana.NewRandomPrivateKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	encodedKey, err := json.Marshal([]byte(privateKey))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Setenv("X402_INTEROP_RPC_URL", "http://rpc.test")
+	t.Setenv("X402_INTEROP_PAY_TO", solana.NewWallet().PublicKey().String())
+	t.Setenv("X402_INTEROP_FACILITATOR_SECRET_KEY", string(encodedKey))
+	t.Setenv("X402_INTEROP_NETWORK", solanaDevnetCAIP2)
+	t.Setenv("X402_INTEROP_MINT", "DEFINITELY_NOT_A_MINT")
+
+	mustPanic(t, func() { readState() })
+
+	t.Setenv("X402_INTEROP_MINT", "USDG")
+	t.Setenv("X402_INTEROP_EXTRA_OFFERED_MINTS", "PYUSD, NOPE")
+	mustPanic(t, func() { readState() })
+}
+
+func TestSettleExactPaymentAcceptsAliasResolvedRequirement(t *testing.T) {
+	settlementCache = newDuplicateSettlementCache()
+	defer func() {
+		settlementCache = newDuplicateSettlementCache()
+	}()
+
+	privateKey, err := solana.NewRandomPrivateKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	encodedKey, err := json.Marshal([]byte(privateKey))
+	if err != nil {
+		t.Fatal(err)
+	}
+	client, err := solana.NewRandomPrivateKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Setenv("X402_INTEROP_RPC_URL", "http://rpc.test")
+	t.Setenv("X402_INTEROP_PAY_TO", solana.NewWallet().PublicKey().String())
+	t.Setenv("X402_INTEROP_FACILITATOR_SECRET_KEY", string(encodedKey))
+	t.Setenv("X402_INTEROP_NETWORK", solanaDevnetCAIP2)
+	t.Setenv("X402_INTEROP_MINT", "PYUSD")
+	t.Setenv("X402_INTEROP_PRICE", "$0.001")
+
+	state := readState()
+	state.memo = "alias-resolution"
+	state.httpClient = successfulSettlementClient(t, "alias-resolved-settlement")
+
+	if state.mint != "CXk2AMBfi3TwaEL2468s6zP8xq9NxTXjp9gjMgzeUynM" {
+		t.Fatalf("expected PYUSD devnet mint resolution, got %q", state.mint)
+	}
+
+	requirement := exactRequirement(state)
+	transaction := signedTransactionForTest(t, requirement, client)
+	header := encodePaymentSignatureForTest(t, paymentSignatureEnvelope{
+		X402Version: 2,
+		Accepted:    requirement,
+		Payload: map[string]string{
+			"transaction": transaction,
+		},
+	})
+
+	settlement, err := settleExactPayment(state, header)
+	if err != nil {
+		t.Fatalf("expected alias-resolved settlement to pass, got %v", err)
+	}
+	if settlement != "alias-resolved-settlement" {
+		t.Fatalf("settlement = %q", settlement)
 	}
 }
 

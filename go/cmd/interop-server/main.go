@@ -41,6 +41,64 @@ var (
 	memoProgramID          = solana.MustPublicKeyFromBase58("MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr")
 )
 
+// CAIP-2 network identifiers shared with the TypeScript spine.
+const (
+	solanaMainnetCAIP2 = "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
+	solanaDevnetCAIP2  = "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1"
+	solanaTestnetCAIP2 = "solana:4uhcVJyU9pJkvQyS88uRDiswHXSCkY3z"
+)
+
+// stablecoinMintsByNetwork mirrors STABLECOIN_MINTS from the TypeScript
+// reference (typescript/packages/x402/src/protocol/schemes/exact/constants.ts).
+// Aliases are resolved at the env-read boundary so the rest of the server
+// always sees canonical base58 mint addresses.
+var stablecoinMintsByNetwork = map[string]map[string]string{
+	"USDC": {
+		solanaMainnetCAIP2: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+		solanaDevnetCAIP2:  "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU",
+	},
+	"USDG": {
+		solanaMainnetCAIP2: "2u1tszSeqZ3qBWF3uNGPFc8TzMk2tdiwknnRMWGWjGWH",
+		solanaDevnetCAIP2:  "4F6PM96JJxngmHnZLBh9n58RH4aTVNWvDs2nuwrT5BP7",
+		solanaTestnetCAIP2: "4F6PM96JJxngmHnZLBh9n58RH4aTVNWvDs2nuwrT5BP7",
+	},
+	"PYUSD": {
+		solanaMainnetCAIP2: "2b1kV6DkPAnxd5ixfnxCpjxmKwqjjaYmCZfHsFu24GXo",
+		solanaDevnetCAIP2:  "CXk2AMBfi3TwaEL2468s6zP8xq9NxTXjp9gjMgzeUynM",
+		solanaTestnetCAIP2: "CXk2AMBfi3TwaEL2468s6zP8xq9NxTXjp9gjMgzeUynM",
+	},
+	"CASH": {
+		solanaMainnetCAIP2: "CASHx9KJUStyftLFWGvEVf59SGeG9sh5FfcnZMVPCASH",
+	},
+}
+
+// knownMintAliases lists the case-insensitive currency-name aliases that
+// resolveMintAlias understands. Kept stable for error messages.
+var knownMintAliases = []string{"USDC", "USDG", "PYUSD", "CASH"}
+
+// resolveMintAlias returns the canonical base58 mint address for a given
+// input on the configured CAIP-2 network. The input may already be a base58
+// mint (in which case it is returned unchanged) or a known stablecoin alias
+// (USDC, USDG, PYUSD, CASH). Unknown aliases and aliases without a
+// configured mint for the network return a descriptive error.
+func resolveMintAlias(input string, network string) (string, error) {
+	trimmed := strings.TrimSpace(input)
+	if trimmed == "" {
+		return "", fmt.Errorf("mint is required")
+	}
+	upper := strings.ToUpper(trimmed)
+	if mintsByNetwork, ok := stablecoinMintsByNetwork[upper]; ok {
+		if mint, ok := mintsByNetwork[network]; ok {
+			return mint, nil
+		}
+		return "", fmt.Errorf("alias %s has no configured mint for network %s", upper, network)
+	}
+	if _, err := solana.PublicKeyFromBase58(trimmed); err != nil {
+		return "", fmt.Errorf("mint %q is neither a base58 address nor a known alias (accepted aliases: %s)", input, strings.Join(knownMintAliases, ", "))
+	}
+	return trimmed, nil
+}
+
 type serverState struct {
 	rpcURL            string
 	network           string
@@ -341,14 +399,29 @@ func keypairFromJSONSecret(raw string) solana.PrivateKey {
 }
 
 func readState() serverState {
+	network := readEnvWithDefault("X402_INTEROP_NETWORK", "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1")
+	rawMint := readEnvWithDefault("X402_INTEROP_MINT", "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU")
+	resolvedMint, err := resolveMintAlias(rawMint, network)
+	if err != nil {
+		panic(fmt.Sprintf("X402_INTEROP_MINT: %s", err))
+	}
+	rawExtra := readCSVEnv("X402_INTEROP_EXTRA_OFFERED_MINTS")
+	resolvedExtra := make([]string, 0, len(rawExtra))
+	for _, candidate := range rawExtra {
+		resolved, err := resolveMintAlias(candidate, network)
+		if err != nil {
+			panic(fmt.Sprintf("X402_INTEROP_EXTRA_OFFERED_MINTS: %s", err))
+		}
+		resolvedExtra = append(resolvedExtra, resolved)
+	}
 	return serverState{
 		rpcURL:            readRequiredEnv("X402_INTEROP_RPC_URL"),
-		network:           readEnvWithDefault("X402_INTEROP_NETWORK", "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1"),
-		mint:              readEnvWithDefault("X402_INTEROP_MINT", "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU"),
+		network:           network,
+		mint:              resolvedMint,
 		payTo:             readRequiredEnv("X402_INTEROP_PAY_TO"),
 		feePayer:          keypairFromJSONSecret(readRequiredEnv("X402_INTEROP_FACILITATOR_SECRET_KEY")),
 		amount:            normalizeAmount(readEnvWithDefault("X402_INTEROP_PRICE", defaultPrice)),
-		extraOfferedMints: readCSVEnv("X402_INTEROP_EXTRA_OFFERED_MINTS"),
+		extraOfferedMints: resolvedExtra,
 		httpClient: &http.Client{
 			Timeout: 15 * time.Second,
 		},
