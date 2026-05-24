@@ -92,8 +92,8 @@ are signal, neither is ground truth.
 
 Adapters that talk HTTPS to RPC endpoints MUST verify TLS peers explicitly.
 Default-on TLS in some stacks (e.g. luasec) does not actually verify; a hijack
-or proxy can forge `getSignatureStatuses` confirmations and trigger
-Payment-Receipt for unsettled transactions. Force `verify = peer`, pin to
+or proxy can forge `getSignatureStatuses` confirmations and trigger a
+`PAYMENT-RESPONSE` for unsettled transactions. Force `verify = peer`, pin to
 TLSv1.2 or above, tighten the options struct. Allow `opts.ssl_verify` override
 for explicit insecure dev only.
 
