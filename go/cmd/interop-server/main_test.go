@@ -14,6 +14,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"testing"
 	"time"
@@ -1475,12 +1476,12 @@ func TestRunInteropServerEmitsReadyAndStopsOnSignal(t *testing.T) {
 		t.Fatal(err)
 	}
 	signals := make(chan os.Signal, 1)
-	var ready bytes.Buffer
-	var errors bytes.Buffer
+	ready := newSyncBuffer()
+	errors := newSyncBuffer()
 	done := make(chan error, 1)
 
 	go func() {
-		done <- runInteropServer(state, listener, signals, &ready, &errors)
+		done <- runInteropServer(state, listener, signals, ready, errors)
 	}()
 
 	baseURL := "http://" + listener.Addr().String()
@@ -1521,6 +1522,34 @@ func TestRunInteropServerEmitsReadyAndStopsOnSignal(t *testing.T) {
 	}
 }
 
+// syncBuffer wraps bytes.Buffer with a mutex so the test goroutine can read
+// the buffer concurrently with the server goroutine writing the ready line and
+// stderr without triggering -race warnings.
+type syncBuffer struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func newSyncBuffer() *syncBuffer { return &syncBuffer{} }
+
+func (b *syncBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.Write(p)
+}
+
+func (b *syncBuffer) Bytes() []byte {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return append([]byte(nil), b.buf.Bytes()...)
+}
+
+func (b *syncBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.String()
+}
+
 func TestRunInteropServerReturnsServeErrors(t *testing.T) {
 	state := testServerState(t)
 	signals := make(chan os.Signal)
@@ -1542,6 +1571,201 @@ func TestRunInteropServerReturnsServeErrors(t *testing.T) {
 
 func TestMainPanicsWhenRequiredEnvMissing(t *testing.T) {
 	mustPanic(t, main)
+}
+
+// TestVerifyExactTransactionAttackRegressions covers MPP §19.5 fee-payer drain
+// attacks: managed fee-payer (server co-signs) must never become a token source
+// or transfer authority, must not appear in any extra instruction, must not be
+// reassigned via a tampered details.fee_payer, and must not be moved into a
+// signer slot beyond the fee-payer (index 0) position.
+func TestVerifyExactTransactionAttackRegressions(t *testing.T) {
+	client, err := solana.NewRandomPrivateKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	state := testServerState(t)
+	state.memo = "attack-regression"
+	requirement := exactRequirement(state)
+	feePayer := state.feePayer.PublicKey()
+	mint := solana.MustPublicKeyFromBase58(requirement.Asset)
+	feePayerATA, _, err := solana.FindAssociatedTokenAddressWithProgram(feePayer, mint, solana.MustPublicKeyFromBase58(defaultTokenProgram))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Positive control: an unmodified happy-path transaction must verify.
+	valid := transactionForTest(t, requirement, client)
+	if err := verifyExactTransaction(valid, requirement); err != nil {
+		t.Fatalf("positive control failed: %v", err)
+	}
+
+	tests := map[string]struct {
+		mutate      func(*solana.Transaction, paymentRequirement) paymentRequirement
+		wantErrFrag string
+	}{
+		"DRAIN: SystemProgram.Transfer from fee-payer in optional slot": {
+			mutate: func(tx *solana.Transaction, req paymentRequirement) paymentRequirement {
+				// Replace memo (slot 3) with a SystemProgram.Transfer touching fee-payer.
+				attacker := solana.NewWallet().PublicKey()
+				tx.Message.Instructions[3] = compiledInstructionWithAccountsForTest(
+					t, tx, solana.SystemProgramID,
+					[]solana.PublicKey{feePayer, attacker},
+					[]byte{2, 0, 0, 0, 0xff, 0, 0, 0, 0, 0, 0, 0},
+				)
+				return req
+			},
+			// Accepted rejection paths: fee-payer-touch guard OR unknown-optional-instruction guard.
+			wantErrFrag: "invalid_exact_svm_payload",
+		},
+		"SPL DRAIN: transferChecked from fee-payer ATA in optional slot": {
+			mutate: func(tx *solana.Transaction, req paymentRequirement) paymentRequirement {
+				attackerATA := solana.NewWallet().PublicKey()
+				data := []byte{12}
+				data = binary.LittleEndian.AppendUint64(data, 1)
+				data = append(data, byte(defaultDecimals))
+				tx.Message.Instructions[3] = compiledInstructionWithAccountsForTest(
+					t, tx, solana.TokenProgramID,
+					[]solana.PublicKey{feePayerATA, mint, attackerATA, feePayer},
+					data,
+				)
+				return req
+			},
+			// Accepted rejection paths: fee-payer-touch guard OR unknown-optional-instruction guard.
+			wantErrFrag: "invalid_exact_svm_payload",
+		},
+		"SLOT: fee-payer at signer slot 1 as transfer authority": {
+			mutate: func(tx *solana.Transaction, req paymentRequirement) paymentRequirement {
+				// Replace authority account on the transferChecked with fee-payer.
+				accounts := append([]uint16(nil), tx.Message.Instructions[2].Accounts...)
+				feePayerIndex := -1
+				for index, key := range tx.Message.AccountKeys {
+					if key.Equals(feePayer) {
+						feePayerIndex = index
+						break
+					}
+				}
+				if feePayerIndex == -1 {
+					t.Fatal("fee payer not in account keys")
+				}
+				accounts[3] = uint16(feePayerIndex)
+				tx.Message.Instructions[2].Accounts = accounts
+				return req
+			},
+			wantErrFrag: "fee_payer_transferring_funds",
+		},
+		"SLOT: fee-payer as transfer source ATA": {
+			mutate: func(tx *solana.Transaction, req paymentRequirement) paymentRequirement {
+				// Repoint transferChecked.source to the fee-payer's own ATA.
+				feePayerIndex := -1
+				for index, key := range tx.Message.AccountKeys {
+					if key.Equals(feePayer) {
+						feePayerIndex = index
+						break
+					}
+				}
+				if feePayerIndex == -1 {
+					t.Fatal("fee payer not in account keys")
+				}
+				// Add fee-payer ATA as a new account key and use it as source.
+				tx.Message.AccountKeys = append(tx.Message.AccountKeys, feePayerATA)
+				ataIndex := uint16(len(tx.Message.AccountKeys) - 1)
+				accounts := append([]uint16(nil), tx.Message.Instructions[2].Accounts...)
+				accounts[0] = ataIndex
+				accounts[3] = uint16(feePayerIndex) // authority = fee-payer
+				tx.Message.Instructions[2].Accounts = accounts
+				return req
+			},
+			wantErrFrag: "fee_payer_transferring_funds",
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			tx := cloneTransactionForTest(t, valid)
+			req := requirement
+			req.Extra = cloneExtra(requirement.Extra)
+			mutated := test.mutate(tx, req)
+			err := verifyExactTransaction(tx, mutated)
+			if err == nil {
+				t.Fatalf("expected attack to be rejected")
+			}
+			if !strings.Contains(err.Error(), test.wantErrFrag) {
+				t.Fatalf("error %q does not contain %q", err.Error(), test.wantErrFrag)
+			}
+		})
+	}
+}
+
+// TestSettleExactPaymentRejectsForeignMessageFeePayer covers Codex finding #1:
+// the transaction's message fee-payer (account key 0) must equal the server's
+// configured fee-payer before the facilitator co-signs. Otherwise a malicious
+// client could pick a different message payer and the facilitator's presence
+// in the signer set would drain its SOL.
+func TestSettleExactPaymentRejectsForeignMessageFeePayer(t *testing.T) {
+	settlementCache = newDuplicateSettlementCache()
+	defer func() { settlementCache = newDuplicateSettlementCache() }()
+
+	client, err := solana.NewRandomPrivateKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	state := testServerState(t)
+	state.memo = "foreign-fee-payer"
+	requirement := exactRequirement(state)
+	tx := transactionForTest(t, requirement, client)
+
+	// Swap account key 0 (message fee-payer) for a foreign pubkey.
+	foreign := solana.NewWallet().PublicKey()
+	tx.Message.AccountKeys[0] = foreign
+	encoded, err := tx.ToBase64()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	header := encodePaymentSignatureForTest(t, paymentSignatureEnvelope{
+		X402Version: 2,
+		Accepted:    requirement,
+		Payload:     map[string]string{"transaction": encoded},
+	})
+
+	if _, err := settleExactPayment(state, header); err == nil ||
+		!strings.Contains(err.Error(), "fee_payer") {
+		t.Fatalf("expected foreign message fee-payer rejection, got %v", err)
+	}
+}
+
+// TestSettleExactPaymentRejectsTamperedFeePayer covers MPP §19.5: an attacker
+// presenting an envelope where details.feePayer (Extra["feePayer"]) is rebound
+// to a non-server pubkey must be rejected at the requirement-match stage so
+// that the server-co-signing context pubkey cannot be substituted by the
+// client envelope.
+func TestSettleExactPaymentRejectsTamperedFeePayer(t *testing.T) {
+	settlementCache = newDuplicateSettlementCache()
+	defer func() { settlementCache = newDuplicateSettlementCache() }()
+
+	client, err := solana.NewRandomPrivateKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	state := testServerState(t)
+	state.memo = "tampered-fee-payer"
+	requirement := exactRequirement(state)
+	transaction := signedTransactionForTest(t, requirement, client)
+
+	tampered := requirement
+	tampered.Extra = cloneExtra(requirement.Extra)
+	tampered.Extra["feePayer"] = solana.NewWallet().PublicKey().String()
+
+	header := encodePaymentSignatureForTest(t, paymentSignatureEnvelope{
+		X402Version: 2,
+		Accepted:    tampered,
+		Payload:     map[string]string{"transaction": transaction},
+	})
+
+	if _, err := settleExactPayment(state, header); err == nil ||
+		!strings.Contains(err.Error(), "does not match server challenge") {
+		t.Fatalf("expected tampered fee-payer to be rejected, got %v", err)
+	}
 }
 
 type roundTripFunc func(*http.Request) (*http.Response, error)

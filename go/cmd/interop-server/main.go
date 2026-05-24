@@ -414,6 +414,16 @@ func settleExactPayment(state serverState, headerValue string) (string, error) {
 	if err := verifyExactTransaction(transaction, requirement); err != nil {
 		return "", err
 	}
+	// Bind the transaction's message fee-payer (account key 0) to the
+	// server's configured fee-payer. Without this guard a malicious client
+	// could nominate a different message payer and rely on the facilitator
+	// being in the signer set to drain SOL via co-signing.
+	if len(transaction.Message.AccountKeys) == 0 {
+		return "", fmt.Errorf("invalid_exact_svm_payload_transaction_fee_payer_missing")
+	}
+	if !transaction.Message.AccountKeys[0].Equals(state.feePayer.PublicKey()) {
+		return "", fmt.Errorf("invalid_exact_svm_payload_transaction_fee_payer_mismatch")
+	}
 	cacheKey := transactionCacheKey(encodedTransaction)
 	if !settlementCache.claim(cacheKey) {
 		return "", fmt.Errorf("duplicate_settlement")
