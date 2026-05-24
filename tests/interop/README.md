@@ -101,6 +101,17 @@ X402_INTEROP_CLIENTS=typescript X402_INTEROP_SERVERS=typescript,rust pnpm test
 X402_INTEROP_CLIENTS=typescript,rust X402_INTEROP_SERVERS=rust pnpm test
 ```
 
+For the M5 `upto` readiness gate:
+
+```bash
+pnpm test:upto-readiness
+pnpm upto:readiness
+```
+
+This gate records current official `upto` availability as EVM-only and keeps
+Solana runtime support and local `upto` capability advertising blocked until an
+official SVM scheme or maintainer-approved design exists.
+
 If the TypeScript adapter cannot resolve `@solana/x402/...` subpaths, rebuild
 the local package and refresh the interop package install:
 

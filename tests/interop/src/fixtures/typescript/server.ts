@@ -7,7 +7,7 @@ import type { SupportedResponse } from "@x402/core/types";
 import { registerExactSvmScheme as registerExactFacilitatorScheme } from "@solana/x402/facilitator/exact";
 import { toFacilitatorSvmSigner } from "@solana/x402";
 import { registerExactSvmScheme as registerExactServerScheme } from "@solana/x402/server/exact";
-import { interopScenario } from "../../contracts";
+import { interopScenario, localSolanaInteropCapabilities } from "../../contracts";
 import { fixtureSettlementHeader, readInteropEnvironment } from "./shared";
 
 class NodeAdapter implements HTTPAdapter {
@@ -195,7 +195,7 @@ async function main() {
         implementation: "typescript",
         role: "server",
         port: address.port,
-        capabilities: ["exact"],
+        capabilities: localSolanaInteropCapabilities,
       }),
     );
   });
