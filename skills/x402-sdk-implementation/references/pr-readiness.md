@@ -51,9 +51,18 @@ between any two steps cannot result in a double-broadcast:
 1. `claim_signature` in the durable replay store (write the marker / acquire
    the idempotency slot **before** the network call).
 2. `send_raw_transaction` (broadcast).
-3. `await_confirmation` (poll until confirmed or timeout).
-4. On confirmation failure or timeout: `release_claim` so a legitimate retry
-   can proceed once the operator decides the prior attempt was lost.
+3. `await_confirmation` (poll until confirmed).
+4. On a **definitive failure** (RPC returned an error result, or the
+   transaction's recent blockhash expired without confirmation), release the
+   claim so a legitimate retry can proceed.
+
+**Critical:** confirmation timeout alone is NOT a definitive failure on Solana.
+A timed-out poll can still land in a later slot if the blockhash is still
+valid, so releasing the claim on plain timeout creates a double-pay window
+where a retry broadcasts before the original confirms. Hold the claim until
+either confirmation arrives, the RPC surfaces an explicit error, or the
+blockhash window expires (~150 slots, roughly 60–90s). Only then is it safe
+to release.
 
 If broadcast happens before the claim is written and the process crashes
 between broadcast and the marker write, a retry will broadcast the same
