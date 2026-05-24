@@ -60,6 +60,11 @@ struct InteropClient {
             }
         } ?? [:]
         let body = (try? JSONSerialization.jsonObject(with: paidData)) ?? (String(data: paidData, encoding: .utf8) ?? "")
+        // JSONSerialization rejects a wrapped Optional (Optional<String>.none
+        // bridges to Any but is not a valid JSON value), so the absent-header
+        // case has to fall through to NSNull explicitly. Without this the
+        // adapter would crash on every response that omits the fixture
+        // settlement header instead of emitting a JSON null.
         let result: [String: Any] = [
             "type": "result",
             "implementation": "swift",
@@ -68,7 +73,7 @@ struct InteropClient {
             "status": status,
             "responseHeaders": paidHeaders,
             "responseBody": body,
-            "settlement": paidHeaders["x-fixture-settlement"] as Any,
+            "settlement": paidHeaders["x-fixture-settlement"] ?? NSNull(),
         ]
         let encoded = try JSONSerialization.data(withJSONObject: result)
         print(String(data: encoded, encoding: .utf8)!)
