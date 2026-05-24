@@ -72,7 +72,7 @@ private func readSecretKey(_ name: String) throws -> [UInt8] {
     }
     return try parsed.map {
         guard let byte = UInt8(exactly: $0) else {
-            throw X402SwiftExactError.invalidSecretKeyLength($0)
+            throw X402SwiftExactError.invalidSecretKeyByte($0)
         }
         return byte
     }

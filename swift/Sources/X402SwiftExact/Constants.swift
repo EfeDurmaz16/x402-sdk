@@ -19,10 +19,12 @@ public enum X402SwiftExact {
 public enum X402SwiftExactError: Error, Equatable, CustomStringConvertible {
     case invalidBase58(String)
     case invalidSecretKeyLength(Int)
+    case invalidSecretKeyByte(Int)
     case invalidSignatureLength(Int)
     case invalidAmount(String)
     case unsupportedScheme(String)
     case unsupportedNetwork(String)
+    case unsupportedX402Version(Int)
     case missingFeePayer
     case missingBlockhash
     case missingChallenge
@@ -35,10 +37,12 @@ public enum X402SwiftExactError: Error, Equatable, CustomStringConvertible {
         switch self {
         case .invalidBase58(let value): return "invalid base58 value: \(value)"
         case .invalidSecretKeyLength(let count): return "expected a 64-byte Solana secret key, got \(count)"
+        case .invalidSecretKeyByte(let value): return "secret-key element is out of UInt8 range: \(value)"
         case .invalidSignatureLength(let count): return "expected a 64-byte signature, got \(count)"
         case .invalidAmount(let value): return "invalid exact amount: \(value)"
         case .unsupportedScheme(let value): return "unsupported x402 scheme: \(value)"
         case .unsupportedNetwork(let value): return "unsupported x402 network: \(value)"
+        case .unsupportedX402Version(let value): return "unsupported x402Version: \(value) (expected \(X402SwiftExact.x402Version))"
         case .missingFeePayer: return "payment requirement is missing extra.feePayer"
         case .missingBlockhash: return "payment requirement is missing a recent blockhash and no RPC client was provided"
         case .missingChallenge: return "server did not return a supported SVM x402 challenge"

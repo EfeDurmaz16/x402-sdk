@@ -72,6 +72,9 @@ public func parseX402Challenge(
 
 private func selectRequirement(from data: Data, selection: ChallengeSelection) throws -> PaymentRequirement? {
     let envelope = try JSONDecoder().decode(PaymentRequiredEnvelope.self, from: data)
+    if let version = envelope.x402Version, version != X402SwiftExact.x402Version {
+        throw X402SwiftExactError.unsupportedX402Version(version)
+    }
     let preferredNetwork = canonicalNetwork(selection.network ?? X402SwiftExact.solanaMainnet)
     let solana = envelope.accepts.filter { requirement in
         requirement.scheme == X402SwiftExact.exactScheme && requirement.network.starts(with: "solana:")
