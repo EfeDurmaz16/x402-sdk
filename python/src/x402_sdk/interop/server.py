@@ -432,8 +432,8 @@ def settle_exact_payment(state: ServerState, payment_header: str) -> str:
         to_bytes_versioned(transaction.message)
     )
     signed = VersionedTransaction.populate(transaction.message, signatures)
-    signed.verify_and_hash_message()
     try:
+        signed.verify_and_hash_message()
         return _send_transaction(state, signed)
     except Exception:
         _release_settlement_payload(state, transaction_payload)

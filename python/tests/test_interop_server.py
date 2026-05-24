@@ -3,6 +3,8 @@ import base64
 import io
 import json
 import os
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from unittest.mock import patch
 
 from solders.compute_budget import set_compute_unit_limit, set_compute_unit_price
@@ -12,6 +14,7 @@ from solders.instruction import Instruction
 from solders.message import MessageV0, to_bytes_versioned
 from solders.pubkey import Pubkey
 from solders.signature import Signature
+from solders.system_program import TransferParams, transfer as system_transfer
 from solders.transaction import VersionedTransaction
 from spl.token.constants import TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID
 from spl.token.instructions import (
@@ -827,6 +830,252 @@ class InteropServerTest(unittest.TestCase):
                 "invalidReason": "sendTransaction RPC error: {}",
             },
         )
+
+
+class FeePayerAttackRegressionTest(unittest.TestCase):
+    """MPP §19.5 attack regression: fee-payer co-signing must never permit
+    draining the server's fee_payer account via SOL transfers, SPL transfers
+    from the fee_payer's ATA, signer-slot manipulation, or tampered metadata.
+    """
+
+    def _state(self):
+        return State()
+
+    def _legit_instructions(self, state, client):
+        requirement = exact_requirement(state)
+        return [
+            set_compute_unit_limit(20_000),
+            set_compute_unit_price(1),
+            transfer_checked_instruction(client, requirement, TOKEN_PROGRAM_ID),
+            Instruction(MEMO_PROGRAM_ID, b"nonce-1234567890abcdef", []),
+        ]
+
+    def test_positive_control_clean_payment_settles(self):
+        state = self._state()
+        client = Keypair()
+        header = build_exact_payment_signature(
+            requirement=exact_requirement(state),
+            client_keypair=client,
+            blockhash=str(Hash.default()),
+            decimals=6,
+            token_program=TOKEN_PROGRAM_ID,
+        )
+        with patch("x402_sdk.interop.server._send_transaction", return_value="sig-ok"):
+            self.assertEqual(settle_exact_payment(state, header), "sig-ok")
+
+    def test_drain_via_system_program_transfer_from_fee_payer_is_rejected(self):
+        """DRAIN: extra SystemProgram.Transfer drains lamports from fee_payer."""
+        state = self._state()
+        client = Keypair()
+        attacker = Keypair()
+        instructions = self._legit_instructions(state, client)
+        instructions.append(
+            system_transfer(
+                TransferParams(
+                    from_pubkey=state.fee_payer.pubkey(),
+                    to_pubkey=attacker.pubkey(),
+                    lamports=1_000_000_000,
+                )
+            )
+        )
+        tx = transaction_from_instructions(state.fee_payer.pubkey(), instructions, signers=[client])
+        header = header_from_transaction(tx)
+        with self.assertRaisesRegex(
+            RuntimeError,
+            "fee_payer_transferring_funds|unknown_(fourth|fifth|sixth)_instruction",
+        ):
+            settle_exact_payment(state, header)
+
+    def test_spl_drain_via_extra_transfer_checked_from_fee_payer_ata_is_rejected(self):
+        """SPL DRAIN: extra transferChecked from fee_payer's ATA to attacker."""
+        state = self._state()
+        client = Keypair()
+        attacker = Keypair()
+        mint = Pubkey.from_string(state.mint)
+        instructions = self._legit_instructions(state, client)
+        instructions.append(
+            transfer_checked(
+                TransferCheckedParams(
+                    program_id=TOKEN_PROGRAM_ID,
+                    source=get_associated_token_address(state.fee_payer.pubkey(), mint, TOKEN_PROGRAM_ID),
+                    mint=mint,
+                    dest=get_associated_token_address(attacker.pubkey(), mint, TOKEN_PROGRAM_ID),
+                    owner=state.fee_payer.pubkey(),
+                    amount=1,
+                    decimals=6,
+                )
+            )
+        )
+        tx = transaction_from_instructions(state.fee_payer.pubkey(), instructions, signers=[client])
+        header = header_from_transaction(tx)
+        # The extra instruction references fee_payer (as transfer authority),
+        # so _verify_exact_transaction's account-scan rejects it before the
+        # optional-instruction allowlist runs.
+        with self.assertRaisesRegex(
+            RuntimeError,
+            "fee_payer_transferring_funds|unknown_(fourth|fifth|sixth)_instruction",
+        ):
+            settle_exact_payment(state, header)
+
+    def test_slot_attack_fee_payer_at_signer_slot_one_is_rejected(self):
+        """SLOT: build the message with a non-fee-payer pubkey at slot 0 so
+        state.fee_payer lands at signer slot 1. The transfer instruction then
+        references the slot-0 signer as the transfer authority, which is not
+        a valid exact payment and must fail."""
+        state = self._state()
+        client = Keypair()
+        requirement = exact_requirement(state)
+        mint = Pubkey.from_string(state.mint)
+        pay_to = Pubkey.from_string(state.pay_to)
+        # Compile with client as fee_payer (slot 0); state.fee_payer is added
+        # as an additional account by referencing it via a system_transfer.
+        instructions = [
+            set_compute_unit_limit(20_000),
+            set_compute_unit_price(1),
+            transfer_checked(
+                TransferCheckedParams(
+                    program_id=TOKEN_PROGRAM_ID,
+                    source=get_associated_token_address(client.pubkey(), mint, TOKEN_PROGRAM_ID),
+                    mint=mint,
+                    dest=get_associated_token_address(pay_to, mint, TOKEN_PROGRAM_ID),
+                    owner=client.pubkey(),
+                    amount=int(state.amount),
+                    decimals=6,
+                )
+            ),
+            Instruction(MEMO_PROGRAM_ID, b"nonce", []),
+            system_transfer(
+                TransferParams(
+                    from_pubkey=state.fee_payer.pubkey(),
+                    to_pubkey=client.pubkey(),
+                    lamports=1,
+                )
+            ),
+        ]
+        tx = transaction_from_instructions(client.pubkey(), instructions, signers=[client, state.fee_payer])
+        header = header_from_transaction(tx)
+        with self.assertRaisesRegex(
+            RuntimeError,
+            "fee_payer_transferring_funds|unknown_(fourth|fifth|sixth)_instruction|invalid_exact_svm_payload",
+        ):
+            settle_exact_payment(state, header)
+
+    def test_tampered_details_fee_payer_in_accepted_is_rejected(self):
+        """Client mutates accepted.extra.feePayer to point at an attacker
+        address. Strict requirement match rejects before any signing."""
+        state = self._state()
+        client = Keypair()
+        attacker = Keypair()
+        tampered_requirement = {
+            **exact_requirement(state),
+            "extra": {
+                **exact_requirement(state)["extra"],
+                "feePayer": str(attacker.pubkey()),
+            },
+        }
+        header = build_exact_payment_signature(
+            requirement=tampered_requirement,
+            client_keypair=client,
+            blockhash=str(Hash.default()),
+            decimals=6,
+            token_program=TOKEN_PROGRAM_ID,
+        )
+        with self.assertRaisesRegex(
+            RuntimeError,
+            "accepted payment requirement does not match server challenge",
+        ):
+            settle_exact_payment(state, header)
+
+
+class SettlementCacheConcurrencyTest(unittest.TestCase):
+    """Regression for the prior Greptile P1: ThreadingHTTPServer dispatches
+    each request on its own thread. _claim_settlement_payload must hold the
+    cache lock across the check+insert so two concurrent identical payloads
+    cannot both pass the duplicate guard."""
+
+    def test_concurrent_duplicate_settlements_yield_exactly_one_success(self):
+        state = State()
+        client = Keypair()
+        header = build_exact_payment_signature(
+            requirement=exact_requirement(state),
+            client_keypair=client,
+            blockhash=str(Hash.default()),
+            decimals=6,
+            token_program=TOKEN_PROGRAM_ID,
+        )
+
+        start = threading.Event()
+        # Slow the send call so both threads race the claim, not the network.
+        def slow_send(_state, _tx):
+            start.wait(timeout=2)
+            return "broadcast-sig"
+
+        with patch("x402_sdk.interop.server._send_transaction", side_effect=slow_send):
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                f1 = pool.submit(settle_exact_payment, state, header)
+                f2 = pool.submit(settle_exact_payment, state, header)
+                start.set()
+                results = []
+                for fut in (f1, f2):
+                    try:
+                        results.append(("ok", fut.result()))
+                    except RuntimeError as err:
+                        results.append(("err", str(err)))
+
+        successes = [r for r in results if r[0] == "ok"]
+        errors = [r for r in results if r[0] == "err"]
+        self.assertEqual(len(successes), 1, f"expected exactly one success, got {results}")
+        self.assertEqual(len(errors), 1, f"expected exactly one duplicate error, got {results}")
+        self.assertIn("duplicate_settlement", errors[0][1])
+
+    def test_signature_verify_failure_releases_duplicate_claim(self):
+        """Codex P3 #6: a structurally valid payload whose client signature
+        fails verify_and_hash_message must release the cache so honest retries
+        with a valid signature can still settle (within TTL)."""
+        state = State()
+        client = Keypair()
+        header = build_exact_payment_signature(
+            requirement=exact_requirement(state),
+            client_keypair=client,
+            blockhash=str(Hash.default()),
+            decimals=6,
+            token_program=TOKEN_PROGRAM_ID,
+        )
+
+        with patch(
+            "x402_sdk.interop.server.VersionedTransaction.verify_and_hash_message",
+            side_effect=RuntimeError("bad signature"),
+        ):
+            with self.assertRaisesRegex(RuntimeError, "bad signature"):
+                settle_exact_payment(state, header)
+
+        with patch("x402_sdk.interop.server._send_transaction", return_value="sig-2"):
+            self.assertEqual(settle_exact_payment(state, header), "sig-2")
+
+    def test_claim_settlement_payload_serializes_under_thread_contention(self):
+        """Direct stress on the claim helper: 32 threads racing on the same
+        payload key — exactly one may insert."""
+        state = State()
+        payload = "race-key"
+        successes = []
+        failures = []
+        barrier = threading.Barrier(32)
+
+        def worker():
+            barrier.wait()
+            try:
+                _claim_settlement_payload(state, payload)
+                successes.append(1)
+            except RuntimeError as err:
+                failures.append(str(err))
+
+        with ThreadPoolExecutor(max_workers=32) as pool:
+            for _ in range(32):
+                pool.submit(worker)
+
+        self.assertEqual(len(successes), 1)
+        self.assertEqual(len(failures), 31)
+        self.assertTrue(all("duplicate_settlement" in f for f in failures))
 
 
 if __name__ == "__main__":
