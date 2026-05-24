@@ -30,17 +30,16 @@ const TOKEN_2022_PROGRAM = 'TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb';
 const PROGRAM_DERIVED_ADDRESS_MARKER = 'ProgramDerivedAddress';
 const MAX_COMPUTE_UNIT_PRICE_MICROLAMPORTS = 5_000_000;
 const MAX_MEMO_BYTES = 256;
-// Defensive CU-abuse guard on Lighthouse optional instructions. The Rust
-// (rust/src/protocol/schemes/exact/verify.rs:263) and TS
-// (typescript/packages/x402/src/facilitator/exact/scheme.ts:292) spines accept
-// any instruction whose program-id matches Lighthouse without validating data
-// or accounts. We mirror the program-id allowlist but additionally bound the
-// per-instruction data and accounts size to keep the facilitator from
-// co-signing pathologically large payloads. These limits comfortably cover
-// every documented Lighthouse assertion shape (the largest known assertion
-// instructions are ~200 bytes / 8 accounts).
-const MAX_LIGHTHOUSE_INSTRUCTION_BYTES = 512;
-const MAX_LIGHTHOUSE_INSTRUCTION_ACCOUNTS = 16;
+// Lighthouse optional instructions pass through by program-id match alone,
+// matching the canonical spines:
+//   rust/src/protocol/schemes/exact/verify.rs:266
+//   typescript/packages/x402/src/facilitator/exact/scheme.ts:300
+// Both spines short-circuit on the program-id check with no discriminator,
+// no account-count cap, and no data-length bound. Inventing a single-language
+// PHP allowlist would reject real Phantom/Solflare mainnet transactions the
+// canonical adapters accept, breaking cross-language interop. A protocol-wide
+// allowlist must land in the Rust spine first; tracked at
+// notes/lighthouse-allowlist-tracking.md.
 // Canonical settlement confirmation policy mirrors the TS reference
 // (typescript/packages/x402/src/signer.ts:225-246): poll getSignatureStatuses
 // every SETTLEMENT_CONFIRMATION_INTERVAL_SECONDS until the signature reaches
@@ -568,18 +567,8 @@ function verify_optional_instructions(array $instructions, array $accountKeys, a
             continue;
         }
         if ($program === $lighthouseProgram) {
-            // Mirror Rust/TS spine: only the program-id is required to match.
-            // We add a defensive size bound (see MAX_LIGHTHOUSE_INSTRUCTION_*
-            // constants and the comment at their definition) so the facilitator
-            // cannot be coerced into co-signing pathologically large Lighthouse
-            // payloads. Within these bounds, any Lighthouse discriminator is
-            // accepted, matching the spine's permissive behavior.
-            if (strlen($instruction['data']) > MAX_LIGHTHOUSE_INSTRUCTION_BYTES) {
-                throw new \RuntimeException('invalid_exact_svm_payload_lighthouse_instruction_not_allowed');
-            }
-            if (count($instruction['accounts']) > MAX_LIGHTHOUSE_INSTRUCTION_ACCOUNTS) {
-                throw new \RuntimeException('invalid_exact_svm_payload_lighthouse_instruction_not_allowed');
-            }
+            // Pass through by program-id match only, mirroring the spines
+            // (rust verify.rs:266, ts facilitator/exact/scheme.ts:300).
             continue;
         }
         if ($program === $ataProgram && valid_destination_ata_create_instruction($instruction, $accountKeys, $requirement, $transfer)) {

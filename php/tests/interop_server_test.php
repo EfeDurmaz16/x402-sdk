@@ -1255,37 +1255,27 @@ function build_lighthouse_test_transaction(array $state, int $dataLen, int $acco
 $lighthouseState = $unitState;
 $lighthouseRequirement = exact_requirement($lighthouseState);
 
-// Positive control: a small, bounded Lighthouse instruction with arbitrary
-// discriminator bytes is accepted (spine-parity behavior).
-$lighthouseHappyTx = base64_decode(build_lighthouse_test_transaction($lighthouseState, 64, 4), true);
-if ($lighthouseHappyTx === false) {
-    fail('lighthouse positive control transaction is not base64');
+// Parity-locking: the Rust + TS spines accept any Lighthouse instruction by
+// program-id alone (rust verify.rs:266, ts facilitator/exact/scheme.ts:300).
+// PHP mirrors that exactly. Asserting accept paths across varied shapes
+// catches accidental divergence in either direction.
+foreach (
+    [
+        ['name' => 'small_known_assert', 'dataLen' => 64, 'accounts' => 4],
+        ['name' => 'oversized_payload', 'dataLen' => 600, 'accounts' => 8],
+        ['name' => 'many_accounts', 'dataLen' => 64, 'accounts' => 32],
+        ['name' => 'unknown_discriminator_large', 'dataLen' => 800, 'accounts' => 24],
+    ]
+    as $case
+) {
+    $tx = base64_decode(build_lighthouse_test_transaction($lighthouseState, $case['dataLen'], $case['accounts']), true);
+    if ($tx === false) {
+        fail('lighthouse parity transaction is not base64: ' . $case['name']);
+    }
+    verify_exact_transaction($tx, $lighthouseRequirement, [$lighthouseState['feePayerPublicKey']]);
 }
-verify_exact_transaction($lighthouseHappyTx, $lighthouseRequirement, [$lighthouseState['feePayerPublicKey']]);
 
-// Negative: oversize Lighthouse data → reject with canonical error.
-$lighthouseFatTx = base64_decode(build_lighthouse_test_transaction($lighthouseState, X402Sdk\Interop\MAX_LIGHTHOUSE_INSTRUCTION_BYTES + 1, 4), true);
-if ($lighthouseFatTx === false) {
-    fail('lighthouse fat-data transaction is not base64');
-}
-assert_runtime_error('invalid_exact_svm_payload_lighthouse_instruction_not_allowed', static fn () => verify_exact_transaction($lighthouseFatTx, $lighthouseRequirement, [$lighthouseState['feePayerPublicKey']]));
-
-// Negative: too many Lighthouse account references → reject.
-$lighthouseManyAccountsTx = base64_decode(build_lighthouse_test_transaction($lighthouseState, 64, X402Sdk\Interop\MAX_LIGHTHOUSE_INSTRUCTION_ACCOUNTS + 1), true);
-if ($lighthouseManyAccountsTx === false) {
-    fail('lighthouse many-accounts transaction is not base64');
-}
-assert_runtime_error('invalid_exact_svm_payload_lighthouse_instruction_not_allowed', static fn () => verify_exact_transaction($lighthouseManyAccountsTx, $lighthouseRequirement, [$lighthouseState['feePayerPublicKey']]));
-
-// Boundary: exactly the maximum-allowed Lighthouse data size is still
-// accepted (off-by-one regression).
-$lighthouseBoundaryTx = base64_decode(build_lighthouse_test_transaction($lighthouseState, X402Sdk\Interop\MAX_LIGHTHOUSE_INSTRUCTION_BYTES, X402Sdk\Interop\MAX_LIGHTHOUSE_INSTRUCTION_ACCOUNTS), true);
-if ($lighthouseBoundaryTx === false) {
-    fail('lighthouse boundary transaction is not base64');
-}
-verify_exact_transaction($lighthouseBoundaryTx, $lighthouseRequirement, [$lighthouseState['feePayerPublicKey']]);
-
-echo "PHP lighthouse bound regression suite OK\n";
+echo "PHP lighthouse spine-parity regression suite OK\n";
 
 // u64 parser branch coverage: both read_u64_le_int and read_u64_le_gmp must
 // reject malformed lengths and round-trip the full unsigned range.
