@@ -562,6 +562,24 @@ $computePricePayment = mutate_payment_transaction($validCanonicalPayment, static
 });
 assert_rejects_payment($unitState, encoded_payment($computePricePayment), 'invalid_exact_svm_payload_transaction_instructions_compute_price_instruction_too_high');
 
+// Greptile P1 regression: compute-unit price values with the u64 high bit set
+// (>= 2^63) must be rejected, not silently wrapped to a negative signed int
+// that would slip past the MAX_COMPUTE_UNIT_PRICE_MICROLAMPORTS cap.
+$computePriceOverflowPayment = mutate_payment_transaction($validCanonicalPayment, static function (string $transaction): string {
+    $instructions = transaction_instruction_offsets($transaction);
+    // 2^63 = 9223372036854775808 — high bit set, would wrap to a negative
+    // int under the previous read_u64_le_int() implementation.
+    return substr_replace($transaction, X402Sdk\Interop\decimal_to_u64_le('9223372036854775808'), $instructions[1]['dataOffset'] + 1, 8);
+});
+assert_rejects_payment($unitState, encoded_payment($computePriceOverflowPayment), 'invalid_exact_svm_payload_transaction_instructions_compute_price_instruction_too_high');
+
+$computePriceMaxOverflowPayment = mutate_payment_transaction($validCanonicalPayment, static function (string $transaction): string {
+    $instructions = transaction_instruction_offsets($transaction);
+    // 2^64 - 1 — maximum u64; must also be rejected.
+    return substr_replace($transaction, X402Sdk\Interop\decimal_to_u64_le('18446744073709551615'), $instructions[1]['dataOffset'] + 1, 8);
+});
+assert_rejects_payment($unitState, encoded_payment($computePriceMaxOverflowPayment), 'invalid_exact_svm_payload_transaction_instructions_compute_price_instruction_too_high');
+
 $decimalsMismatchPayment = mutate_payment_transaction($validCanonicalPayment, static function (string $transaction): string {
     $instructions = transaction_instruction_offsets($transaction);
     $transaction[$instructions[2]['dataOffset'] + 9] = chr(7);

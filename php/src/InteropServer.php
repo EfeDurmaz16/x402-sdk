@@ -442,6 +442,11 @@ function verify_compute_limit_instruction(array $instruction, array $accountKeys
     if ($program !== public_key_from_base58(COMPUTE_BUDGET_PROGRAM, 'compute budget program') || strlen($data) !== 5 || ord($data[0]) !== 2) {
         throw new \RuntimeException('invalid_exact_svm_payload_transaction_instructions_compute_limit_instruction');
     }
+    // Intentional parity with Rust spine: rust/src/protocol/schemes/exact/verify.rs
+    // (verify_compute_limit_instruction, ~line 317) validates the structure and
+    // discriminant only — the compute-unit value itself is not bounded.
+    // The Solana runtime clamps to MAX_COMPUTE_UNIT_LIMIT (1_400_000) so any
+    // higher value is harmless to the facilitator; we mirror that behavior.
 }
 
 function verify_compute_price_instruction(array $instruction, array $accountKeys): void
@@ -451,7 +456,9 @@ function verify_compute_price_instruction(array $instruction, array $accountKeys
     if ($program !== public_key_from_base58(COMPUTE_BUDGET_PROGRAM, 'compute budget program') || strlen($data) !== 9 || ord($data[0]) !== 3) {
         throw new \RuntimeException('invalid_exact_svm_payload_transaction_instructions_compute_price_instruction');
     }
-    if (read_u64_le_int(substr($data, 1, 8)) > MAX_COMPUTE_UNIT_PRICE_MICROLAMPORTS) {
+    // Use GMP for the price-cap comparison so values with the high bit set
+    // (>= 2^63) are not silently wrapped to negative by PHP signed int math.
+    if (gmp_cmp(read_u64_le_gmp(substr($data, 1, 8)), gmp_init((string) MAX_COMPUTE_UNIT_PRICE_MICROLAMPORTS, 10)) > 0) {
         throw new \RuntimeException('invalid_exact_svm_payload_transaction_instructions_compute_price_instruction_too_high');
     }
 }
@@ -603,7 +610,23 @@ function read_u64_le_int(string $bytes): int
         throw new \RuntimeException('invalid u64 length');
     }
     $parts = unpack('Vlow/Vhigh', $bytes);
+    // Reject values with the high bit set: PHP's signed 64-bit int cannot
+    // represent them, and silent overflow would bypass numeric bound checks.
+    if (($parts['high'] & 0x80000000) !== 0) {
+        throw new \RuntimeException('u64 value exceeds signed int range; use read_u64_le_gmp');
+    }
     return ((int) $parts['low']) + ((int) $parts['high'] * 4_294_967_296);
+}
+
+function read_u64_le_gmp(string $bytes): \GMP
+{
+    if (strlen($bytes) !== 8) {
+        throw new \RuntimeException('invalid u64 length');
+    }
+    $parts = unpack('Vlow/Vhigh', $bytes);
+    $low = gmp_init(sprintf('%u', $parts['low']), 10);
+    $high = gmp_init(sprintf('%u', $parts['high']), 10);
+    return gmp_add($low, gmp_mul($high, gmp_init('4294967296', 10)));
 }
 
 function decimal_to_u64_le(string $value): string
@@ -773,6 +796,12 @@ function settle_exact_payment(array $state, string $paymentHeader, ?callable $se
         throw new \RuntimeException('duplicate_settlement');
     }
 
+    // Cache-poisoning invariant: settlement_cache_is_duplicate() inserts the
+    // key BEFORE the RPC send so concurrent duplicates are rejected, but any
+    // exception from the sender MUST release the key. Without the release
+    // below, a transient RPC failure would permanently lock out a legitimate
+    // retry. The regression is covered by tests/interop_server_test.php
+    // ("PHP exact settlement did not release duplicate cache after sender failure").
     try {
         return ($sender ?? __NAMESPACE__ . '\\send_transaction')($state, $signedTransaction);
     } catch (\Throwable $error) {
