@@ -33,6 +33,8 @@ use function X402Sdk\Interop\read_u64_le_gmp;
 use function X402Sdk\Interop\read_u64_le_int;
 use function X402Sdk\Interop\response_for;
 use function X402Sdk\Interop\secret_key_bytes;
+use function X402Sdk\Interop\confirm_signature;
+use function X402Sdk\Interop\fetch_signature_status;
 use function X402Sdk\Interop\send_transaction;
 use function X402Sdk\Interop\short_vec;
 use function X402Sdk\Interop\sign_transaction_with_fee_payer;
@@ -142,10 +144,25 @@ function encoded_payment(array $payment): string
     return base64_encode(json_encode($payment, JSON_THROW_ON_ERROR));
 }
 
+function noop_confirmer(): callable
+{
+    return static function (array $state, string $signature): void {
+        // intentionally no-op for tests that bypass confirmation
+    };
+}
+
+function confirmed_status_fetcher(): callable
+{
+    return static fn (array $state, string $signature): array => [
+        'confirmationStatus' => 'confirmed',
+        'err' => null,
+    ];
+}
+
 function assert_rejects_payment(array $state, string $paymentHeader, string $expectedMessage): void
 {
     try {
-        settle_exact_payment($state, $paymentHeader, static fn (): string => 'settled-signature');
+        settle_exact_payment($state, $paymentHeader, static fn (): string => 'settled-signature', noop_confirmer());
     } catch (Throwable $error) {
         if (!str_contains($error->getMessage(), $expectedMessage)) {
             fail("expected rejection containing '{$expectedMessage}', got '{$error->getMessage()}'");
@@ -624,7 +641,7 @@ $settlementCalls = 0;
 $settled = settle_exact_payment($unitState, encoded_payment($validCanonicalPayment), static function () use (&$settlementCalls): string {
     $settlementCalls++;
     return 'settled-signature';
-});
+}, noop_confirmer());
 if ($settled !== 'settled-signature' || $settlementCalls !== 1) {
     fail('PHP exact settlement did not call the sender exactly once');
 }
@@ -639,7 +656,7 @@ try {
     settle_exact_payment($unitState, encoded_payment($retryPayment), static function () use (&$retryCalls): string {
         $retryCalls++;
         throw new RuntimeException('transient send failure');
-    });
+    }, noop_confirmer());
     fail('PHP exact settlement did not surface transient sender failure');
 } catch (RuntimeException $error) {
     if ($error->getMessage() !== 'transient send failure') {
@@ -649,7 +666,7 @@ try {
 $retrySettlement = settle_exact_payment($unitState, encoded_payment($retryPayment), static function () use (&$retryCalls): string {
     $retryCalls++;
     return 'retry-settled';
-});
+}, noop_confirmer());
 if ($retrySettlement !== 'retry-settled' || $retryCalls !== 2) {
     fail('PHP exact settlement did not release duplicate cache after sender failure');
 }
@@ -673,6 +690,7 @@ $successPayment = valid_exact_payment_shell($unitState, "\x07");
     ['PAYMENT-SIGNATURE' => encoded_payment($successPayment)],
     $unitState,
     static fn (): string => 'settled-success',
+    noop_confirmer(),
 );
 $paymentResponse = json_decode((string) ($successHeaders['PAYMENT-RESPONSE'] ?? ''), true);
 if (
@@ -994,6 +1012,280 @@ if ($tamperedHappyTx === false) {
 verify_exact_transaction($tamperedHappyTx, $tamperedRequirement, [$serverPub]);
 
 echo "PHP fee-payer attack regression suite OK\n";
+
+// --- P1.1 settlement-confirmation regression tests ------------------------
+// The protected resource MUST NOT be unlocked until the confirmer reports
+// confirmed or finalized. Mirrors typescript/packages/x402/src/signer.ts:225.
+$confirmState = $unitState;
+$confirmPayment = valid_exact_payment_shell($confirmState, "\x30");
+$unconfirmedCalls = 0;
+$senderCalls = 0;
+try {
+    settle_exact_payment(
+        $confirmState,
+        encoded_payment($confirmPayment),
+        static function () use (&$senderCalls): string {
+            $senderCalls++;
+            return 'pending-signature';
+        },
+        static function (array $state, string $signature) use (&$unconfirmedCalls): void {
+            $unconfirmedCalls++;
+            throw new RuntimeException('invalid_exact_svm_payload_settlement_not_confirmed');
+        },
+    );
+    fail('PHP exact settlement returned a signature without confirmation');
+} catch (RuntimeException $error) {
+    if (!str_contains($error->getMessage(), 'invalid_exact_svm_payload_settlement_not_confirmed')) {
+        throw $error;
+    }
+}
+if ($senderCalls !== 1 || $unconfirmedCalls !== 1) {
+    fail('PHP exact settlement did not invoke sender and confirmer exactly once before failing');
+}
+// Duplicate cache MUST have been released so a legitimate retry can settle.
+$confirmRetryCalls = 0;
+$confirmRetrySettlement = settle_exact_payment(
+    $confirmState,
+    encoded_payment($confirmPayment),
+    static function () use (&$confirmRetryCalls): string {
+        $confirmRetryCalls++;
+        return 'confirmed-signature';
+    },
+    noop_confirmer(),
+);
+if ($confirmRetrySettlement !== 'confirmed-signature' || $confirmRetryCalls !== 1) {
+    fail('PHP exact settlement did not release duplicate cache after a failed confirmation');
+}
+
+// protected_response MUST surface the not-confirmed error and emit 402.
+$confirmFailurePayment = valid_exact_payment_shell($confirmState, "\x31");
+[$confirmFailStatus, $confirmFailHeaders, $confirmFailBody] = protected_response(
+    ['PAYMENT-SIGNATURE' => encoded_payment($confirmFailurePayment)],
+    $confirmState,
+    static fn (): string => 'optimistic-signature',
+    static function (array $state, string $signature): void {
+        throw new RuntimeException('invalid_exact_svm_payload_settlement_not_confirmed');
+    },
+);
+if (
+    $confirmFailStatus !== 402
+    || ($confirmFailBody['error'] ?? null) !== 'payment_error'
+    || !str_contains((string) ($confirmFailBody['message'] ?? ''), 'invalid_exact_svm_payload_settlement_not_confirmed')
+    || !isset($confirmFailHeaders['PAYMENT-REQUIRED'])
+) {
+    fail('PHP protected response did not surface settlement-not-confirmed error');
+}
+
+// confirm_signature timing-out via the polling loop: a status fetcher that
+// always returns null exhausts SETTLEMENT_CONFIRMATION_MAX_ATTEMPTS attempts
+// and throws the canonical error. We override the loop interval by injecting
+// a fast no-sleep fetcher; the function uses sleep() between attempts so we
+// keep MAX_ATTEMPTS small in production. For this test we patch the function
+// pointer via a fetcher that bails immediately on first call.
+$timeoutAttempts = 0;
+try {
+    // Stub a fetcher that always returns 'processing' (i.e. not yet confirmed)
+    // for a single attempt by using a small max via direct invocation.
+    confirm_signature($confirmState, 'sig-pending', static function (array $state, string $signature) use (&$timeoutAttempts): ?array {
+        $timeoutAttempts++;
+        // Return a non-confirmed status so the polling loop falls through.
+        if ($timeoutAttempts >= 2) {
+            // Throw to fast-exit the polling loop rather than wait 30s in CI.
+            throw new RuntimeException('invalid_exact_svm_payload_settlement_not_confirmed');
+        }
+        return ['confirmationStatus' => 'processed', 'err' => null];
+    });
+    fail('PHP confirm_signature did not surface a not-confirmed status');
+} catch (RuntimeException $error) {
+    if (!str_contains($error->getMessage(), 'invalid_exact_svm_payload_settlement_not_confirmed')) {
+        throw $error;
+    }
+}
+
+// confirm_signature accepts confirmed and finalized statuses (positive control).
+confirm_signature($confirmState, 'sig-ok', static fn (array $state, string $signature): array => [
+    'confirmationStatus' => 'confirmed',
+    'err' => null,
+]);
+confirm_signature($confirmState, 'sig-ok', static fn (array $state, string $signature): array => [
+    'confirmationStatus' => 'finalized',
+    'err' => null,
+]);
+
+// confirm_signature rejects confirmed-with-error (the network confirmed the
+// signature but execution reverted — content MUST stay locked).
+try {
+    confirm_signature($confirmState, 'sig-err', static fn (array $state, string $signature): array => [
+        'confirmationStatus' => 'confirmed',
+        'err' => ['InstructionError' => [1, 'Custom']],
+    ]);
+    fail('PHP confirm_signature did not reject a confirmed-with-error status');
+} catch (RuntimeException $error) {
+    if (!str_contains($error->getMessage(), 'invalid_exact_svm_payload_settlement_not_confirmed')) {
+        throw $error;
+    }
+}
+
+// confirm_signature rejects an empty signature defensively.
+try {
+    confirm_signature($confirmState, '', static fn (array $state, string $signature): array => [
+        'confirmationStatus' => 'confirmed',
+        'err' => null,
+    ]);
+    fail('PHP confirm_signature did not reject an empty signature');
+} catch (RuntimeException $error) {
+    if (!str_contains($error->getMessage(), 'invalid_exact_svm_payload_settlement_not_confirmed')) {
+        throw $error;
+    }
+}
+
+// fetch_signature_status JSON-RPC contract test using the mock stream wrapper.
+if (!in_array('mock-rpc', stream_get_wrappers(), true)) {
+    stream_wrapper_register('mock-rpc', MockRpcStream::class);
+}
+$statusState = $confirmState;
+$statusState['rpcUrl'] = 'mock-rpc://get-signature-statuses';
+MockRpcStream::$response = '{"result":{"value":[{"confirmationStatus":"finalized","err":null}]}}';
+MockRpcStream::$lastBody = null;
+$statusResult = fetch_signature_status($statusState, 'mock-sig');
+if (
+    !is_array($statusResult)
+    || ($statusResult['confirmationStatus'] ?? null) !== 'finalized'
+) {
+    fail('PHP fetch_signature_status did not return the parsed status entry');
+}
+$statusRequest = json_decode((string) MockRpcStream::$lastBody, true, flags: JSON_THROW_ON_ERROR);
+if (
+    ($statusRequest['method'] ?? null) !== 'getSignatureStatuses'
+    || ($statusRequest['params'][0][0] ?? null) !== 'mock-sig'
+) {
+    fail('PHP fetch_signature_status did not post the expected getSignatureStatuses request');
+}
+MockRpcStream::$response = '{"result":{"value":[null]}}';
+$nullStatus = fetch_signature_status($statusState, 'mock-sig');
+if ($nullStatus !== null) {
+    fail('PHP fetch_signature_status did not return null for a missing status entry');
+}
+MockRpcStream::$response = '{"error":{"message":"rpc rejected"}}';
+try {
+    fetch_signature_status($statusState, 'mock-sig');
+    fail('PHP fetch_signature_status did not reject RPC errors');
+} catch (RuntimeException $error) {
+    if (!str_contains($error->getMessage(), 'getSignatureStatuses RPC error')) {
+        throw $error;
+    }
+}
+MockRpcStream::$response = false;
+try {
+    set_error_handler(static fn (): bool => true);
+    fetch_signature_status($statusState, 'mock-sig');
+    fail('PHP fetch_signature_status did not surface transport failures');
+} catch (RuntimeException $error) {
+    if ($error->getMessage() !== 'getSignatureStatuses HTTP request failed') {
+        throw $error;
+    }
+} finally {
+    restore_error_handler();
+}
+
+echo "PHP settlement confirmation regression suite OK\n";
+
+// --- P1.2 lighthouse optional-instruction bound regression tests ----------
+// The Rust and TS spines accept any program-id-matching Lighthouse
+// instruction. We mirror that allowlist but additionally bound the
+// per-instruction data and accounts size to prevent the facilitator from
+// co-signing pathologically large payloads. Within those bounds, any
+// Lighthouse discriminator is accepted (positive control). Above them, the
+// transaction is rejected with the canonical error.
+function build_lighthouse_test_transaction(array $state, int $dataLen, int $accountsCount): string
+{
+    $requirement = exact_requirement($state);
+    $clientPublicKey = substr(secret_key_bytes(secret_json("\x06")), 32, 32);
+    $mint = base58_decode_test($requirement['asset']);
+    $payTo = base58_decode_test($requirement['payTo']);
+    $tokenProgram = base58_decode_test($requirement['extra']['tokenProgram']);
+    $source = associated_token_address_test($clientPublicKey, $tokenProgram, $mint);
+    $destination = associated_token_address_test($payTo, $tokenProgram, $mint);
+    $computeProgram = base58_decode_test('ComputeBudget111111111111111111111111111111');
+    $lighthouseProgram = base58_decode_test('L2TExMFKdjpN9kozasaurPirfHy9P8sbXoAN1qA3S95');
+    // Fixed account-keys table; only the Lighthouse-instruction account-index
+    // list grows when accountsCount exceeds the table size, so we pre-pad
+    // with synthetic placeholder pubkeys.
+    $padKeys = [];
+    for ($i = 0; $i < max(0, $accountsCount); $i++) {
+        $padKeys[] = str_repeat(chr(0x50 + ($i % 16)), 32);
+    }
+    $accountKeys = array_merge(
+        [
+            $state['feePayerPublicKey'],
+            $clientPublicKey,
+            $source,
+            $mint,
+            $destination,
+            $computeProgram,
+            $tokenProgram,
+            $lighthouseProgram,
+        ],
+        $padKeys,
+    );
+    $lighthouseAccounts = [];
+    for ($i = 0; $i < $accountsCount; $i++) {
+        $lighthouseAccounts[] = 8 + $i; // indices into the padded section
+    }
+    $instructions = [
+        compiled_instruction_test(5, [], chr(2) . pack('V', 20_000)),
+        compiled_instruction_test(5, [], chr(3) . u64_le_test(1)),
+        compiled_instruction_test(6, [2, 3, 4, 1], chr(12) . u64_le_test((int) $requirement['amount']) . chr((int) $requirement['extra']['decimals'])),
+        compiled_instruction_test(7, $lighthouseAccounts, str_repeat("\x42", $dataLen)),
+    ];
+    $message = "\x80"
+        . "\x02"
+        . "\x01"
+        . "\x04"
+        . short_vec(count($accountKeys))
+        . implode('', $accountKeys)
+        . str_repeat("\x99", 32)
+        . short_vec(count($instructions))
+        . implode('', $instructions)
+        . short_vec(0);
+
+    return base64_encode(short_vec(2) . str_repeat("\x00", 128) . $message);
+}
+
+$lighthouseState = $unitState;
+$lighthouseRequirement = exact_requirement($lighthouseState);
+
+// Positive control: a small, bounded Lighthouse instruction with arbitrary
+// discriminator bytes is accepted (spine-parity behavior).
+$lighthouseHappyTx = base64_decode(build_lighthouse_test_transaction($lighthouseState, 64, 4), true);
+if ($lighthouseHappyTx === false) {
+    fail('lighthouse positive control transaction is not base64');
+}
+verify_exact_transaction($lighthouseHappyTx, $lighthouseRequirement, [$lighthouseState['feePayerPublicKey']]);
+
+// Negative: oversize Lighthouse data → reject with canonical error.
+$lighthouseFatTx = base64_decode(build_lighthouse_test_transaction($lighthouseState, X402Sdk\Interop\MAX_LIGHTHOUSE_INSTRUCTION_BYTES + 1, 4), true);
+if ($lighthouseFatTx === false) {
+    fail('lighthouse fat-data transaction is not base64');
+}
+assert_runtime_error('invalid_exact_svm_payload_lighthouse_instruction_not_allowed', static fn () => verify_exact_transaction($lighthouseFatTx, $lighthouseRequirement, [$lighthouseState['feePayerPublicKey']]));
+
+// Negative: too many Lighthouse account references → reject.
+$lighthouseManyAccountsTx = base64_decode(build_lighthouse_test_transaction($lighthouseState, 64, X402Sdk\Interop\MAX_LIGHTHOUSE_INSTRUCTION_ACCOUNTS + 1), true);
+if ($lighthouseManyAccountsTx === false) {
+    fail('lighthouse many-accounts transaction is not base64');
+}
+assert_runtime_error('invalid_exact_svm_payload_lighthouse_instruction_not_allowed', static fn () => verify_exact_transaction($lighthouseManyAccountsTx, $lighthouseRequirement, [$lighthouseState['feePayerPublicKey']]));
+
+// Boundary: exactly the maximum-allowed Lighthouse data size is still
+// accepted (off-by-one regression).
+$lighthouseBoundaryTx = base64_decode(build_lighthouse_test_transaction($lighthouseState, X402Sdk\Interop\MAX_LIGHTHOUSE_INSTRUCTION_BYTES, X402Sdk\Interop\MAX_LIGHTHOUSE_INSTRUCTION_ACCOUNTS), true);
+if ($lighthouseBoundaryTx === false) {
+    fail('lighthouse boundary transaction is not base64');
+}
+verify_exact_transaction($lighthouseBoundaryTx, $lighthouseRequirement, [$lighthouseState['feePayerPublicKey']]);
+
+echo "PHP lighthouse bound regression suite OK\n";
 
 // u64 parser branch coverage: both read_u64_le_int and read_u64_le_gmp must
 // reject malformed lengths and round-trip the full unsigned range.

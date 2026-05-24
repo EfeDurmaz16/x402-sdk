@@ -30,6 +30,23 @@ const TOKEN_2022_PROGRAM = 'TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb';
 const PROGRAM_DERIVED_ADDRESS_MARKER = 'ProgramDerivedAddress';
 const MAX_COMPUTE_UNIT_PRICE_MICROLAMPORTS = 5_000_000;
 const MAX_MEMO_BYTES = 256;
+// Defensive CU-abuse guard on Lighthouse optional instructions. The Rust
+// (rust/src/protocol/schemes/exact/verify.rs:263) and TS
+// (typescript/packages/x402/src/facilitator/exact/scheme.ts:292) spines accept
+// any instruction whose program-id matches Lighthouse without validating data
+// or accounts. We mirror the program-id allowlist but additionally bound the
+// per-instruction data and accounts size to keep the facilitator from
+// co-signing pathologically large payloads. These limits comfortably cover
+// every documented Lighthouse assertion shape (the largest known assertion
+// instructions are ~200 bytes / 8 accounts).
+const MAX_LIGHTHOUSE_INSTRUCTION_BYTES = 512;
+const MAX_LIGHTHOUSE_INSTRUCTION_ACCOUNTS = 16;
+// Canonical settlement confirmation policy mirrors the TS reference
+// (typescript/packages/x402/src/signer.ts:225-246): poll getSignatureStatuses
+// every SETTLEMENT_CONFIRMATION_INTERVAL_SECONDS until the signature reaches
+// "confirmed" or "finalized", bounded by SETTLEMENT_CONFIRMATION_MAX_ATTEMPTS.
+const SETTLEMENT_CONFIRMATION_MAX_ATTEMPTS = 30;
+const SETTLEMENT_CONFIRMATION_INTERVAL_SECONDS = 1;
 
 function normalize_amount(string $price): string
 {
@@ -551,6 +568,18 @@ function verify_optional_instructions(array $instructions, array $accountKeys, a
             continue;
         }
         if ($program === $lighthouseProgram) {
+            // Mirror Rust/TS spine: only the program-id is required to match.
+            // We add a defensive size bound (see MAX_LIGHTHOUSE_INSTRUCTION_*
+            // constants and the comment at their definition) so the facilitator
+            // cannot be coerced into co-signing pathologically large Lighthouse
+            // payloads. Within these bounds, any Lighthouse discriminator is
+            // accepted, matching the spine's permissive behavior.
+            if (strlen($instruction['data']) > MAX_LIGHTHOUSE_INSTRUCTION_BYTES) {
+                throw new \RuntimeException('invalid_exact_svm_payload_lighthouse_instruction_not_allowed');
+            }
+            if (count($instruction['accounts']) > MAX_LIGHTHOUSE_INSTRUCTION_ACCOUNTS) {
+                throw new \RuntimeException('invalid_exact_svm_payload_lighthouse_instruction_not_allowed');
+            }
             continue;
         }
         if ($program === $ataProgram && valid_destination_ata_create_instruction($instruction, $accountKeys, $requirement, $transfer)) {
@@ -761,8 +790,12 @@ function positive_gmp_mod(\GMP $value, \GMP $modulus): \GMP
     return $result;
 }
 
-function settle_exact_payment(array $state, string $paymentHeader, ?callable $sender = null): string
-{
+function settle_exact_payment(
+    array $state,
+    string $paymentHeader,
+    ?callable $sender = null,
+    ?callable $confirmer = null,
+): string {
     $decoded = decode_payment_signature($paymentHeader);
     if (($decoded['x402Version'] ?? null) !== 2) {
         throw new \RuntimeException('unsupported x402Version: ' . ($decoded['x402Version'] ?? 'null'));
@@ -798,16 +831,86 @@ function settle_exact_payment(array $state, string $paymentHeader, ?callable $se
 
     // Cache-poisoning invariant: settlement_cache_is_duplicate() inserts the
     // key BEFORE the RPC send so concurrent duplicates are rejected, but any
-    // exception from the sender MUST release the key. Without the release
-    // below, a transient RPC failure would permanently lock out a legitimate
-    // retry. The regression is covered by tests/interop_server_test.php
-    // ("PHP exact settlement did not release duplicate cache after sender failure").
+    // exception from the sender or confirmation step MUST release the key.
+    // Without the release below, a transient RPC failure would permanently
+    // lock out a legitimate retry. The regression is covered by
+    // tests/interop_server_test.php (search for "release duplicate cache").
     try {
-        return ($sender ?? __NAMESPACE__ . '\\send_transaction')($state, $signedTransaction);
+        $signature = ($sender ?? __NAMESPACE__ . '\\send_transaction')($state, $signedTransaction);
+        // Settlement confirmation gate (P1.1): mirroring TS reference
+        // typescript/packages/x402/src/signer.ts:225-246 and
+        // typescript/packages/x402/src/facilitator/exact/scheme.ts:417.
+        // The protected resource MUST NOT be unlocked until the network has
+        // confirmed the transaction. If confirmation fails or times out we
+        // release the duplicate-settlement cache so a legitimate retry is
+        // possible and surface the canonical error reason.
+        ($confirmer ?? __NAMESPACE__ . '\\confirm_signature')($state, $signature);
+        return $signature;
     } catch (\Throwable $error) {
         settlement_cache_release($cacheKey);
         throw $error;
     }
+}
+
+function confirm_signature(array $state, string $signature, ?callable $statusFetcher = null): void
+{
+    if ($signature === '') {
+        throw new \RuntimeException('invalid_exact_svm_payload_settlement_not_confirmed');
+    }
+    $fetcher = $statusFetcher ?? __NAMESPACE__ . '\\fetch_signature_status';
+    for ($attempt = 0; $attempt < SETTLEMENT_CONFIRMATION_MAX_ATTEMPTS; $attempt++) {
+        $status = $fetcher($state, $signature);
+        $confirmationStatus = is_array($status) ? ($status['confirmationStatus'] ?? null) : null;
+        if ($confirmationStatus === 'confirmed' || $confirmationStatus === 'finalized') {
+            $err = is_array($status) ? ($status['err'] ?? null) : null;
+            if ($err !== null) {
+                throw new \RuntimeException('invalid_exact_svm_payload_settlement_not_confirmed');
+            }
+            return;
+        }
+        if ($attempt + 1 < SETTLEMENT_CONFIRMATION_MAX_ATTEMPTS) {
+            sleep(SETTLEMENT_CONFIRMATION_INTERVAL_SECONDS);
+        }
+    }
+
+    throw new \RuntimeException('invalid_exact_svm_payload_settlement_not_confirmed');
+}
+
+function fetch_signature_status(array $state, string $signature): ?array
+{
+    $body = json_encode([
+        'jsonrpc' => '2.0',
+        'id' => 1,
+        'method' => 'getSignatureStatuses',
+        'params' => [
+            [$signature],
+            ['searchTransactionHistory' => false],
+        ],
+    ], JSON_THROW_ON_ERROR);
+
+    $response = file_get_contents($state['rpcUrl'], false, stream_context_create([
+        'http' => [
+            'method' => 'POST',
+            'header' => "content-type: application/json\r\n",
+            'content' => $body,
+            'timeout' => 15,
+        ],
+    ]));
+    if ($response === false) {
+        throw new \RuntimeException('getSignatureStatuses HTTP request failed');
+    }
+
+    $payload = json_decode($response, true, flags: JSON_THROW_ON_ERROR);
+    if (isset($payload['error'])) {
+        throw new \RuntimeException('getSignatureStatuses RPC error: ' . json_encode($payload['error']));
+    }
+
+    $entries = $payload['result']['value'] ?? null;
+    if (!is_array($entries)) {
+        return null;
+    }
+    $entry = $entries[0] ?? null;
+    return is_array($entry) ? $entry : null;
 }
 
 function settlement_cache_is_duplicate(string $key, ?int $nowMs = null): bool
@@ -902,7 +1005,7 @@ function response_for(string $path, array $headers, ?array $state): array
     };
 }
 
-function protected_response(array $headers, array $state, ?callable $sender = null): array
+function protected_response(array $headers, array $state, ?callable $sender = null, ?callable $confirmer = null): array
 {
     $paymentSignature = header_value($headers, 'PAYMENT-SIGNATURE');
     if ($paymentSignature === null || $paymentSignature === '') {
@@ -914,7 +1017,7 @@ function protected_response(array $headers, array $state, ?callable $sender = nu
     }
 
     try {
-        $settlement = settle_exact_payment($state, $paymentSignature, $sender);
+        $settlement = settle_exact_payment($state, $paymentSignature, $sender, $confirmer);
         $paymentResponse = [
             'success' => true,
             'network' => $state['network'],
