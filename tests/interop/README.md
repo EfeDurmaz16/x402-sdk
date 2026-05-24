@@ -66,6 +66,41 @@ example, the current smoke script selects the exact-payment tests by matching
 `client pays`, while the multi-currency vectors remain available in the full
 test suite.
 
+Useful package scripts:
+
+```bash
+pnpm run test:process
+pnpm run test:e2e
+pnpm run test:typescript
+pnpm run test:rust
+pnpm run test:matrix
+```
+
+Run one client/server pair while debugging an adapter:
+
+```bash
+X402_INTEROP_CLIENTS=typescript X402_INTEROP_SERVERS=rust pnpm test
+X402_INTEROP_CLIENTS=rust X402_INTEROP_SERVERS=typescript pnpm test
+```
+
+The selectors must match adapter IDs from
+`tests/interop/src/implementations.ts`. Unknown IDs fail before the matrix runs
+so typos do not silently reduce coverage.
+
+Run one language against itself:
+
+```bash
+X402_INTEROP_CLIENTS=typescript X402_INTEROP_SERVERS=typescript pnpm test
+X402_INTEROP_CLIENTS=rust X402_INTEROP_SERVERS=rust pnpm test
+```
+
+Run one language across the opposite side of the matrix:
+
+```bash
+X402_INTEROP_CLIENTS=typescript X402_INTEROP_SERVERS=typescript,rust pnpm test
+X402_INTEROP_CLIENTS=typescript,rust X402_INTEROP_SERVERS=rust pnpm test
+```
+
 If the TypeScript adapter cannot resolve `@solana/x402/...` subpaths, rebuild
 the local package and refresh the interop package install:
 
@@ -178,3 +213,18 @@ If no filter is set, all stable adapters are enabled by default:
 - servers: `typescript,rust`
 
 The suite performs a local socket-bind preflight. If the current environment forbids opening loopback ports, the e2e test is skipped instead of failing. In CI, where loopback sockets are available, the matrix runs normally.
+
+## Troubleshooting
+
+- `Unknown X402_INTEROP_CLIENTS adapter id(s)` or
+  `Unknown X402_INTEROP_SERVERS adapter id(s)`: check the selected IDs against
+  `tests/interop/src/implementations.ts`.
+- `Unexpected ... payload`: the adapter wrote a JSON object that does not match
+  the process contract. Keep logs on stderr and reserve stdout for the single
+  `ready` or `result` message.
+- `Adapter stderr:` in a failure: the harness captured stderr from the child
+  adapter and attached the tail to the thrown error.
+- `Timed out waiting for ...`: the adapter started but did not emit the expected
+  stdout message before the harness timeout.
+- TypeScript package resolution errors usually mean `@solana/x402` needs to be
+  rebuilt in `typescript` before reinstalling `tests/interop`.
