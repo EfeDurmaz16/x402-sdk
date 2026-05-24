@@ -127,6 +127,11 @@ class ExactPaymentClient(
 
         val payTo = requirement.payTo?.takeIf { it.isNotBlank() }
             ?: throw IllegalArgumentException("payTo is required for SVM exact payment requirements")
+        // Fail-fast on a self-transfer challenge: when payTo equals the payer wallet
+        // the SPL Token program rejects the transfer on-chain (source and destination
+        // ATAs are identical). Catch this on the client before any Base58 decoding,
+        // ATA derivation, or RPC work happens.
+        require(payTo != payer) { "payTo must differ from payer (self-transfer)" }
         val feePayer = requirement.extra.string("feePayer")
             ?: throw IllegalArgumentException(
                 "feePayer is required in paymentRequirements.extra for SVM transactions",

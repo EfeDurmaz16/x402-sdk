@@ -177,7 +177,14 @@ object ExactChallenge {
         if (offered.isNullOrBlank()) {
             return false
         }
-        return stablecoinMint(offered, network) == stablecoinMint(accepted, network)
+        // stablecoinMint fails closed on unknown networks for known symbols by
+        // throwing IllegalArgumentException. In the context of preference matching
+        // an unresolvable pair simply means "not a match" — never let the throw
+        // escape and break the entire challenge-selection loop for unrelated
+        // requirements.
+        val offeredMint = runCatching { stablecoinMint(offered, network) }.getOrNull() ?: return false
+        val acceptedMint = runCatching { stablecoinMint(accepted, network) }.getOrNull() ?: return false
+        return offeredMint == acceptedMint
     }
 
     /**

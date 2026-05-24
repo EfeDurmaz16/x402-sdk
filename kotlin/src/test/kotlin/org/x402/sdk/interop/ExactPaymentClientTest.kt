@@ -135,6 +135,27 @@ class ExactPaymentClientTest {
     }
 
     @Test
+    fun `client_rejects_self_transfer_when_payTo_equals_payer`() {
+        // Money-loss bug regression: when payTo collides with the payer wallet
+        // the SPL Token program rejects the transfer on-chain. Fail fast on the
+        // client before any Base58 decoding, ATA derivation, or RPC work runs.
+        val builder = RecordingTransactionBuilder(byteArrayOf(1))
+        val signer = RecordingTransactionSigner(byteArrayOf(2))
+        val client = ExactPaymentClient(builder, signer)
+
+        val payer = "Payer11111111111111111111111111111111"
+        val error = assertFailsWith<IllegalArgumentException> {
+            client.createPaymentHeaders(
+                selected = selectedRequirement(payTo = payer),
+                payer = payer,
+            )
+        }
+        assertEquals("payTo must differ from payer (self-transfer)", error.message)
+        assertEquals(0, builder.requests.size)
+        assertEquals(0, signer.inputs.size)
+    }
+
+    @Test
     fun `rejects challenge whose payTo equals feePayer (self-pay loop attack)`() {
         val builder = RecordingTransactionBuilder(byteArrayOf(1))
         val signer = RecordingTransactionSigner(byteArrayOf(2))

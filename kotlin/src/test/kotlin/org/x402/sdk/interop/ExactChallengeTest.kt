@@ -143,6 +143,66 @@ class ExactChallengeTest {
     }
 
     @Test
+    fun `currencyMatches_returns_false_when_network_is_unrecognized`() {
+        // currencyMatches is private; exercise it via selectSvmChallenge with a
+        // single candidate whose network is unrecognised. The preference loop
+        // must treat the unresolvable pair as "not a match" instead of letting
+        // the underlying IllegalArgumentException escape and break selection.
+        val body = """
+            {
+              "accepts": [
+                {
+                  "scheme": "exact",
+                  "network": "solana:not-a-real-cluster",
+                  "asset": "SomeArbitraryMintAddress1111111111111111111",
+                  "amount": "1000"
+                }
+              ]
+            }
+        """.trimIndent()
+
+        val selected = ExactChallenge.selectSvmChallenge(
+            headers = emptyMap(),
+            body = body,
+            network = "solana:not-a-real-cluster",
+            preferredCurrencies = listOf("USDC"),
+        )
+
+        // The candidate matched scheme + network filters but does not satisfy
+        // the USDC preference under an unresolvable network — no throw, no match.
+        assertNull(selected)
+    }
+
+    @Test
+    fun `selectSvmChallenge_returns_null_for_unrecognized_network_with_stablecoin_preference`() {
+        // Regression: previously an unrecognised network + a stablecoin symbol
+        // preference threw IllegalArgumentException out of selectSvmChallenge,
+        // breaking the entire challenge-selection loop. Must return null instead.
+        val body = """
+            {
+              "accepts": [
+                {
+                  "scheme": "exact",
+                  "network": "solana:not-a-real-cluster",
+                  "asset": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+                  "amount": "1000"
+                }
+              ]
+            }
+        """.trimIndent()
+
+        // No throw — just a null selection.
+        val selected = ExactChallenge.selectSvmChallenge(
+            headers = emptyMap(),
+            body = body,
+            network = "solana:not-a-real-cluster",
+            preferredCurrencies = listOf("PYUSD"),
+        )
+
+        assertNull(selected)
+    }
+
+    @Test
     fun `stablecoinMint resolves PYUSD and USDG per network`() {
         assertEquals(
             "2b1kV6DkPAnxd5ixfnxCpjxmKwqjjaYmCZfHsFu24GXo",
