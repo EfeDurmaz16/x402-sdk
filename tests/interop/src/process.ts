@@ -94,6 +94,11 @@ function spawnAdapter(
   extraEnv: Record<string, string> = {},
 ): AdapterProcess {
   const [command, ...args] = implementation.command;
+  // detached: true so the child gets its own process group; this lets us kill
+  // grandchildren spawned via `sh -c "cd X && Y"` wrappers (luajit, go, ruby,
+  // php, python adapters all do this). Without it SIGTERM only reaches the
+  // wrapper and the real adapter leaks across matrix runs, eventually
+  // exhausting RPC connection pools and port allocations.
   const child = spawn(command, args, {
     cwd: process.cwd(),
     env: {
@@ -101,6 +106,7 @@ function spawnAdapter(
       ...extraEnv,
     },
     stdio: ["ignore", "pipe", "pipe"],
+    detached: true,
   });
 
   const stderr: string[] = [];
@@ -109,6 +115,21 @@ function spawnAdapter(
   });
 
   return { child, stderr };
+}
+
+function killAdapterTree(child: ChildProcess, signal: NodeJS.Signals): void {
+  if (child.pid === undefined) {
+    return;
+  }
+  try {
+    process.kill(-child.pid, signal);
+  } catch {
+    try {
+      child.kill(signal);
+    } catch {
+      // child already exited
+    }
+  }
 }
 
 export async function startServer(
@@ -124,14 +145,14 @@ export async function startServer(
   );
 
   if (ready.type !== "ready" || ready.role !== "server" || !ready.port) {
-    adapter.child.kill("SIGTERM");
+    killAdapterTree(adapter.child, "SIGTERM");
     throw new Error(
       `Unexpected server readiness payload from ${implementation.id}: ${formatPayload(ready)}`,
     );
   }
 
   if (ready.implementation !== implementation.id) {
-    adapter.child.kill("SIGTERM");
+    killAdapterTree(adapter.child, "SIGTERM");
     throw new Error(
       `Server adapter ${implementation.id} reported implementation ${ready.implementation}`,
     );
@@ -188,13 +209,13 @@ export async function runClient(
 }
 
 export async function stopServer(server: RunningServer): Promise<void> {
-  server.child.kill("SIGTERM");
+  killAdapterTree(server.child, "SIGTERM");
   await Promise.race([
     new Promise<void>(resolve => {
       server.child.once("exit", () => resolve());
     }),
     delay(5_000).then(() => {
-      server.child.kill("SIGKILL");
+      killAdapterTree(server.child, "SIGKILL");
     }),
   ]);
 }
