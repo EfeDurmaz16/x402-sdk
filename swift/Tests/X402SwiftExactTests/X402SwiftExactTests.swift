@@ -285,6 +285,85 @@ private struct FixedATAResolver: AssociatedTokenAddressResolver {
     }
 }
 
+private let multiCurrencyEnvelopeDevnet = """
+{"x402Version":2,"accepts":[
+  {"scheme":"exact","network":"solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1","amount":"1000","asset":"4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU","payTo":"11111111111111111111111111111111","extra":{"feePayer":"11111111111111111111111111111111","decimals":6}},
+  {"scheme":"exact","network":"solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1","amount":"2000","asset":"CXk2AMBfi3TwaEL2468s6zP8xq9NxTXjp9gjMgzeUynM","payTo":"11111111111111111111111111111111","extra":{"feePayer":"11111111111111111111111111111111","decimals":6,"tokenProgram":"TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"}}
+]}
+"""
+
+private let multiCurrencyEnvelopeMainnet = """
+{"x402Version":2,"accepts":[
+  {"scheme":"exact","network":"solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp","amount":"1000","asset":"EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v","payTo":"11111111111111111111111111111111","extra":{"feePayer":"11111111111111111111111111111111","decimals":6}},
+  {"scheme":"exact","network":"solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp","amount":"2000","asset":"2b1kV6DkPAnxd5ixfnxCpjxmKwqjjaYmCZfHsFu24GXo","payTo":"11111111111111111111111111111111","extra":{"feePayer":"11111111111111111111111111111111","decimals":6,"tokenProgram":"TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"}},
+  {"scheme":"exact","network":"solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp","amount":"3000","asset":"2u1tszSeqZ3qBWF3uNGPFc8TzMk2tdiwknnRMWGWjGWH","payTo":"11111111111111111111111111111111","extra":{"feePayer":"11111111111111111111111111111111","decimals":6,"tokenProgram":"TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"}}
+]}
+"""
+
+@Test func selectChallengePicksPyusdWhenPreferred() throws {
+    let parsed = try parseX402Challenge(
+        headers: [:],
+        body: Data(multiCurrencyEnvelopeDevnet.utf8),
+        selection: ChallengeSelection(network: "devnet", currencies: ["PYUSD", "USDC"])
+    )
+    let requirement = try #require(parsed)
+    #expect(requirement.asset == "CXk2AMBfi3TwaEL2468s6zP8xq9NxTXjp9gjMgzeUynM")
+}
+
+@Test func selectChallengePicksUsdcWhenPreferred() throws {
+    let parsed = try parseX402Challenge(
+        headers: [:],
+        body: Data(multiCurrencyEnvelopeDevnet.utf8),
+        selection: ChallengeSelection(network: "devnet", currencies: ["USDC", "PYUSD"])
+    )
+    let requirement = try #require(parsed)
+    #expect(requirement.asset == "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU")
+}
+
+@Test func selectChallengeMatchesPyusdMintByDevnet() throws {
+    let parsed = try parseX402Challenge(
+        headers: [:],
+        body: Data(multiCurrencyEnvelopeDevnet.utf8),
+        selection: ChallengeSelection(network: "devnet", currencies: ["PYUSD"])
+    )
+    let requirement = try #require(parsed)
+    #expect(requirement.network == X402SwiftExact.solanaDevnet)
+    #expect(requirement.asset == "CXk2AMBfi3TwaEL2468s6zP8xq9NxTXjp9gjMgzeUynM")
+}
+
+@Test func selectChallengeMatchesPyusdMintByMainnet() throws {
+    let parsed = try parseX402Challenge(
+        headers: [:],
+        body: Data(multiCurrencyEnvelopeMainnet.utf8),
+        selection: ChallengeSelection(network: "mainnet", currencies: ["PYUSD"])
+    )
+    let requirement = try #require(parsed)
+    #expect(requirement.network == X402SwiftExact.solanaMainnet)
+    #expect(requirement.asset == "2b1kV6DkPAnxd5ixfnxCpjxmKwqjjaYmCZfHsFu24GXo")
+}
+
+@Test func selectChallengeMatchesUsdgMintByMainnet() throws {
+    let parsed = try parseX402Challenge(
+        headers: [:],
+        body: Data(multiCurrencyEnvelopeMainnet.utf8),
+        selection: ChallengeSelection(network: "mainnet", currencies: ["USDG"])
+    )
+    let requirement = try #require(parsed)
+    #expect(requirement.network == X402SwiftExact.solanaMainnet)
+    #expect(requirement.asset == "2u1tszSeqZ3qBWF3uNGPFc8TzMk2tdiwknnRMWGWjGWH")
+}
+
+@Test func currencyMatchesRejectsUnknownSymbol() throws {
+    // Preferences contain only an unknown symbol — selector must return nil
+    // rather than silently falling through to a different stablecoin.
+    let parsed = try parseX402Challenge(
+        headers: [:],
+        body: Data(multiCurrencyEnvelopeDevnet.utf8),
+        selection: ChallengeSelection(network: "devnet", currencies: ["BOGUS"])
+    )
+    #expect(parsed == nil)
+}
+
 private extension Data {
     init(hex: String) throws {
         guard hex.count.isMultiple(of: 2) else {

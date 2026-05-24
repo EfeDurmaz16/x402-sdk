@@ -102,7 +102,7 @@ private func selectRequirement(from data: Data, selection: ChallengeSelection) t
     let candidates = onNetwork.isEmpty ? solana : onNetwork
     if let currencies = selection.currencies, !currencies.isEmpty {
         for currency in currencies {
-            if let match = candidates.first(where: { currencyMatches(offered: $0.asset, accepted: currency) }) {
+            if let match = candidates.first(where: { currencyMatches(offered: $0.asset, accepted: currency, network: $0.network) }) {
                 return match
             }
         }
@@ -119,16 +119,79 @@ private func canonicalNetwork(_ network: String) -> String {
         return X402SwiftExact.solanaDevnet
     case "mainnet", "mainnet-beta", X402SwiftExact.solanaMainnet:
         return X402SwiftExact.solanaMainnet
+    case "testnet", "solana-testnet", X402SwiftExact.solanaTestnet:
+        return X402SwiftExact.solanaTestnet
     default:
         return network
     }
 }
 
-private func currencyMatches(offered: String, accepted: String) -> Bool {
-    if offered == accepted { return true }
-    if accepted.uppercased() == "USDC" {
-        return offered == "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU"
-            || offered == "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+/// Canonical stablecoin mint table.
+/// MUST mirror the TypeScript reference `STABLECOIN_MINTS` exactly.
+/// Source: typescript/packages/x402/src/protocol/schemes/exact/constants.ts lines 89-111.
+enum StablecoinMints {
+    // USDC — TS constants.ts:40-42
+    static let usdcMainnet = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+    static let usdcDevnet  = "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU"
+    static let usdcTestnet = "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU"
+    // USDT — TS constants.ts:43
+    static let usdtMainnet = "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB"
+    // USDG — TS constants.ts:44-46
+    static let usdgMainnet = "2u1tszSeqZ3qBWF3uNGPFc8TzMk2tdiwknnRMWGWjGWH"
+    static let usdgDevnet  = "4F6PM96JJxngmHnZLBh9n58RH4aTVNWvDs2nuwrT5BP7"
+    static let usdgTestnet = "4F6PM96JJxngmHnZLBh9n58RH4aTVNWvDs2nuwrT5BP7"
+    // PYUSD — TS constants.ts:47-49
+    static let pyusdMainnet = "2b1kV6DkPAnxd5ixfnxCpjxmKwqjjaYmCZfHsFu24GXo"
+    static let pyusdDevnet  = "CXk2AMBfi3TwaEL2468s6zP8xq9NxTXjp9gjMgzeUynM"
+    static let pyusdTestnet = "CXk2AMBfi3TwaEL2468s6zP8xq9NxTXjp9gjMgzeUynM"
+    // CASH (mainnet only) — TS constants.ts:50
+    static let cashMainnet = "CASHx9KJUStyftLFWGvEVf59SGeG9sh5FfcnZMVPCASH"
+
+    /// Per-network resolution mirroring TS `STABLECOIN_MINTS` (constants.ts:89-111).
+    static func mints(forSymbol symbol: String) -> [String: String] {
+        switch symbol.uppercased() {
+        case "USDC":
+            return [
+                X402SwiftExact.solanaMainnet: usdcMainnet,
+                X402SwiftExact.solanaDevnet:  usdcDevnet,
+                X402SwiftExact.solanaTestnet: usdcTestnet,
+            ]
+        case "USDT":
+            return [X402SwiftExact.solanaMainnet: usdtMainnet]
+        case "USDG":
+            return [
+                X402SwiftExact.solanaMainnet: usdgMainnet,
+                X402SwiftExact.solanaDevnet:  usdgDevnet,
+                X402SwiftExact.solanaTestnet: usdgTestnet,
+            ]
+        case "PYUSD":
+            return [
+                X402SwiftExact.solanaMainnet: pyusdMainnet,
+                X402SwiftExact.solanaDevnet:  pyusdDevnet,
+                X402SwiftExact.solanaTestnet: pyusdTestnet,
+            ]
+        case "CASH":
+            return [X402SwiftExact.solanaMainnet: cashMainnet]
+        default:
+            return [:]
+        }
     }
-    return false
+}
+
+/// Match an offered mint address against an accepted currency symbol.
+/// Resolves the symbol through the canonical `STABLECOIN_MINTS` table
+/// (TS reference: typescript/packages/x402/src/protocol/schemes/exact/constants.ts:89-111)
+/// across mainnet/devnet/testnet. Falls back to direct equality so a caller
+/// that already passes a mint string still matches. Unknown symbols return
+/// `false` so the selector can fall through to the cheapest-offer branch.
+private func currencyMatches(offered: String, accepted: String, network: String) -> Bool {
+    if offered == accepted { return true }
+    let table = StablecoinMints.mints(forSymbol: accepted)
+    if table.isEmpty { return false }
+    let canonical = canonicalNetwork(network)
+    if let pinned = table[canonical], pinned == offered { return true }
+    // Cross-network: still allow a symbol match if the offered mint appears
+    // anywhere in the table for that symbol. This preserves selection when a
+    // server lists a devnet mint while the client preference is "mainnet".
+    return table.values.contains(offered)
 }

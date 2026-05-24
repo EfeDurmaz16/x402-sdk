@@ -8,6 +8,7 @@ public enum X402SwiftExact {
     public static let exactScheme = "exact"
     public static let solanaDevnet = "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1"
     public static let solanaMainnet = "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
+    public static let solanaTestnet = "solana:4uhcVJyU9pJkvQyS88uRDiswHXSCkY3z"
     public static let tokenProgram = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
     public static let token2022Program = "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
     public static let associatedTokenProgram = "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
