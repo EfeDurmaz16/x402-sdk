@@ -108,6 +108,43 @@ module X402SDK
         )
       end
 
+      # Verify all non-managed client signatures on a versioned transaction
+      # against the message bytes. Mirrors the Rust spine ordering in
+      # `rust/src/bin/interop_server.rs:316-324`, where `process_payment`
+      # validates the envelope BEFORE `sign_fee_payer` is called. We must
+      # never apply the facilitator signature to a transaction whose
+      # client-provided signatures are forged or missing, otherwise the
+      # partially-signed envelope leaks back to the attacker.
+      def verify_client_signatures!(transaction, managed_signers)
+        bytes = transaction.b
+        signature_count, signatures_offset = read_short_vec(bytes, 0)
+        message_offset = signatures_offset + (signature_count * 64)
+        raise "invalid_exact_svm_payload_signature" if message_offset >= bytes.bytesize
+
+        message = bytes.byteslice(message_offset, bytes.bytesize - message_offset)
+        raise "invalid_exact_svm_payload_signature" unless message.getbyte(0) == 0x80
+
+        required_signatures = message.getbyte(1)
+        raise "invalid_exact_svm_payload_signature" if required_signatures > signature_count
+        account_count, account_offset = read_short_vec(message, 4)
+        raise "invalid_exact_svm_payload_signature" if required_signatures > account_count
+
+        zero_signature = "\x00".b * 64
+        required_signatures.times do |index|
+          signer_key_start = account_offset + (index * 32)
+          raise "invalid_exact_svm_payload_signature" if signer_key_start + 32 > message.bytesize
+
+          signer_key = message.byteslice(signer_key_start, 32)
+          # Facilitator-managed signers sign in a later step. Skip here; an
+          # empty placeholder is expected at envelope-decode time.
+          next if managed_signers.include?(signer_key)
+
+          signature = bytes.byteslice(signatures_offset + (index * 64), 64)
+          raise "invalid_exact_svm_payload_signature" if signature == zero_signature
+          raise "invalid_exact_svm_payload_signature" unless verify_ed25519(signer_key, message, signature)
+        end
+      end
+
       def accepted_requirement_matches?(left, right)
         left == right
       end
@@ -464,6 +501,51 @@ module X402SDK
         k = bytes_to_int_le(Digest::SHA512.digest(encoded_r + public_key + message)) % ED25519_L
         s = (r + (k * scalar)) % ED25519_L
         encoded_r + int_to_32_le(s)
+      end
+
+      # Verify an Ed25519 signature against a message and public key.
+      # Returns true if the signature is valid, false otherwise.
+      def verify_ed25519(public_key, message, signature)
+        return false unless signature.is_a?(String) && signature.bytesize == 64
+        return false unless public_key.is_a?(String) && public_key.bytesize == 32
+
+        encoded_r = signature.byteslice(0, 32)
+        s = bytes_to_int_le(signature.byteslice(32, 32))
+        return false if s >= ED25519_L
+
+        big_a = decode_point(public_key)
+        return false if big_a.nil?
+        big_r = decode_point(encoded_r)
+        return false if big_r.nil?
+
+        k = bytes_to_int_le(Digest::SHA512.digest(encoded_r + public_key + message)) % ED25519_L
+        left = scalar_mult(s, [ED25519_BASE_X, ED25519_BASE_Y])
+        right = point_add(big_r, scalar_mult(k, big_a))
+        left == right
+      end
+
+      def decode_point(bytes)
+        return nil unless bytes.bytesize == 32
+
+        y_bytes = bytes.bytes
+        sign = y_bytes[-1] >> 7
+        y_bytes[-1] &= 0x7f
+        y = y_bytes.reverse.reduce(0) { |acc, byte| (acc << 8) | byte }
+        return nil if y >= ED25519_P
+
+        y2 = (y * y) % ED25519_P
+        numerator = (y2 - 1) % ED25519_P
+        denominator = ((ED25519_D * y2) + 1) % ED25519_P
+        return nil if denominator.zero?
+
+        x2 = (numerator * mod_inverse(denominator, ED25519_P)) % ED25519_P
+        x = mod_sqrt(x2, ED25519_P)
+        return nil if x.nil?
+
+        x = ED25519_P - x if (x & 1) != sign
+        return nil unless ((x * x - x2) % ED25519_P).zero?
+
+        [x, y]
       end
 
       def prune_scalar(bytes)

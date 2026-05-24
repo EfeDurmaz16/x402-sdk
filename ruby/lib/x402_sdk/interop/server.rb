@@ -96,7 +96,19 @@ module X402SDK
         ((Integer(whole, 10) * 1_000_000) + Integer(fraction.empty? ? "0" : fraction, 10)).to_s
       end
 
-      def exact_requirement(state, mint: state.mint)
+      def exact_requirement(state, mint: state.mint, resource: nil)
+        extra = {
+          "feePayer" => Exact.base58_encode(state.fee_payer.raw_public_key),
+          "decimals" => DEFAULT_TOKEN_DECIMALS,
+          "tokenProgram" => token_program_for_mint(mint)
+        }
+        # Bind the payment to the resource being unlocked. Without this, a
+        # payment built for /resource/a can be replayed against /resource/b.
+        # Mirrors the TS reference behavior in
+        # `typescript/packages/x402/src/facilitator/exact/scheme.ts` where
+        # `requirements.extra.memo` is compared against the on-chain memo
+        # instruction. The resource string becomes the canonical memo.
+        extra["memo"] = resource if resource.is_a?(String) && !resource.empty?
         {
           "scheme" => "exact",
           "network" => state.network,
@@ -104,28 +116,24 @@ module X402SDK
           "amount" => state.amount,
           "payTo" => state.pay_to,
           "maxTimeoutSeconds" => DEFAULT_MAX_TIMEOUT_SECONDS,
-          "extra" => {
-            "feePayer" => Exact.base58_encode(state.fee_payer.raw_public_key),
-            "decimals" => DEFAULT_TOKEN_DECIMALS,
-            "tokenProgram" => token_program_for_mint(mint)
-          }
+          "extra" => extra
         }
       end
 
-      def exact_requirements(state)
+      def exact_requirements(state, resource: nil)
         ([state.mint] + state.extra_offered_mints).map do |mint|
-          exact_requirement(state, mint: mint)
+          exact_requirement(state, mint: mint, resource: resource)
         end
       end
 
-      def exact_challenge(state)
+      def exact_challenge(state, resource: nil)
         {
           "x402Version" => 2,
           "resource" => {
             "type" => "http",
-            "uri" => DEFAULT_RESOURCE_PATH
+            "uri" => resource || DEFAULT_RESOURCE_PATH
           },
-          "accepts" => exact_requirements(state)
+          "accepts" => exact_requirements(state, resource: resource)
         }
       end
 
@@ -147,12 +155,24 @@ module X402SDK
         Base64.strict_encode64(JSON.generate(challenge))
       end
 
-      def settle_exact_payment(state, payment_header)
+      def settle_exact_payment(state, payment_header, resource: nil)
         decoded = decode_payment_signature(payment_header)
-        requirements = exact_requirements(state)
+        requirements = exact_requirements(state, resource: resource)
         raise "unsupported x402Version: #{decoded["x402Version"]}" unless decoded["x402Version"] == 2
 
         accepted = decoded["accepted"]
+        # P1.2: Bind the payment to the resource being unlocked. If a resource
+        # is expected, the accepted requirement MUST carry the matching memo
+        # — otherwise an attacker can replay a payment for resource A against
+        # resource B. Raise a typed error before the generic match check so
+        # the caller sees the precise reason.
+        if resource.is_a?(String) && !resource.empty? && accepted.is_a?(Hash)
+          accepted_memo = accepted.dig("extra", "memo")
+          unless accepted_memo == resource
+            raise "invalid_exact_svm_payload_resource_mismatch"
+          end
+        end
+
         requirement = if accepted.is_a?(Hash)
                         requirements.find { |candidate| payment_requirement_matches?(accepted, candidate) }
                       end
@@ -167,11 +187,19 @@ module X402SDK
 
         transaction_payload = payload["transaction"]
         transaction = decode_transaction_payload(transaction_payload)
+        # Order mirrors the Rust spine at rust/src/bin/interop_server.rs:316-324:
+        #   (1) decode envelope, (2) verify all structural constraints,
+        #   (3) verify client signatures, (4) apply facilitator signature,
+        #   (5) send. We MUST verify the client signature before adding the
+        #   facilitator signature; otherwise a malformed envelope still
+        #   produces a partially-signed transaction that leaks back to the
+        #   caller.
         transfer = Exact.verify_exact_transaction!(
           transaction: transaction,
           requirement: requirement,
           managed_signers: [state.fee_payer.raw_public_key]
         )
+        Exact.verify_client_signatures!(transaction, [state.fee_payer.raw_public_key])
         verify_token_accounts_exist!(state, transfer)
         raise "duplicate_settlement" if state.settlement_cache.duplicate?(transaction_payload)
 
@@ -302,10 +330,10 @@ module X402SDK
           ]
         when DEFAULT_RESOURCE_PATH
           payment_signature = header_value(headers, "PAYMENT-SIGNATURE")
-          return payment_required_response(state) if payment_signature.nil? || payment_signature.empty?
+          return payment_required_response(state, resource: path) if payment_signature.nil? || payment_signature.empty?
 
           begin
-            settlement = settle_exact_payment(state, payment_signature)
+            settlement = settle_exact_payment(state, payment_signature, resource: path)
             [
               200,
               { DEFAULT_SETTLEMENT_HEADER => settlement },
@@ -322,7 +350,7 @@ module X402SDK
           rescue StandardError => e
             [
               402,
-              { "PAYMENT-REQUIRED" => encode_payment_required(exact_challenge(state)) },
+              { "PAYMENT-REQUIRED" => encode_payment_required(exact_challenge(state, resource: path)) },
               payment_error_body(e)
             ]
           end
@@ -337,10 +365,10 @@ module X402SDK
         end
       end
 
-      def payment_required_response(state)
+      def payment_required_response(state, resource: nil)
         [
           402,
-          { "PAYMENT-REQUIRED" => encode_payment_required(exact_challenge(state)) },
+          { "PAYMENT-REQUIRED" => encode_payment_required(exact_challenge(state, resource: resource)) },
           { error: "payment_required" }
         ]
       end

@@ -370,12 +370,74 @@ class InteropServerTest < Minitest::Test
         true
       }
     )
-    payment_header = mutate_payment_transaction(build_payment_header(state)) do |transaction|
+    payment_header = mutate_payment_transaction(build_payment_header(state), resign: true) do |transaction|
       append_valid_destination_ata_create_instruction(transaction, state)
     end
 
     assert_equal "unit-settlement", X402SDK::Interop::Server.settle_exact_payment(state, payment_header)
     assert_equal 1, checked.length
+  end
+
+  def test_server_rejects_unsigned_payload_before_facilitator_sign
+    sent = []
+    signed_with_facilitator = []
+    state = build_state(sender: ->(_state, transaction) {
+      sent << transaction
+      "unit-settlement"
+    })
+
+    # Corrupt the client signature by flipping bits in the client's signature
+    # slot. The facilitator MUST NOT apply its own signature to this envelope:
+    # otherwise a partially-signed transaction leaks back to the attacker.
+    payment_header = mutate_payment_transaction(build_payment_header(state)) do |transaction|
+      # Client signature lives at offset 1 + 64 (after short_vec(2) + fee
+      # payer slot). Flip every byte to ensure verification fails.
+      client_signature_offset = 1 + 64
+      64.times do |index|
+        transaction.setbyte(client_signature_offset + index, transaction.getbyte(client_signature_offset + index) ^ 0xff)
+      end
+      transaction
+    end
+
+    error = assert_raises(RuntimeError) do
+      X402SDK::Interop::Server.settle_exact_payment(state, payment_header)
+    end
+
+    assert_equal "invalid_exact_svm_payload_signature", error.message
+    assert_empty sent
+    # The envelope's fee-payer slot must remain unsigned — if the facilitator
+    # had signed early, the bytes would no longer be all-zero.
+    envelope = JSON.parse(Base64.decode64(payment_header))
+    transaction_bytes = Base64.decode64(envelope.fetch("payload").fetch("transaction"))
+    facilitator_signature_slot = transaction_bytes.byteslice(1, 64)
+    assert_equal ("\x00".b * 64), facilitator_signature_slot
+    assert_empty signed_with_facilitator
+  end
+
+  def test_server_accepts_valid_client_signature_positive_control
+    state = build_state(sender: ->(_state, _transaction) { "unit-settlement" })
+
+    assert_equal "unit-settlement",
+                 X402SDK::Interop::Server.settle_exact_payment(state, build_payment_header(state))
+  end
+
+  def test_server_rejects_payment_for_different_resource
+    state = build_state(sender: ->(_state, _transaction) { "unit-settlement" })
+    payment_header = build_payment_header(state, resource: "/resource/a")
+
+    error = assert_raises(RuntimeError) do
+      X402SDK::Interop::Server.settle_exact_payment(state, payment_header, resource: "/resource/b")
+    end
+
+    assert_equal "invalid_exact_svm_payload_resource_mismatch", error.message
+  end
+
+  def test_server_accepts_payment_for_matching_resource_positive_control
+    state = build_state(sender: ->(_state, _transaction) { "unit-settlement" })
+    payment_header = build_payment_header(state, resource: "/resource/a")
+
+    assert_equal "unit-settlement",
+                 X402SDK::Interop::Server.settle_exact_payment(state, payment_header, resource: "/resource/a")
   end
 
   def test_settlement_cache_evicts_entries_after_ttl
@@ -532,7 +594,7 @@ class InteropServerTest < Minitest::Test
     state = build_state(sender: ->(_state, _transaction) { "settlement-signature" })
     status, headers, body = X402SDK::Interop::Server.response_for(
       "/protected",
-      { "payment-signature" => build_payment_header(state) },
+      { "payment-signature" => build_payment_header(state, resource: "/protected") },
       state
     )
 
@@ -577,12 +639,12 @@ class InteropServerTest < Minitest::Test
     )
   end
 
-  def build_payment_header(state)
+  def build_payment_header(state, resource: nil)
     X402SDK::Interop::Exact.build_exact_payment_signature(
-      requirement: X402SDK::Interop::Server.exact_requirement(state),
+      requirement: X402SDK::Interop::Server.exact_requirement(state, resource: resource),
       client_secret_key: JSON.generate(secret(1)),
       recent_blockhash: BLOCKHASH,
-      resource: { "type" => "http", "uri" => "/protected" }
+      resource: { "type" => "http", "uri" => resource || "/protected" }
     )
   end
 
@@ -605,11 +667,25 @@ class InteropServerTest < Minitest::Test
     singleton.define_method(:start, original_start)
   end
 
-  def mutate_payment_transaction(payment_header)
+  def mutate_payment_transaction(payment_header, resign: false)
     envelope = JSON.parse(Base64.decode64(payment_header))
     transaction = Base64.decode64(envelope.fetch("payload").fetch("transaction"))
-    envelope.fetch("payload")["transaction"] = Base64.strict_encode64(yield transaction.dup)
+    mutated = yield transaction.dup
+    mutated = resign_client_signature(mutated) if resign
+    envelope.fetch("payload")["transaction"] = Base64.strict_encode64(mutated)
     Base64.strict_encode64(JSON.generate(envelope))
+  end
+
+  def resign_client_signature(transaction)
+    bytes = transaction.b
+    signature_count, signatures_offset = X402SDK::Interop::Exact.read_short_vec(bytes, 0)
+    message_offset = signatures_offset + (signature_count * 64)
+    message = bytes.byteslice(message_offset, bytes.bytesize - message_offset)
+    private_key = X402SDK::Interop::Exact.private_key_from_json(JSON.generate(secret(1)))
+    # Client signer is at index 1 (fee_payer is 0).
+    signature = private_key.sign(nil, message)
+    bytes[signatures_offset + 64, 64] = signature
+    bytes
   end
 
   def replace_transfer_amount(transaction, amount)
