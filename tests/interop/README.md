@@ -123,11 +123,45 @@ Adapters are ordinary process commands registered in
 writing one JSON object per line to stdout. Diagnostics, logs, and progress
 messages should go to stderr so stdout remains machine-readable.
 
+## Adapter layout
+
+Keep adapter PRs narrow and language-scoped. A new adapter should add one
+client or one server role at a time, then opt into the default matrix only after
+the role is stable locally and in CI.
+
+Recommended locations:
+
+- TypeScript fixtures: `tests/interop/src/fixtures/typescript/`
+- Rust adapters: `rust/src/bin/interop_client.rs` and
+  `rust/src/bin/interop_server.rs`
+- Python adapters: `tests/interop/adapters/python/`
+- Go adapters: `tests/interop/adapters/go/`
+- Ruby adapters: `tests/interop/adapters/ruby/`
+- PHP adapters: `tests/interop/adapters/php/`
+- Lua adapters: `tests/interop/adapters/lua/`
+
+For non-TypeScript languages, keep the adapter process contract at the boundary:
+the language adapter reads the shared environment, performs the x402 flow, and
+emits the `ready` or `result` JSON line. The TypeScript harness should not import
+language-specific code directly.
+
+## Dependency policy
+
+Adapters should prefer the language SDK already present in this repository. Add
+new dependencies only when they are needed for protocol correctness or local
+execution, such as signing, Solana transaction construction, HTTP serving, or
+JSON handling.
+
+Dependency changes should stay in the same PR as the adapter role that needs
+them. Avoid adding framework bindings for the harness itself; adapters should be
+small process fixtures rather than full web framework examples.
+
 Server adapters must:
 
 - bind an HTTP server on `127.0.0.1`
 - emit exactly one `ready` message after the server is listening
 - keep running until the harness sends `SIGTERM` or `SIGINT`
+- include the active scenario scheme in `capabilities`
 - protect `GET /protected` with x402 and return `{ "ok": true, "paid": true }`
   after settlement succeeds
 - include a non-empty settlement value in the `x-fixture-settlement` response
@@ -144,6 +178,10 @@ The `ready` message shape is:
   "capabilities": ["exact"]
 }
 ```
+
+Adapters should report the active scenario scheme in `capabilities` so the
+harness can enforce scheme matching as new `upto` or `batch-settlement`
+scenarios are added.
 
 Client adapters must:
 
