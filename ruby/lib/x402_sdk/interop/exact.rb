@@ -287,8 +287,11 @@ module X402SDK
           instruction_program(instruction, account_keys) == memo_program
         end
         raise "invalid_exact_svm_payload_memo_count" unless memo_instructions.length == 1
-        raise "invalid_exact_svm_payload_memo_mismatch" unless memo_instructions[0].fetch(:data).force_encoding("UTF-8").valid_encoding?
-        raise "invalid_exact_svm_payload_memo_mismatch" unless memo_instructions[0].fetch(:data) == expected_memo
+        actual_memo_bytes = memo_instructions[0].fetch(:data).b
+        raise "invalid_exact_svm_payload_memo_mismatch" unless actual_memo_bytes.dup.force_encoding("UTF-8").valid_encoding?
+        # Compare in ASCII-8BIT (binary) to avoid silent encoding mismatch
+        # between transaction bytes (binary) and JSON-decoded memo (UTF-8).
+        raise "invalid_exact_svm_payload_memo_mismatch" unless actual_memo_bytes == expected_memo.b
 
         transfer.merge(destination_create_ata: destination_create_ata)
       end
@@ -550,15 +553,15 @@ module X402SDK
 
       def short_vec(length)
         value = length
-        output = +""
+        output = "".b
         loop do
           byte = value & 0x7f
           value >>= 7
           byte |= 0x80 if value.positive?
-          output << byte
+          output << [byte].pack("C")
           break unless value.positive?
         end
-        output.b
+        output
       end
 
       def read_short_vec(bytes, offset)

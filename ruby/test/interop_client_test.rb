@@ -339,6 +339,103 @@ class InteropClientTest < Minitest::Test
     assert_equal false, transfer.fetch(:destination_create_ata)
   end
 
+  def test_verify_exact_transaction_accepts_multibyte_utf8_memo
+    secret = Array.new(64, 0)
+    secret[0, 32] = (1..32).to_a
+    requirement = exact_requirement
+    # Mix of accented Latin, CJK, and an emoji — exercises ASCII-8BIT vs UTF-8 string
+    # equality. Without binary-equal comparison this would silently fail with
+    # invalid_exact_svm_payload_memo_mismatch even though the bytes match.
+    requirement.fetch("extra")["memo"] = "naïve-日本語-\u{1F680}"
+    header = X402SDK::Interop::Exact.build_exact_payment_signature(
+      requirement: requirement,
+      client_secret_key: JSON.generate(secret),
+      recent_blockhash: requirement.fetch("extra").fetch("recentBlockhash")
+    )
+    envelope = JSON.parse(Base64.decode64(header))
+    transaction = Base64.decode64(envelope.fetch("payload").fetch("transaction"))
+
+    transfer = X402SDK::Interop::Exact.verify_exact_transaction!(
+      transaction: transaction,
+      requirement: requirement,
+      managed_signers: [X402SDK::Interop::Exact.base58_decode(requirement.fetch("extra").fetch("feePayer"))]
+    )
+
+    assert_equal false, transfer.fetch(:destination_create_ata)
+  end
+
+  def test_verify_exact_transaction_round_trips_max_memo_length
+    # Regression for short_vec length-prefix encoding at memo = MAX_MEMO_BYTES.
+    # The compact length for 256 is [0x80, 0x02]; an incorrect UTF-8 codepoint
+    # encoding would produce 3 bytes and the verifier would fail to parse the
+    # transaction message.
+    secret = Array.new(64, 0)
+    secret[0, 32] = (1..32).to_a
+    requirement = exact_requirement
+    requirement.fetch("extra")["memo"] = "x" * X402SDK::Interop::Exact::MAX_MEMO_BYTES
+
+    header = X402SDK::Interop::Exact.build_exact_payment_signature(
+      requirement: requirement,
+      client_secret_key: JSON.generate(secret),
+      recent_blockhash: requirement.fetch("extra").fetch("recentBlockhash")
+    )
+    envelope = JSON.parse(Base64.decode64(header))
+    transaction = Base64.decode64(envelope.fetch("payload").fetch("transaction"))
+
+    transfer = X402SDK::Interop::Exact.verify_exact_transaction!(
+      transaction: transaction,
+      requirement: requirement,
+      managed_signers: [X402SDK::Interop::Exact.base58_decode(requirement.fetch("extra").fetch("feePayer"))]
+    )
+
+    assert_equal false, transfer.fetch(:destination_create_ata)
+  end
+
+  def test_verify_exact_transaction_rejects_invalid_utf8_memo_bytes
+    # Pin the contract: memo bytes inside the transaction must be valid UTF-8,
+    # otherwise verification raises invalid_exact_svm_payload_memo_mismatch.
+    secret = Array.new(64, 0)
+    secret[0, 32] = (1..32).to_a
+    requirement = exact_requirement
+    requirement.fetch("extra")["memo"] = "ok"
+
+    header = X402SDK::Interop::Exact.build_exact_payment_signature(
+      requirement: requirement,
+      client_secret_key: JSON.generate(secret),
+      recent_blockhash: requirement.fetch("extra").fetch("recentBlockhash")
+    )
+    envelope = JSON.parse(Base64.decode64(header))
+    transaction = Base64.decode64(envelope.fetch("payload").fetch("transaction"))
+    # Corrupt one memo byte to an invalid UTF-8 lone continuation (0x80).
+    memo_offset = transaction.index("ok".b)
+    refute_nil memo_offset
+    transaction.setbyte(memo_offset, 0x80)
+
+    error = assert_raises(RuntimeError) do
+      X402SDK::Interop::Exact.verify_exact_transaction!(
+        transaction: transaction,
+        requirement: requirement,
+        managed_signers: [X402SDK::Interop::Exact.base58_decode(requirement.fetch("extra").fetch("feePayer"))]
+      )
+    end
+    assert_equal "invalid_exact_svm_payload_memo_mismatch", error.message
+  end
+
+  def test_short_vec_encodes_multibyte_lengths_as_binary_bytes
+    # Reference Solana short_vec for lengths >= 128 must emit raw bytes
+    # 0x80..0xFF, not UTF-8 codepoints. Regression guard for byte.chr usage.
+    encoded = X402SDK::Interop::Exact.short_vec(256)
+    assert_equal Encoding::ASCII_8BIT, encoded.encoding
+    assert_equal [0x80, 0x02], encoded.bytes
+    assert_equal 2, encoded.bytesize
+
+    encoded_127 = X402SDK::Interop::Exact.short_vec(127)
+    assert_equal [0x7f], encoded_127.bytes
+
+    encoded_128 = X402SDK::Interop::Exact.short_vec(128)
+    assert_equal [0x80, 0x01], encoded_128.bytes
+  end
+
   def test_verify_exact_transaction_rejects_short_instruction_list
     secret = Array.new(64, 0)
     secret[0, 32] = (1..32).to_a
