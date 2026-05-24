@@ -10,7 +10,11 @@ struct InteropClient {
         let target = try readRequiredURL("X402_INTEROP_TARGET_URL")
         let rpc = try readRequiredURL("X402_INTEROP_RPC_URL")
         let network = ProcessInfo.processInfo.environment["X402_INTEROP_NETWORK"] ?? X402SwiftExact.solanaDevnet
-        let currencies = ProcessInfo.processInfo.environment["X402_INTEROP_CURRENCIES"]
+        // X402_INTEROP_PREFER_CURRENCIES is the canonical env name across every
+        // language adapter (typescript/go/python/ruby all read this name). The
+        // harness only sets the canonical name, so the Swift client must read
+        // the same one or the preferred-currency loop is silently skipped.
+        let currencies = ProcessInfo.processInfo.environment["X402_INTEROP_PREFER_CURRENCIES"]
             .map { $0.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty } }
         let secret = try readSecretKey("X402_INTEROP_CLIENT_SECRET_KEY")
         #if canImport(CryptoKit)
