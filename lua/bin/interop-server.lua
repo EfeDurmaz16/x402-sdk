@@ -5,6 +5,15 @@ local json = require("dkjson")
 local sodium = require("luasodium")
 local luazen = require("luazen")
 
+-- luasec (https) is optional at require time so the static probe and
+-- non-HTTPS RPC flows still load on environments without OpenSSL bindings.
+-- We require peer TLS verification whenever the RPC URL is https://...,
+-- unless X402_INTEROP_RPC_INSECURE=1 is explicitly set for local dev.
+local ok_https, https = pcall(require, "ssl.https")
+if not ok_https then
+  https = nil
+end
+
 local function raw_json(value)
   return { __raw_json = value }
 end
@@ -276,45 +285,6 @@ local function parse_versioned_transaction(transaction)
     account_keys = account_keys,
     instructions = instructions,
   }
-end
-
-local function extract_json_object(json, key)
-  local _, object_start = json:find('"' .. key .. '"%s*:%s*{')
-  if not object_start then
-    return nil
-  end
-
-  local depth = 0
-  local in_string = false
-  local escaped = false
-
-  for index = object_start, #json do
-    local char = json:sub(index, index)
-    if in_string then
-      if escaped then
-        escaped = false
-      elseif char == "\\" then
-        escaped = true
-      elseif char == '"' then
-        in_string = false
-      end
-    elseif char == '"' then
-      in_string = true
-    elseif char == "{" then
-      depth = depth + 1
-    elseif char == "}" then
-      depth = depth - 1
-      if depth == 0 then
-        return json:sub(object_start, index)
-      end
-    end
-  end
-
-  return nil
-end
-
-local function json_string_field(json, key)
-  return json:match('"' .. key .. '"%s*:%s*"([^"]*)"')
 end
 
 local server = assert(socket.bind("127.0.0.1", 0))
@@ -606,6 +576,10 @@ local function verify_exact_transaction(parsed, requirement)
   if transfer.mint ~= base58_decode(requirement.asset) then
     error("invalid_exact_svm_payload_transaction_mint")
   end
+  if requirement.extra.tokenProgram ~= nil
+      and transfer.token_program ~= base58_decode(requirement.extra.tokenProgram) then
+    error("invalid_exact_svm_payload_transaction_token_program")
+  end
   if transfer.amount ~= tonumber(requirement.amount) then
     error("invalid_exact_svm_payload_transaction_amount")
   end
@@ -647,8 +621,10 @@ end
 local function post_json_rpc(method, params)
   local body = must_json_encode({ jsonrpc = "2.0", id = 1, method = method, params = params }, method)
   local chunks = {}
-  local ok, status = http.request({
-    url = required_env("X402_INTEROP_RPC_URL"),
+  local url = required_env("X402_INTEROP_RPC_URL")
+  local is_https = url:sub(1, 8) == "https://"
+  local request = {
+    url = url,
     method = "POST",
     headers = {
       ["content-type"] = "application/json",
@@ -656,7 +632,21 @@ local function post_json_rpc(method, params)
     },
     source = ltn12.source.string(body),
     sink = ltn12.sink.table(chunks),
-  })
+  }
+  local transport
+  if is_https then
+    if not https then
+      error(method .. ": HTTPS RPC URL requires luasec (ssl.https)")
+    end
+    local insecure = os.getenv("X402_INTEROP_RPC_INSECURE") == "1"
+    request.verify = insecure and "none" or "peer"
+    request.protocol = "tlsv1_2"
+    request.options = { "all", "no_sslv2", "no_sslv3", "no_tlsv1", "no_tlsv1_1" }
+    transport = https
+  else
+    transport = http
+  end
+  local ok, status = transport.request(request)
   if not ok or status < 200 or status >= 300 then
     error(method .. " HTTP " .. tostring(status))
   end

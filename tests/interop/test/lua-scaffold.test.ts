@@ -79,9 +79,18 @@ describe("Lua exact server", () => {
   it("declares narrow Lua runtime dependencies", () => {
     expect(rockspec).toContain('"lua >= 5.4"');
     expect(rockspec).toContain('"luasocket"');
+    expect(rockspec).toContain('"luasec"');
     expect(rockspec).toContain('"dkjson"');
     expect(rockspec).toContain('"luasodium"');
     expect(rockspec).toContain('"luazen"');
+  });
+
+  it("forces TLS peer verification on HTTPS RPC unless explicitly insecure", () => {
+    expect(server).toContain('pcall(require, "ssl.https")');
+    expect(server).toContain('url:sub(1, 8) == "https://"');
+    expect(server).toContain('request.verify = insecure and "none" or "peer"');
+    expect(server).toContain('request.protocol = "tlsv1_2"');
+    expect(server).toContain('X402_INTEROP_RPC_INSECURE');
   });
 
   it("documents the server-only boundary and ATA PDA gap", () => {
