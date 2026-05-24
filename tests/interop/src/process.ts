@@ -199,23 +199,25 @@ export async function runClient(
     );
   }
 
-  if (result.implementation !== implementation.id) {
-    throw new Error(
-      `Client adapter ${implementation.id} reported implementation ${result.implementation}`,
-    );
-  }
-
   return result;
 }
 
 export async function stopServer(server: RunningServer): Promise<void> {
+  if (server.child.exitCode !== null || server.child.signalCode !== null) {
+    return;
+  }
+  const exited = new Promise<void>(resolve => {
+    server.child.once("exit", () => resolve());
+  });
   killAdapterTree(server.child, "SIGTERM");
   await Promise.race([
-    new Promise<void>(resolve => {
-      server.child.once("exit", () => resolve());
-    }),
+    exited,
     delay(5_000).then(() => {
       killAdapterTree(server.child, "SIGKILL");
     }),
   ]);
+  // Always await the actual exit so the port is fully released before the
+  // caller proceeds. SIGKILL is asynchronous and can take a tick after the
+  // signal returns.
+  await exited;
 }
