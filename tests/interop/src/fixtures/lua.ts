@@ -36,7 +36,7 @@ export const luaExactServerBoundaryDecision = {
   runtimeProbe: "pnpm run test:probe:lua-server",
   dependencyPolicy:
     "Keep Lua exact optional and avoid publish/package polish until maintainers accept the server runtime shape.",
-  currentRockspecDependencies: ["lua >= 5.4", "luasocket", "dkjson", "luasodium", "luazen"],
+  currentRockspecDependencies: ["lua >= 5.4", "luasocket", "luasec", "dkjson", "luasodium", "luazen"],
   remainingGaps: [
     "Associated Token Account PDA derivation is not independently recomputed in Lua yet.",
     "Lua exact server stays opt-in in the interop matrix through X402_INTEROP_SERVERS=lua.",
