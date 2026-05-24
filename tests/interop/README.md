@@ -232,9 +232,15 @@ The `result` message shape is:
     "ok": true,
     "paid": true
   },
-  "settlement": "5N..."
+  "settlement": "5N...",
+  "paymentHeader": "PAYMENT-SIGNATURE-base64..."
 }
 ```
+
+`paymentHeader` is optional and reserved for the TypeScript reference
+client today; it carries the exact PAYMENT-SIGNATURE / X-PAYMENT header
+value the client sent on the paid request, so the cross-server scenario
+harness can capture it and replay it elsewhere.
 
 ## Shared environment
 
@@ -258,6 +264,20 @@ Optional variables:
   server adapters may advertise alongside the primary mint.
 - `X402_INTEROP_PREFER_CURRENCIES`: comma-separated symbols or mint addresses
   that client adapters may use to choose among offered requirements.
+- `X402_INTEROP_REUSE_CREDENTIAL`: when set, the TypeScript reference client
+  skips its own 402 payload construction and submits the supplied
+  PAYMENT-SIGNATURE (v2) / X-PAYMENT (v1) header verbatim. Used by the
+  cross-server portability and idempotent-resubmit scenarios in
+  `test/cross-server-scenarios.test.ts` to replay a credential built for
+  one server against another (or against the same server twice). Other
+  client adapters do not need to implement this hook yet; the TS client
+  drives the cross-server matrix across every active server.
+- `X402_INTEROP_CROSS_SERVER=1`: enables the cross-server portability and
+  idempotent-resubmit suite in `test/cross-server-scenarios.test.ts`.
+  Default `pnpm test` skips this suite because each case spins up two
+  Surfpool-backed servers and a real on-chain settlement before the
+  replay attempt; opt in only when sweeping for replay / wrong-server
+  acceptance regressions (MPP M1 closure §19.6).
 
 ## CI selection
 
