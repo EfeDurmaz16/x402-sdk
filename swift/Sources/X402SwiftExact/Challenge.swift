@@ -99,7 +99,28 @@ private func selectRequirement(from data: Data, selection: ChallengeSelection) t
         _ = try requirement.validatedTokenProgram()
     }
     let onNetwork = solana.filter { canonicalNetwork($0.network) == preferredNetwork }
-    let candidates = onNetwork.isEmpty ? solana : onNetwork
+    // Fail-closed network selection.
+    //
+    // If the caller explicitly pinned `selection.network` (e.g. "devnet") and the
+    // server's accept list does not include any offer on that network, we MUST NOT
+    // silently widen to the full Solana set — that would let a server which only
+    // advertises mainnet offers convince a devnet-intending client to sign and
+    // broadcast a real-funds mainnet transaction. Throw `unsupportedNetwork`
+    // instead so the caller sees an explicit failure.
+    //
+    // Widening is only safe when the caller did not specify a network at all
+    // (`selection.network == nil`), in which case the default mainnet preference
+    // is itself a soft default and falling back to any solana offer preserves
+    // existing behavior without crossing a network boundary the caller cared about.
+    let candidates: [PaymentRequirement]
+    if onNetwork.isEmpty {
+        if selection.network != nil {
+            throw X402SwiftExactError.unsupportedNetwork(preferredNetwork)
+        }
+        candidates = solana
+    } else {
+        candidates = onNetwork
+    }
     if let currencies = selection.currencies, !currencies.isEmpty {
         for currency in currencies {
             if let match = candidates.first(where: { currencyMatches(offered: $0.asset, accepted: currency, network: $0.network) }) {

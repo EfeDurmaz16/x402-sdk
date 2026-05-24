@@ -353,6 +353,58 @@ private let multiCurrencyEnvelopeMainnet = """
     #expect(requirement.asset == "2u1tszSeqZ3qBWF3uNGPFc8TzMk2tdiwknnRMWGWjGWH")
 }
 
+private let mainnetOnlyPyusdEnvelope = """
+{"x402Version":2,"accepts":[
+  {"scheme":"exact","network":"solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp","amount":"1000","asset":"2b1kV6DkPAnxd5ixfnxCpjxmKwqjjaYmCZfHsFu24GXo","payTo":"11111111111111111111111111111111","extra":{"feePayer":"11111111111111111111111111111111","decimals":6}}
+]}
+"""
+
+private let bothNetworksPyusdEnvelope = """
+{"x402Version":2,"accepts":[
+  {"scheme":"exact","network":"solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp","amount":"1000","asset":"2b1kV6DkPAnxd5ixfnxCpjxmKwqjjaYmCZfHsFu24GXo","payTo":"11111111111111111111111111111111","extra":{"feePayer":"11111111111111111111111111111111","decimals":6}},
+  {"scheme":"exact","network":"solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1","amount":"2000","asset":"CXk2AMBfi3TwaEL2468s6zP8xq9NxTXjp9gjMgzeUynM","payTo":"11111111111111111111111111111111","extra":{"feePayer":"11111111111111111111111111111111","decimals":6}}
+]}
+"""
+
+@Test func selectRequirementRejectsMainnetOfferWhenDevnetRequested() throws {
+    // SECURITY: the server only advertises a mainnet PYUSD offer, but the client
+    // explicitly pinned `network = devnet`. The selector MUST fail closed rather
+    // than silently widening to the mainnet offer (which would cause the client
+    // to sign and broadcast a real-funds transaction on the wrong network).
+    #expect(throws: X402SwiftExactError.unsupportedNetwork(X402SwiftExact.solanaDevnet)) {
+        _ = try parseX402Challenge(
+            headers: [:],
+            body: Data(mainnetOnlyPyusdEnvelope.utf8),
+            selection: ChallengeSelection(network: "devnet")
+        )
+    }
+}
+
+@Test func selectRequirementUsesMainnetOnDefaultSelection() throws {
+    // No network specified — the default mainnet preference is itself a soft
+    // default, so widening is acceptable and behavior is preserved.
+    let parsed = try parseX402Challenge(
+        headers: [:],
+        body: Data(mainnetOnlyPyusdEnvelope.utf8),
+        selection: ChallengeSelection()
+    )
+    let requirement = try #require(parsed)
+    #expect(requirement.network == X402SwiftExact.solanaMainnet)
+    #expect(requirement.asset == "2b1kV6DkPAnxd5ixfnxCpjxmKwqjjaYmCZfHsFu24GXo")
+}
+
+@Test func selectRequirementMatchesDevnetWhenServerOffersBoth() throws {
+    // Server advertises both networks; client pins devnet — must pick devnet.
+    let parsed = try parseX402Challenge(
+        headers: [:],
+        body: Data(bothNetworksPyusdEnvelope.utf8),
+        selection: ChallengeSelection(network: "devnet")
+    )
+    let requirement = try #require(parsed)
+    #expect(requirement.network == X402SwiftExact.solanaDevnet)
+    #expect(requirement.asset == "CXk2AMBfi3TwaEL2468s6zP8xq9NxTXjp9gjMgzeUynM")
+}
+
 @Test func currencyMatchesRejectsUnknownSymbol() throws {
     // Preferences contain only an unknown symbol — selector must return nil
     // rather than silently falling through to a different stablecoin.
