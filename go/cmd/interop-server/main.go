@@ -41,6 +41,44 @@ var (
 	memoProgramID          = solana.MustPublicKeyFromBase58("MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr")
 )
 
+// lighthouseAssertionShape describes a bounded Lighthouse assertion instruction
+// that the facilitator is willing to co-sign. Keyed by Borsh enum discriminator
+// (the first instruction-data byte) as defined in the upstream Lighthouse program
+// at github.com/Jac0xb/lighthouse (programs/lighthouse/src/instruction.rs). Only
+// assertion variants are allowlisted — `MemoryWrite` / `MemoryClose` (the only
+// variants that take a writable signer payer account) are intentionally absent.
+//
+// Rationale (Codex P1.1, May 2026): the TS (typescript/packages/x402/src/facilitator/
+// exact/scheme.ts, optional-instruction loop) and Rust (rust/src/protocol/schemes/
+// exact/verify.rs, ~L260) spines accept any Lighthouse instruction without
+// inspecting its discriminator or account list. That leaves the facilitator
+// co-signing arbitrary CU spend and unbounded account fan-out paid out of its own
+// SOL. The Phantom/Solflare integration documented in typescript/packages/x402/
+// src/protocol/schemes/exact/constants.ts only emits read-only `Assert*` variants
+// against a small fixed number of target accounts, so a bounded allowlist still
+// covers the legitimate wallet-protection flow.
+var lighthouseAssertionShape = map[byte]struct {
+	name        string
+	maxAccounts int
+}{
+	2:  {name: "AssertAccountData", maxAccounts: 1},
+	3:  {name: "AssertAccountDataMulti", maxAccounts: 1},
+	4:  {name: "AssertAccountDelta", maxAccounts: 2},
+	5:  {name: "AssertAccountInfo", maxAccounts: 1},
+	6:  {name: "AssertAccountInfoMulti", maxAccounts: 1},
+	7:  {name: "AssertMintAccount", maxAccounts: 1},
+	8:  {name: "AssertMintAccountMulti", maxAccounts: 1},
+	9:  {name: "AssertTokenAccount", maxAccounts: 1},
+	10: {name: "AssertTokenAccountMulti", maxAccounts: 1},
+	11: {name: "AssertStakeAccount", maxAccounts: 1},
+	12: {name: "AssertStakeAccountMulti", maxAccounts: 1},
+	13: {name: "AssertUpgradeableLoaderAccount", maxAccounts: 1},
+	14: {name: "AssertUpgradeableLoaderAccountMulti", maxAccounts: 1},
+	15: {name: "AssertSysvarClock", maxAccounts: 0},
+	16: {name: "AssertMerkleTreeAccount", maxAccounts: 1},
+	17: {name: "AssertBubblegumTreeConfigAccount", maxAccounts: 1},
+}
+
 // CAIP-2 network identifiers shared with the TypeScript spine.
 const (
 	solanaMainnetCAIP2 = "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp"
@@ -571,19 +609,42 @@ func verifyExactTransaction(transaction *solana.Transaction, requirement payment
 	if err != nil {
 		return fmt.Errorf("invalid feePayer: %w", err)
 	}
-	for _, instruction := range instructions {
-		for _, accountIndex := range instruction.Accounts {
+	// Codex P1.2 (May 2026): the previous unconditional "fee-payer in any
+	// instruction account" loop was both over-broad (false-positive on the
+	// legitimate destination-ATA-create flow, where the SPL Associated Token
+	// Account program requires the rent payer at accounts[0]) and incomplete
+	// (it did not distinguish *role* — fee-payer as transfer authority/source
+	// is the real attack the Rust spine bans at
+	// rust/src/protocol/schemes/exact/verify.rs:382). Tightened rule:
+	//   * fee-payer is allowed at accounts[0] of a *validated* ATA-create ix
+	//     (the canonical rent-payer position).
+	//   * fee-payer in any other instruction account list is rejected with a
+	//     distinct typed error.
+	//   * fee-payer as transfer authority / source is still rejected with the
+	//     spine-aligned `_transferring_funds` error.
+	if transfer.authority.Equals(feePayer) || transfer.source.Equals(feePayer) {
+		return fmt.Errorf("invalid_exact_svm_payload_transaction_fee_payer_transferring_funds")
+	}
+	for index, instruction := range instructions {
+		if index == 2 {
+			// instruction[2] is the transferChecked; its fee-payer-as-role
+			// abuses are already covered by the spine-aligned guard above.
+			continue
+		}
+		isATACreatePayerSlot := index >= 3 && isValidatedATACreateInstruction(transaction, instruction, requirement, transfer)
+		for accountPosition, accountIndex := range instruction.Accounts {
 			account, err := accountAt(transaction, accountIndex)
 			if err != nil {
 				return err
 			}
-			if account.Equals(feePayer) {
-				return fmt.Errorf("invalid_exact_svm_payload_transaction_fee_payer_transferring_funds")
+			if !account.Equals(feePayer) {
+				continue
 			}
+			if isATACreatePayerSlot && accountPosition == 0 {
+				continue
+			}
+			return fmt.Errorf("invalid_exact_svm_payload_transaction_fee_payer_in_instruction_accounts")
 		}
-	}
-	if transfer.authority.Equals(feePayer) || transfer.source.Equals(feePayer) {
-		return fmt.Errorf("invalid_exact_svm_payload_transaction_fee_payer_transferring_funds")
 	}
 	mint, err := solana.PublicKeyFromBase58(requirement.Asset)
 	if err != nil {
@@ -708,6 +769,9 @@ func verifyOptionalInstructions(transaction *solana.Transaction, instructions []
 			continue
 		}
 		if program.String() == lighthouseProgram {
+			if err := verifyLighthouseInstruction(instruction); err != nil {
+				return err
+			}
 			continue
 		}
 		if program.Equals(solana.SPLAssociatedTokenAccountProgramID) && validDestinationATACreateInstruction(transaction, instruction, requirement, transfer) {
@@ -720,6 +784,38 @@ func verifyOptionalInstructions(transaction *solana.Transaction, instructions []
 	}
 	if hasExpectedMemo && memoCount != 1 {
 		return fmt.Errorf("invalid_exact_svm_payload_transaction_memo")
+	}
+	return nil
+}
+
+// isValidatedATACreateInstruction returns true when `instruction` is an
+// SPL Associated Token Account program create that targets the payment's
+// destination ATA — i.e. the only optional instruction in which the facilitator
+// fee-payer is permitted to appear (as the rent payer at accounts[0]).
+func isValidatedATACreateInstruction(transaction *solana.Transaction, instruction solana.CompiledInstruction, requirement paymentRequirement, transfer transferCheckedFields) bool {
+	program, err := programID(transaction, instruction)
+	if err != nil {
+		return false
+	}
+	if !program.Equals(solana.SPLAssociatedTokenAccountProgramID) {
+		return false
+	}
+	return validDestinationATACreateInstruction(transaction, instruction, requirement, transfer)
+}
+
+// verifyLighthouseInstruction enforces the bounded discriminator + account-count
+// allowlist captured in lighthouseAssertionShape. See the comment on that map
+// for the threat-model rationale (Codex P1.1).
+func verifyLighthouseInstruction(instruction solana.CompiledInstruction) error {
+	if len(instruction.Data) == 0 {
+		return fmt.Errorf("invalid_exact_svm_payload_lighthouse_instruction_not_allowed")
+	}
+	shape, ok := lighthouseAssertionShape[instruction.Data[0]]
+	if !ok {
+		return fmt.Errorf("invalid_exact_svm_payload_lighthouse_instruction_not_allowed")
+	}
+	if len(instruction.Accounts) > shape.maxAccounts {
+		return fmt.Errorf("invalid_exact_svm_payload_lighthouse_instruction_unbounded_accounts")
 	}
 	return nil
 }

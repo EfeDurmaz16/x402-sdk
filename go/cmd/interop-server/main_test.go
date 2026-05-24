@@ -775,7 +775,7 @@ func TestVerifyExactTransactionAllowsOptionalLighthouseBeforeMemo(t *testing.T) 
 	tx.Message.Instructions = append(
 		tx.Message.Instructions[:3],
 		append(
-			[]solana.CompiledInstruction{compiledInstructionForTest(t, tx, lighthouseProgram, nil)},
+			[]solana.CompiledInstruction{compiledInstructionForTest(t, tx, lighthouseProgram, []byte{9, 0})},
 			tx.Message.Instructions[3:]...,
 		)...,
 	)
@@ -2129,6 +2129,147 @@ func TestSettleExactPaymentAcceptsAliasResolvedRequirement(t *testing.T) {
 	}
 	if settlement != "alias-resolved-settlement" {
 		t.Fatalf("settlement = %q", settlement)
+	}
+}
+
+// --- Codex P1.1: Lighthouse discriminator + account-count allowlist ---
+
+func TestRejectsUnknownLighthouseDiscriminator(t *testing.T) {
+	client, err := solana.NewRandomPrivateKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	state := testServerState(t)
+	state.memo = "lighthouse-unknown-disc"
+	requirement := exactRequirement(state)
+	tx := transactionForTest(t, requirement, client)
+
+	// Discriminator 0 is `MemoryWrite` (a writable-signer payer variant) — not in
+	// the allowlist. 255 is unused entirely. Both must be rejected.
+	for _, disc := range []byte{0, 1, 200, 255} {
+		mutated := cloneTransactionForTest(t, tx)
+		mutated.Message.Instructions = append(
+			mutated.Message.Instructions[:3],
+			append(
+				[]solana.CompiledInstruction{compiledInstructionForTest(t, mutated, lighthouseProgram, []byte{disc})},
+				mutated.Message.Instructions[3:]...,
+			)...,
+		)
+		err := verifyExactTransaction(mutated, requirement)
+		if err == nil || err.Error() != "invalid_exact_svm_payload_lighthouse_instruction_not_allowed" {
+			t.Fatalf("disc=%d: expected lighthouse_instruction_not_allowed, got %v", disc, err)
+		}
+	}
+}
+
+func TestRejectsLighthouseInstructionWithUnboundedAccounts(t *testing.T) {
+	client, err := solana.NewRandomPrivateKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	state := testServerState(t)
+	state.memo = "lighthouse-unbounded"
+	requirement := exactRequirement(state)
+	tx := transactionForTest(t, requirement, client)
+
+	// AssertTokenAccount (disc=9) expects exactly 1 account. Provide 5.
+	extra := make([]solana.PublicKey, 5)
+	for i := range extra {
+		extra[i] = solana.NewWallet().PublicKey()
+	}
+	ix := compiledInstructionWithAccountsForTest(t, tx, solana.MustPublicKeyFromBase58(lighthouseProgram), extra, []byte{9})
+	tx.Message.Instructions = append(
+		tx.Message.Instructions[:3],
+		append([]solana.CompiledInstruction{ix}, tx.Message.Instructions[3:]...)...,
+	)
+	err = verifyExactTransaction(tx, requirement)
+	if err == nil || err.Error() != "invalid_exact_svm_payload_lighthouse_instruction_unbounded_accounts" {
+		t.Fatalf("expected lighthouse_instruction_unbounded_accounts, got %v", err)
+	}
+}
+
+func TestAcceptsAllowlistedLighthouseInstruction(t *testing.T) {
+	client, err := solana.NewRandomPrivateKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	state := testServerState(t)
+	state.memo = "lighthouse-ok"
+	requirement := exactRequirement(state)
+	tx := transactionForTest(t, requirement, client)
+
+	target := solana.NewWallet().PublicKey()
+	ix := compiledInstructionWithAccountsForTest(t, tx, solana.MustPublicKeyFromBase58(lighthouseProgram), []solana.PublicKey{target}, []byte{9, 0})
+	tx.Message.Instructions = append(
+		tx.Message.Instructions[:3],
+		append([]solana.CompiledInstruction{ix}, tx.Message.Instructions[3:]...)...,
+	)
+	if err := verifyExactTransaction(tx, requirement); err != nil {
+		t.Fatalf("expected allowlisted lighthouse instruction to be accepted, got %v", err)
+	}
+}
+
+// --- Codex P1.2: tightened fee-payer-in-instruction guard ---
+
+func TestRejectsFeePayerInNonAtaCreatePosition(t *testing.T) {
+	client, err := solana.NewRandomPrivateKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	state := testServerState(t)
+	state.memo = "fee-payer-non-ata"
+	requirement := exactRequirement(state)
+	tx := transactionForTest(t, requirement, client)
+
+	feePayer := state.feePayer.PublicKey()
+	// Place fee-payer inside an *allowlisted* Lighthouse target-account slot
+	// (not the ATA-create payer position). This is a non-ATA optional ix that
+	// nonetheless touches the fee-payer's pubkey — must be rejected by the
+	// tightened guard.
+	ix := compiledInstructionWithAccountsForTest(t, tx, solana.MustPublicKeyFromBase58(lighthouseProgram), []solana.PublicKey{feePayer}, []byte{9, 0})
+	tx.Message.Instructions = append(
+		tx.Message.Instructions[:3],
+		append([]solana.CompiledInstruction{ix}, tx.Message.Instructions[3:]...)...,
+	)
+	err = verifyExactTransaction(tx, requirement)
+	if err == nil || err.Error() != "invalid_exact_svm_payload_transaction_fee_payer_in_instruction_accounts" {
+		t.Fatalf("expected fee_payer_in_instruction_accounts, got %v", err)
+	}
+}
+
+func TestAcceptsFeePayerAsAtaCreatePayer(t *testing.T) {
+	client, err := solana.NewRandomPrivateKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	state := testServerState(t)
+	state.memo = "fee-payer-ata-create"
+	requirement := exactRequirement(state)
+	tx := transactionForTest(t, requirement, client)
+	transfer, err := parseTransferCheckedInstruction(tx, tx.Message.Instructions[2])
+	if err != nil {
+		t.Fatal(err)
+	}
+	payTo := solana.MustPublicKeyFromBase58(requirement.PayTo)
+	feePayer := state.feePayer.PublicKey()
+
+	// Canonical ATA-create where fee-payer is the rent payer at accounts[0].
+	// Per the Codex P1.2 fix this is the *only* place fee-payer is allowed to
+	// appear outside the transfer authority/source check.
+	ataCreate := compiledInstructionWithAccountsForTest(t, tx, solana.SPLAssociatedTokenAccountProgramID, []solana.PublicKey{
+		feePayer,
+		transfer.destination,
+		payTo,
+		transfer.mint,
+		solana.SystemProgramID,
+		transfer.tokenProgram,
+	}, []byte{1})
+	tx.Message.Instructions = append(
+		tx.Message.Instructions[:3],
+		append([]solana.CompiledInstruction{ataCreate}, tx.Message.Instructions[3:]...)...,
+	)
+	if err := verifyExactTransaction(tx, requirement); err != nil {
+		t.Fatalf("expected fee-payer as ATA-create payer to be accepted, got %v", err)
 	}
 }
 
