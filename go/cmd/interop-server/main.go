@@ -590,8 +590,14 @@ func verifyExactTransaction(transaction *solana.Transaction, requirement payment
 	// rust/src/protocol/schemes/exact/verify.rs:382). Tightened rule:
 	//   * fee-payer is allowed at accounts[0] of a *validated* ATA-create ix
 	//     (the canonical rent-payer position).
-	//   * fee-payer in any other instruction account list is rejected with a
-	//     distinct typed error.
+	//   * fee-payer is allowed inside Lighthouse instruction account lists
+	//     (the Rust spine has NO fee-payer-in-accounts sweep at all; it only
+	//     blocks fee-payer as transfer authority at verify.rs:382, and accepts
+	//     any Lighthouse ix by program-id alone at verify.rs:263 — wallets such
+	//     as Phantom/Solflare routinely add `AssertAccount*` ixs that reference
+	//     the fee-payer's pubkey to guard against malicious facilitator rewrites).
+	//   * fee-payer in any other (non-Lighthouse, non-ATA-create-payer-slot)
+	//     instruction account list is rejected with a distinct typed error.
 	//   * fee-payer as transfer authority / source is still rejected with the
 	//     spine-aligned `_transferring_funds` error.
 	if transfer.authority.Equals(feePayer) || transfer.source.Equals(feePayer) {
@@ -601,6 +607,16 @@ func verifyExactTransaction(transaction *solana.Transaction, requirement payment
 		if index == 2 {
 			// instruction[2] is the transferChecked; its fee-payer-as-role
 			// abuses are already covered by the spine-aligned guard above.
+			continue
+		}
+		program, err := programID(transaction, instruction)
+		if err != nil {
+			return err
+		}
+		if program.String() == lighthouseProgram {
+			// Mirror rust/src/protocol/schemes/exact/verify.rs:263 — Lighthouse
+			// ixs are passed through by program-id alone; the spine never
+			// inspects their account lists for the managed fee-payer.
 			continue
 		}
 		isATACreatePayerSlot := index >= 3 && isValidatedATACreateInstruction(transaction, instruction, requirement, transfer)
@@ -774,7 +790,6 @@ func isValidatedATACreateInstruction(transaction *solana.Transaction, instructio
 	}
 	return validDestinationATACreateInstruction(transaction, instruction, requirement, transfer)
 }
-
 
 func validDestinationATACreateInstruction(transaction *solana.Transaction, instruction solana.CompiledInstruction, requirement paymentRequirement, transfer transferCheckedFields) bool {
 	if len(instruction.Data) > 1 {

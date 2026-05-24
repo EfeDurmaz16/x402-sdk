@@ -2184,29 +2184,44 @@ func TestLighthousePassthroughMatchesSpine(t *testing.T) {
 
 // --- Codex P1.2: tightened fee-payer-in-instruction guard ---
 
-func TestRejectsFeePayerInNonAtaCreatePosition(t *testing.T) {
+// TestAcceptsFeePayerInLighthouseAccountMirrorsSpine locks parity with the Rust
+// spine, which intentionally has NO fee-payer-in-instruction-accounts sweep:
+//   - rust/src/protocol/schemes/exact/verify.rs:382 only blocks fee-payer as
+//     the transfer *authority*, not as a passive account in some other ix.
+//   - rust/src/protocol/schemes/exact/verify.rs:263 accepts any Lighthouse
+//     instruction by program-id match alone.
+//
+// Real Phantom/Solflare wallets emit `Assert*` Lighthouse ixs that reference the
+// fee-payer's pubkey as a read-only account to guard the facilitator from
+// rewriting the transfer post-sign. Rejecting these would break canonical
+// wallet flows and diverge from the spine. This test pins the Go adapter to
+// the spine semantics: fee-payer in a Lighthouse account list is ACCEPTED.
+func TestAcceptsFeePayerInLighthouseAccountMirrorsSpine(t *testing.T) {
 	client, err := solana.NewRandomPrivateKey()
 	if err != nil {
 		t.Fatal(err)
 	}
 	state := testServerState(t)
-	state.memo = "fee-payer-non-ata"
+	state.memo = "fee-payer-lighthouse-assert"
 	requirement := exactRequirement(state)
 	tx := transactionForTest(t, requirement, client)
 
 	feePayer := state.feePayer.PublicKey()
-	// Place fee-payer inside an *allowlisted* Lighthouse target-account slot
-	// (not the ATA-create payer position). This is a non-ATA optional ix that
-	// nonetheless touches the fee-payer's pubkey — must be rejected by the
-	// tightened guard.
-	ix := compiledInstructionWithAccountsForTest(t, tx, solana.MustPublicKeyFromBase58(lighthouseProgram), []solana.PublicKey{feePayer}, []byte{9, 0})
+	// Lighthouse `AssertAccountInfo` (discriminator 9) referencing the
+	// fee-payer's pubkey as the target account — exactly the shape Phantom
+	// emits when guarding the rent-payer's balance against post-sign rewrites.
+	ix := compiledInstructionWithAccountsForTest(
+		t, tx,
+		solana.MustPublicKeyFromBase58(lighthouseProgram),
+		[]solana.PublicKey{feePayer},
+		[]byte{9, 0},
+	)
 	tx.Message.Instructions = append(
 		tx.Message.Instructions[:3],
 		append([]solana.CompiledInstruction{ix}, tx.Message.Instructions[3:]...)...,
 	)
-	err = verifyExactTransaction(tx, requirement)
-	if err == nil || err.Error() != "invalid_exact_svm_payload_transaction_fee_payer_in_instruction_accounts" {
-		t.Fatalf("expected fee_payer_in_instruction_accounts, got %v", err)
+	if err := verifyExactTransaction(tx, requirement); err != nil {
+		t.Fatalf("expected fee-payer-in-Lighthouse-account to be accepted (spine parity), got %v", err)
 	}
 }
 
