@@ -151,9 +151,23 @@ class DefaultSolanaExactTransactionBuilder(
             ?: request.accepted.extraInt("decimals")
             ?: metadata?.decimals
             ?: DEFAULT_DECIMALS
+        // SPL token decimals is a u8 in the on-chain Mint account and is
+        // capped at 9 by the SPL Token program. Reject anything outside that
+        // range so a malicious or buggy server cannot smuggle a wrapping value
+        // (e.g. 256 → 0, -1 → 0xff) into the transferChecked instruction.
+        require(decimals in 0..9) {
+            "decimals $decimals is outside the SPL token range 0..9"
+        }
         val amount = request.amount.toULongOrNull()
             ?: throw IllegalArgumentException("amount must be an unsigned integer string")
-        require(amount <= ULong.MAX_VALUE) { "amount is outside u64 range" }
+        // The downstream instruction builder takes a signed Long because Kotlin's
+        // JVM target lowers ULong to Long under the hood for arithmetic. SPL token
+        // amounts above Long.MAX_VALUE (≈9.2 × 10¹⁸) would narrow to a negative
+        // Long here even though they are valid u64 values, producing a corrupted
+        // transferChecked instruction. Fail closed rather than emit silent garbage.
+        require(amount <= Long.MAX_VALUE.toULong()) {
+            "amount $amount is outside the signed-u64 range this builder can encode safely"
+        }
 
         val sourceAta = associatedTokenAddress(owner = payer, mint = mint, tokenProgram = tokenProgram)
         val destinationAta = associatedTokenAddress(owner = recipient, mint = mint, tokenProgram = tokenProgram)
@@ -230,25 +244,46 @@ object SolanaTransactionCodec {
         instructions: List<SolanaInstruction>,
         recentBlockhash: SolanaPublicKey,
     ): CompiledMessage {
-        val writableSigners = linkedSetOf(feePayer)
-        val readOnlySigners = linkedSetOf<SolanaPublicKey>()
-        signers.filter { it != feePayer }.forEach { readOnlySigners.add(it) }
+        // Build role bits per public key, then place each key into exactly one
+        // of the four role sets. This guarantees no duplicate AccountMeta entries
+        // even when the same pubkey appears across instructions under different
+        // (signer, writable) classifications — the strongest role wins.
+        data class Role(var signer: Boolean, var writable: Boolean)
 
-        val writableNonSigners = linkedSetOf<SolanaPublicKey>()
-        val readOnlyNonSigners = linkedSetOf<SolanaPublicKey>()
+        val firstSeen = linkedMapOf<SolanaPublicKey, Role>()
+        fun observe(key: SolanaPublicKey, signer: Boolean, writable: Boolean) {
+            val role = firstSeen.getOrPut(key) { Role(signer = false, writable = false) }
+            if (signer) role.signer = true
+            if (writable) role.writable = true
+        }
+
+        observe(feePayer, signer = true, writable = true)
+        signers.filter { it != feePayer }.forEach { observe(it, signer = true, writable = false) }
         instructions.forEach { instruction ->
             instruction.accounts.forEach { account ->
-                if (account.signer) {
-                    if (account.writable) writableSigners.add(account.publicKey) else readOnlySigners.add(account.publicKey)
-                } else {
-                    if (account.writable) writableNonSigners.add(account.publicKey) else readOnlyNonSigners.add(account.publicKey)
-                }
+                observe(account.publicKey, signer = account.signer, writable = account.writable)
             }
-            readOnlyNonSigners.add(instruction.programId)
+            observe(instruction.programId, signer = false, writable = false)
+        }
+
+        val writableSigners = linkedSetOf<SolanaPublicKey>()
+        val readOnlySigners = linkedSetOf<SolanaPublicKey>()
+        val writableNonSigners = linkedSetOf<SolanaPublicKey>()
+        val readOnlyNonSigners = linkedSetOf<SolanaPublicKey>()
+        firstSeen.forEach { (key, role) ->
+            when {
+                role.signer && role.writable -> writableSigners.add(key)
+                role.signer && !role.writable -> readOnlySigners.add(key)
+                !role.signer && role.writable -> writableNonSigners.add(key)
+                else -> readOnlyNonSigners.add(key)
+            }
         }
 
         val accountKeys = writableSigners.toList() + readOnlySigners.toList() +
             writableNonSigners.toList() + readOnlyNonSigners.toList()
+        check(accountKeys.size == accountKeys.toSet().size) {
+            "internal error: duplicate account key in compiled v0 message"
+        }
         val requiredSignatures = writableSigners.size + readOnlySigners.size
         val out = ByteArrayBuilder()
         out.byte(0x80)

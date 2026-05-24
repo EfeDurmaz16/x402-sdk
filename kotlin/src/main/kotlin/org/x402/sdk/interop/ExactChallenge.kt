@@ -29,7 +29,43 @@ data class SelectedChallenge(
     val resource: ResourceInfo? = null,
 )
 
+/**
+ * Closed enumeration of the Solana networks recognised by the exact resolver.
+ * Anything not in this set is treated as "unknown" and the resolver fails closed
+ * rather than silently producing a mainnet mint address.
+ */
+sealed class SolanaNetwork(val caip2: String) {
+    object Mainnet : SolanaNetwork("solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpLcR4w9wpc")
+    object Devnet : SolanaNetwork("solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1")
+    object Localnet : SolanaNetwork("solana:localnet")
+
+    companion object {
+        // Canonical CAIP-2 strings plus the historical "devnet" short string used by
+        // the harness fixture (which the implementation has always treated as devnet).
+        fun fromIdentifierOrNull(value: String): SolanaNetwork? = when (value) {
+            Mainnet.caip2,
+            "solana:mainnet",
+            "solana-mainnet",
+            "mainnet",
+            "mainnet-beta",
+            -> Mainnet
+            Devnet.caip2,
+            "solana:devnet",
+            "solana-devnet",
+            "devnet",
+            -> Devnet
+            Localnet.caip2,
+            "localnet",
+            -> Localnet
+            else -> null
+        }
+    }
+}
+
 object ExactChallenge {
+    // Default network used by the interop harness fixture — this is the Solana
+    // devnet CAIP-2 genesis hash. Kept as a string for backwards compatibility
+    // with callers that compare against it directly.
     const val DEFAULT_NETWORK = "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1"
     private val gson = Gson()
 
@@ -144,28 +180,78 @@ object ExactChallenge {
         return stablecoinMint(offered, network) == stablecoinMint(accepted, network)
     }
 
+    /**
+     * Resolves a stablecoin symbol (USDC, PYUSD, USDG, USDT, CASH) to its mint address
+     * on the given Solana network. Fail-closed by design: only the canonical CAIP-2
+     * Solana network identifiers (mainnet, devnet, localnet) are accepted as network
+     * inputs. Any other string is treated as either (a) an already-resolved mint that
+     * gets returned verbatim, or (b) an unknown network that throws — never a silent
+     * mainnet fallback. This closes the "bare-string devnet leaks mainnet mint" bug.
+     */
     fun stablecoinMint(currency: String, network: String): String {
-        return when (currency.trim().uppercase()) {
-            "USDC", "USD" -> if (network == DEFAULT_NETWORK || network == "devnet" || network == "localnet") {
-                "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU"
-            } else {
-                "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+        val resolved = SolanaNetwork.fromIdentifierOrNull(network)
+        if (resolved == null) {
+            // Unknown network identifier — if the currency is already a non-symbolic
+            // address-shaped string, pass it through (legacy behaviour for callers
+            // that hand us a mint directly). Otherwise we must fail closed rather
+            // than silently picking a mainnet address.
+            val trimmed = currency.trim()
+            val upper = trimmed.uppercase()
+            if (upper in KNOWN_SYMBOLS) {
+                throw IllegalArgumentException(
+                    "Cannot resolve stablecoin symbol '$trimmed' on unknown network '$network'; " +
+                        "use a CAIP-2 Solana network identifier (solana:<genesis-hash>) or " +
+                        "pass a mint address directly.",
+                )
             }
-            "PYUSD" -> if (network == DEFAULT_NETWORK || network == "devnet" || network == "localnet") {
-                "CXk2AMBfi3TwaEL2468s6zP8xq9NxTXjp9gjMgzeUynM"
-            } else {
-                "2b1kV6DkPAnxd5ixfnxCpjxmKwqjjaYmCZfHsFu24GXo"
+            return trimmed
+        }
+        return stablecoinMint(currency, resolved)
+    }
+
+    fun stablecoinMint(currency: String, network: SolanaNetwork): String {
+        val trimmed = currency.trim()
+        return when (trimmed.uppercase()) {
+            "USDC", "USD" -> when (network) {
+                SolanaNetwork.Mainnet -> "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+                SolanaNetwork.Devnet, SolanaNetwork.Localnet ->
+                    "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU"
             }
-            "USDG" -> if (network == DEFAULT_NETWORK || network == "devnet" || network == "localnet") {
-                "4F6PM96JJxngmHnZLBh9n58RH4aTVNWvDs2nuwrT5BP7"
-            } else {
-                "2u1tszSeqZ3qBWF3uNGPFc8TzMk2tdiwknnRMWGWjGWH"
+            "PYUSD" -> when (network) {
+                SolanaNetwork.Mainnet -> "2b1kV6DkPAnxd5ixfnxCpjxmKwqjjaYmCZfHsFu24GXo"
+                SolanaNetwork.Devnet, SolanaNetwork.Localnet ->
+                    "CXk2AMBfi3TwaEL2468s6zP8xq9NxTXjp9gjMgzeUynM"
             }
-            "USDT" -> "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB"
-            "CASH" -> "CASHx9KJUStyftLFWGvEVf59SGeG9sh5FfcnZMVPCASH"
-            else -> currency.trim()
+            "USDG" -> when (network) {
+                SolanaNetwork.Mainnet -> "2u1tszSeqZ3qBWF3uNGPFc8TzMk2tdiwknnRMWGWjGWH"
+                SolanaNetwork.Devnet, SolanaNetwork.Localnet ->
+                    "4F6PM96JJxngmHnZLBh9n58RH4aTVNWvDs2nuwrT5BP7"
+            }
+            // USDT and CASH currently have no canonical devnet mint inside the
+            // x402 SVM test matrix; the interop harness only exercises them on
+            // mainnet, so we return the mainnet mint here and rely on the
+            // mainnet-only network resolver to fail closed on any other cluster.
+            "USDT" -> when (network) {
+                SolanaNetwork.Mainnet -> "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB"
+                SolanaNetwork.Devnet, SolanaNetwork.Localnet ->
+                    throw IllegalArgumentException(
+                        "USDT has no canonical mint on $network in this adapter; " +
+                            "supply the mint address explicitly",
+                    )
+            }
+            "CASH" -> when (network) {
+                SolanaNetwork.Mainnet -> "CASHx9KJUStyftLFWGvEVf59SGeG9sh5FfcnZMVPCASH"
+                SolanaNetwork.Devnet, SolanaNetwork.Localnet ->
+                    throw IllegalArgumentException(
+                        "CASH has no canonical mint on $network in this adapter; " +
+                            "supply the mint address explicitly",
+                    )
+            }
+            else -> trimmed
         }
     }
+
+    private val KNOWN_SYMBOLS = setOf("USDC", "USD", "PYUSD", "USDG", "USDT", "CASH")
 
     fun resultJson(
         ok: Boolean,

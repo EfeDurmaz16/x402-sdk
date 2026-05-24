@@ -3,6 +3,8 @@ package org.x402.sdk.interop
 import java.util.Base64
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
+import kotlin.test.assertNotEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 
@@ -96,6 +98,68 @@ class ExactChallengeTest {
         val selected = ExactChallenge.selectSvmChallenge(headers = emptyMap(), body = body)
 
         assertNull(selected)
+    }
+
+    @Test
+    fun `stablecoinMint resolves USDC per network without mainnet leak`() {
+        val mainnetUsdc = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+        val devnetUsdc = "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU"
+
+        // Typed (sealed-class) resolver — the source of truth.
+        assertEquals(mainnetUsdc, ExactChallenge.stablecoinMint("USDC", SolanaNetwork.Mainnet))
+        assertEquals(devnetUsdc, ExactChallenge.stablecoinMint("USDC", SolanaNetwork.Devnet))
+        assertEquals(devnetUsdc, ExactChallenge.stablecoinMint("USDC", SolanaNetwork.Localnet))
+        assertNotEquals(mainnetUsdc, ExactChallenge.stablecoinMint("USDC", SolanaNetwork.Devnet))
+        assertNotEquals(mainnetUsdc, ExactChallenge.stablecoinMint("USDC", SolanaNetwork.Localnet))
+
+        // String shim — all canonical aliases route correctly.
+        assertEquals(devnetUsdc, ExactChallenge.stablecoinMint("USDC", "devnet"))
+        assertEquals(devnetUsdc, ExactChallenge.stablecoinMint("USDC", "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1"))
+        assertEquals(devnetUsdc, ExactChallenge.stablecoinMint("USDC", "localnet"))
+        assertEquals(mainnetUsdc, ExactChallenge.stablecoinMint("USDC", "mainnet-beta"))
+        assertEquals(mainnetUsdc, ExactChallenge.stablecoinMint("USDC", "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpLcR4w9wpc"))
+    }
+
+    @Test
+    fun `stablecoinMint fails closed on unknown network for known symbol`() {
+        // Money-loss bug regression: passing an unrecognised network must NOT
+        // silently produce a mainnet mint address for a known stablecoin symbol.
+        val error = assertFailsWith<IllegalArgumentException> {
+            ExactChallenge.stablecoinMint("USDC", "solana:not-a-real-cluster")
+        }
+        assertEquals(
+            true,
+            error.message?.contains("unknown network", ignoreCase = true) == true,
+            "expected fail-closed error, got: ${error.message}",
+        )
+    }
+
+    @Test
+    fun `stablecoinMint passes through unknown asset on unknown network`() {
+        // A caller may hand us a raw mint address as the "currency" — that's
+        // not a known symbol, so we should echo it back rather than throw.
+        val mint = "SomeArbitraryMintAddress1111111111111111111"
+        assertEquals(mint, ExactChallenge.stablecoinMint(mint, "solana:not-a-real-cluster"))
+    }
+
+    @Test
+    fun `stablecoinMint resolves PYUSD and USDG per network`() {
+        assertEquals(
+            "2b1kV6DkPAnxd5ixfnxCpjxmKwqjjaYmCZfHsFu24GXo",
+            ExactChallenge.stablecoinMint("PYUSD", SolanaNetwork.Mainnet),
+        )
+        assertEquals(
+            "CXk2AMBfi3TwaEL2468s6zP8xq9NxTXjp9gjMgzeUynM",
+            ExactChallenge.stablecoinMint("PYUSD", SolanaNetwork.Devnet),
+        )
+        assertEquals(
+            "2u1tszSeqZ3qBWF3uNGPFc8TzMk2tdiwknnRMWGWjGWH",
+            ExactChallenge.stablecoinMint("USDG", SolanaNetwork.Mainnet),
+        )
+        assertEquals(
+            "4F6PM96JJxngmHnZLBh9n58RH4aTVNWvDs2nuwrT5BP7",
+            ExactChallenge.stablecoinMint("USDG", SolanaNetwork.Devnet),
+        )
     }
 }
 

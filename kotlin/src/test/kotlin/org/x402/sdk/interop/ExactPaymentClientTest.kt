@@ -108,6 +108,52 @@ class ExactPaymentClientTest {
         assertEquals(0, builder.requests.size)
         assertEquals(0, signer.inputs.size)
     }
+
+    @Test
+    fun `rejects challenge whose feePayer equals payer wallet (managed fee-payer drain attack)`() {
+        // Defensive client-side validation: a malicious server may set the managed
+        // fee payer to the user's own wallet to make the wallet pay SVM fees on
+        // top of the transfer. The exact-svm scheme requires operational
+        // separation; reject before any RPC or signing work happens.
+        val builder = RecordingTransactionBuilder(byteArrayOf(1))
+        val signer = RecordingTransactionSigner(byteArrayOf(2))
+        val client = ExactPaymentClient(builder, signer)
+
+        val payer = "Payer11111111111111111111111111111111"
+        val error = assertFailsWith<IllegalArgumentException> {
+            client.createPaymentHeaders(
+                selected = selectedRequirement(extra = mapOf("feePayer" to payer)),
+                payer = payer,
+            )
+        }
+        assertEquals(
+            "managed fee payer must differ from the transfer authority (payer)",
+            error.message,
+        )
+        assertEquals(0, builder.requests.size)
+        assertEquals(0, signer.inputs.size)
+    }
+
+    @Test
+    fun `rejects challenge whose payTo equals feePayer (self-pay loop attack)`() {
+        val builder = RecordingTransactionBuilder(byteArrayOf(1))
+        val signer = RecordingTransactionSigner(byteArrayOf(2))
+        val client = ExactPaymentClient(builder, signer)
+
+        val collidingAddress = "PayTo111111111111111111111111111111111"
+        val error = assertFailsWith<IllegalArgumentException> {
+            client.createPaymentHeaders(
+                selected = selectedRequirement(
+                    payTo = collidingAddress,
+                    extra = mapOf("feePayer" to collidingAddress),
+                ),
+                payer = "Payer11111111111111111111111111111111",
+            )
+        }
+        assertEquals("payTo must differ from the managed fee payer", error.message)
+        assertEquals(0, builder.requests.size)
+        assertEquals(0, signer.inputs.size)
+    }
 }
 
 private class RecordingTransactionBuilder(

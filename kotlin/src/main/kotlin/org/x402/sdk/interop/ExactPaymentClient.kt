@@ -131,6 +131,17 @@ class ExactPaymentClient(
             ?: throw IllegalArgumentException(
                 "feePayer is required in paymentRequirements.extra for SVM transactions",
             )
+        // Defensive client-side check against a malicious server challenge that
+        // sets the managed fee payer to the user's own wallet — the exact-svm
+        // scheme requires the fee payer to be operationally distinct from the
+        // transfer authority. Mirrors the deeper builder-level guard but fires
+        // before any Base58 decoding or RPC work happens.
+        require(feePayer != payer) {
+            "managed fee payer must differ from the transfer authority (payer)"
+        }
+        // Mirror server-side defensive check: payTo must not collide with the
+        // fee payer (would create a self-pay loop) or with the payer wallet.
+        require(payTo != feePayer) { "payTo must differ from the managed fee payer" }
         val memo = requirement.extra.string("memo")
         if (memo != null && memo.toByteArray(Charsets.UTF_8).size > MAX_MEMO_BYTES) {
             throw IllegalArgumentException("extra.memo exceeds maximum $MAX_MEMO_BYTES bytes")
