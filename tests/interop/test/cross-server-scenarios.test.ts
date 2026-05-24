@@ -52,6 +52,26 @@ const CROSS_SERVER_REJECT_TOKENS = [
   "payment_invalid",
 ];
 
+// Canonical reject reasons for a duplicate / replay submission against
+// the same server. The TS facilitator returns `duplicate_settlement`; the
+// Rust spine surfaces `SignatureConsumed` / "already consumed".
+const REPLAY_REJECT_TOKENS = [
+  "duplicate_settlement",
+  "signature_consumed",
+  "SignatureConsumed",
+  "already consumed",
+  "already settled",
+  "already been processed",
+  "Transaction signature already consumed",
+  // The TS spine simulates the resigned transaction before settlement.
+  // When the same signed transaction is replayed, simulation fails on the
+  // SPL transfer (the source ATA's nonce / balance state from the first
+  // settlement is already on-chain), surfaced as transaction_simulation_failed.
+  // This is the canonical TS replay-reject path today.
+  "transaction_simulation_failed",
+  "transaction_failed",
+];
+
 function bodyAsString(body: unknown): string {
   if (body == null) return "";
   if (typeof body === "string") return body;
@@ -262,5 +282,72 @@ suite("x402 cross-server scenarios", () => {
     });
   }
 
-  // Scenario 2 (idempotent resubmit) lands in the next commit.
+  // ── Scenario 2: idempotent (replay) resubmit ────────────────────────────
+  //
+  // For every active server adapter: pay it once with the TS client,
+  // capture the credential, then re-submit the same credential to the
+  // same server. The second attempt MUST be rejected with a canonical
+  // duplicate-settlement / signature-consumed reason. This catches any
+  // adapter whose L4 replay-store has a per-instance race (the same
+  // failure mode the Python lazy-init fix already proved).
+  const haveReplay = socketSupport && tsClient && activeServers.length > 0;
+  const replayIt = haveReplay ? it : it.skip;
+
+  for (const server of activeServers) {
+    replayIt(
+      `${server.id} server rejects an idempotent resubmit of the same credential`,
+      async () => {
+        if (!tsClient) {
+          throw new Error("typescript client adapter is required for replay scenarios");
+        }
+        const env = freshPayToEnv();
+        const running = await startServer(server, env);
+        runningServers.push(running);
+        const targetUrl = `http://127.0.0.1:${running.ready.port}${interopScenario.resourcePath}`;
+
+        const first = await runClient(tsClient, targetUrl, env);
+        expect(
+          first.ok,
+          `Setup leg must succeed against ${server.id}. Result=${JSON.stringify(first, null, 2)}`,
+        ).toBe(true);
+        expect(first.status).toBe(200);
+        const credential = first.paymentHeader;
+        expect(credential).toBeTruthy();
+
+        const second = await runClient(tsClient, targetUrl, {
+          ...env,
+          X402_INTEROP_REUSE_CREDENTIAL: credential ?? "",
+        });
+
+        const evidence = JSON.stringify(
+          {
+            server: server.id,
+            status: second.status,
+            body: second.responseBody,
+            headers: second.responseHeaders,
+          },
+          null,
+          2,
+        );
+
+        expect(second.ok, `Replay against ${server.id} unexpectedly succeeded: ${evidence}`).toBe(
+          false,
+        );
+        expect(
+          second.status,
+          `Replay against ${server.id} returned non-error status: ${evidence}`,
+        ).toBeGreaterThanOrEqual(400);
+        const haystack =
+          `${bodyAsString(second.responseBody)} ${bodyAsString(second.responseHeaders)} ` +
+          decodePaymentRequiredHeader(second.responseHeaders);
+        const token = findToken(haystack, REPLAY_REJECT_TOKENS);
+        expect(
+          token,
+          `Replay against ${server.id} did not surface a canonical duplicate-settlement reason. ` +
+            `Expected one of ${REPLAY_REJECT_TOKENS.join(", ")}. Got: ${evidence}`,
+        ).toBeTruthy();
+      },
+      CASE_TIMEOUT_MS,
+    );
+  }
 });
