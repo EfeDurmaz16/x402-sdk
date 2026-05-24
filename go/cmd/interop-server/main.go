@@ -41,43 +41,15 @@ var (
 	memoProgramID          = solana.MustPublicKeyFromBase58("MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr")
 )
 
-// lighthouseAssertionShape describes a bounded Lighthouse assertion instruction
-// that the facilitator is willing to co-sign. Keyed by Borsh enum discriminator
-// (the first instruction-data byte) as defined in the upstream Lighthouse program
-// at github.com/Jac0xb/lighthouse (programs/lighthouse/src/instruction.rs). Only
-// assertion variants are allowlisted — `MemoryWrite` / `MemoryClose` (the only
-// variants that take a writable signer payer account) are intentionally absent.
-//
-// Rationale (Codex P1.1, May 2026): the TS (typescript/packages/x402/src/facilitator/
-// exact/scheme.ts, optional-instruction loop) and Rust (rust/src/protocol/schemes/
-// exact/verify.rs, ~L260) spines accept any Lighthouse instruction without
-// inspecting its discriminator or account list. That leaves the facilitator
-// co-signing arbitrary CU spend and unbounded account fan-out paid out of its own
-// SOL. The Phantom/Solflare integration documented in typescript/packages/x402/
-// src/protocol/schemes/exact/constants.ts only emits read-only `Assert*` variants
-// against a small fixed number of target accounts, so a bounded allowlist still
-// covers the legitimate wallet-protection flow.
-var lighthouseAssertionShape = map[byte]struct {
-	name        string
-	maxAccounts int
-}{
-	2:  {name: "AssertAccountData", maxAccounts: 1},
-	3:  {name: "AssertAccountDataMulti", maxAccounts: 1},
-	4:  {name: "AssertAccountDelta", maxAccounts: 2},
-	5:  {name: "AssertAccountInfo", maxAccounts: 1},
-	6:  {name: "AssertAccountInfoMulti", maxAccounts: 1},
-	7:  {name: "AssertMintAccount", maxAccounts: 1},
-	8:  {name: "AssertMintAccountMulti", maxAccounts: 1},
-	9:  {name: "AssertTokenAccount", maxAccounts: 1},
-	10: {name: "AssertTokenAccountMulti", maxAccounts: 1},
-	11: {name: "AssertStakeAccount", maxAccounts: 1},
-	12: {name: "AssertStakeAccountMulti", maxAccounts: 1},
-	13: {name: "AssertUpgradeableLoaderAccount", maxAccounts: 1},
-	14: {name: "AssertUpgradeableLoaderAccountMulti", maxAccounts: 1},
-	15: {name: "AssertSysvarClock", maxAccounts: 0},
-	16: {name: "AssertMerkleTreeAccount", maxAccounts: 1},
-	17: {name: "AssertBubblegumTreeConfigAccount", maxAccounts: 1},
-}
+// Lighthouse instructions are passed through by program-ID match alone, matching
+// the canonical spines:
+//   - rust/src/protocol/schemes/exact/verify.rs:266 — `if program == LIGHTHOUSE_PROGRAM || program == MEMO_PROGRAM { continue; }`
+//   - typescript/packages/x402/src/facilitator/exact/scheme.ts:300 — same shape
+// No discriminator or account-count allowlist is enforced here: inventing one
+// in a single language port would diverge from real-world Phantom/Solflare
+// transactions that the Rust + TypeScript adapters accept. Tightening this is
+// a protocol-wide decision that must land in the Rust spine first; tracked at
+// /notes/lighthouse-allowlist-tracking.md.
 
 // CAIP-2 network identifiers shared with the TypeScript spine.
 const (
@@ -769,9 +741,9 @@ func verifyOptionalInstructions(transaction *solana.Transaction, instructions []
 			continue
 		}
 		if program.String() == lighthouseProgram {
-			if err := verifyLighthouseInstruction(instruction); err != nil {
-				return err
-			}
+			// Pass through Lighthouse instructions by program-id match only,
+			// mirroring rust/src/protocol/schemes/exact/verify.rs:266 and
+			// typescript/packages/x402/src/facilitator/exact/scheme.ts:300.
 			continue
 		}
 		if program.Equals(solana.SPLAssociatedTokenAccountProgramID) && validDestinationATACreateInstruction(transaction, instruction, requirement, transfer) {
@@ -803,22 +775,6 @@ func isValidatedATACreateInstruction(transaction *solana.Transaction, instructio
 	return validDestinationATACreateInstruction(transaction, instruction, requirement, transfer)
 }
 
-// verifyLighthouseInstruction enforces the bounded discriminator + account-count
-// allowlist captured in lighthouseAssertionShape. See the comment on that map
-// for the threat-model rationale (Codex P1.1).
-func verifyLighthouseInstruction(instruction solana.CompiledInstruction) error {
-	if len(instruction.Data) == 0 {
-		return fmt.Errorf("invalid_exact_svm_payload_lighthouse_instruction_not_allowed")
-	}
-	shape, ok := lighthouseAssertionShape[instruction.Data[0]]
-	if !ok {
-		return fmt.Errorf("invalid_exact_svm_payload_lighthouse_instruction_not_allowed")
-	}
-	if len(instruction.Accounts) > shape.maxAccounts {
-		return fmt.Errorf("invalid_exact_svm_payload_lighthouse_instruction_unbounded_accounts")
-	}
-	return nil
-}
 
 func validDestinationATACreateInstruction(transaction *solana.Transaction, instruction solana.CompiledInstruction, requirement paymentRequirement, transfer transferCheckedFields) bool {
 	if len(instruction.Data) > 1 {

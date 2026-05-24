@@ -2134,78 +2134,51 @@ func TestSettleExactPaymentAcceptsAliasResolvedRequirement(t *testing.T) {
 
 // --- Codex P1.1: Lighthouse discriminator + account-count allowlist ---
 
-func TestRejectsUnknownLighthouseDiscriminator(t *testing.T) {
+// TestLighthousePassthroughMatchesSpine locks parity with the Rust + TS spines,
+// both of which accept any Lighthouse-program instruction by program-id match
+// alone. Inventing a per-language allowlist here would diverge from real-world
+// Phantom/Solflare transactions the canonical adapters accept. See the comment
+// on the optional-instruction loop for the spine citations.
+func TestLighthousePassthroughMatchesSpine(t *testing.T) {
 	client, err := solana.NewRandomPrivateKey()
 	if err != nil {
 		t.Fatal(err)
 	}
-	state := testServerState(t)
-	state.memo = "lighthouse-unknown-disc"
-	requirement := exactRequirement(state)
-	tx := transactionForTest(t, requirement, client)
-
-	// Discriminator 0 is `MemoryWrite` (a writable-signer payer variant) — not in
-	// the allowlist. 255 is unused entirely. Both must be rejected.
-	for _, disc := range []byte{0, 1, 200, 255} {
-		mutated := cloneTransactionForTest(t, tx)
-		mutated.Message.Instructions = append(
-			mutated.Message.Instructions[:3],
-			append(
-				[]solana.CompiledInstruction{compiledInstructionForTest(t, mutated, lighthouseProgram, []byte{disc})},
-				mutated.Message.Instructions[3:]...,
-			)...,
-		)
-		err := verifyExactTransaction(mutated, requirement)
-		if err == nil || err.Error() != "invalid_exact_svm_payload_lighthouse_instruction_not_allowed" {
-			t.Fatalf("disc=%d: expected lighthouse_instruction_not_allowed, got %v", disc, err)
-		}
+	cases := []struct {
+		name string
+		data []byte
+		// extra wallet count for the instruction's account list.
+		extraAccounts int
+	}{
+		{name: "empty_payload", data: []byte{}, extraAccounts: 0},
+		{name: "known_assert_disc_single_account", data: []byte{9, 0}, extraAccounts: 1},
+		{name: "unknown_discriminator", data: []byte{200, 1, 2}, extraAccounts: 1},
+		{name: "oversize_payload_many_accounts", data: bytes.Repeat([]byte{0xAB}, 256), extraAccounts: 8},
 	}
-}
-
-func TestRejectsLighthouseInstructionWithUnboundedAccounts(t *testing.T) {
-	client, err := solana.NewRandomPrivateKey()
-	if err != nil {
-		t.Fatal(err)
-	}
-	state := testServerState(t)
-	state.memo = "lighthouse-unbounded"
-	requirement := exactRequirement(state)
-	tx := transactionForTest(t, requirement, client)
-
-	// AssertTokenAccount (disc=9) expects exactly 1 account. Provide 5.
-	extra := make([]solana.PublicKey, 5)
-	for i := range extra {
-		extra[i] = solana.NewWallet().PublicKey()
-	}
-	ix := compiledInstructionWithAccountsForTest(t, tx, solana.MustPublicKeyFromBase58(lighthouseProgram), extra, []byte{9})
-	tx.Message.Instructions = append(
-		tx.Message.Instructions[:3],
-		append([]solana.CompiledInstruction{ix}, tx.Message.Instructions[3:]...)...,
-	)
-	err = verifyExactTransaction(tx, requirement)
-	if err == nil || err.Error() != "invalid_exact_svm_payload_lighthouse_instruction_unbounded_accounts" {
-		t.Fatalf("expected lighthouse_instruction_unbounded_accounts, got %v", err)
-	}
-}
-
-func TestAcceptsAllowlistedLighthouseInstruction(t *testing.T) {
-	client, err := solana.NewRandomPrivateKey()
-	if err != nil {
-		t.Fatal(err)
-	}
-	state := testServerState(t)
-	state.memo = "lighthouse-ok"
-	requirement := exactRequirement(state)
-	tx := transactionForTest(t, requirement, client)
-
-	target := solana.NewWallet().PublicKey()
-	ix := compiledInstructionWithAccountsForTest(t, tx, solana.MustPublicKeyFromBase58(lighthouseProgram), []solana.PublicKey{target}, []byte{9, 0})
-	tx.Message.Instructions = append(
-		tx.Message.Instructions[:3],
-		append([]solana.CompiledInstruction{ix}, tx.Message.Instructions[3:]...)...,
-	)
-	if err := verifyExactTransaction(tx, requirement); err != nil {
-		t.Fatalf("expected allowlisted lighthouse instruction to be accepted, got %v", err)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			state := testServerState(t)
+			state.memo = "lighthouse-parity-" + tc.name
+			requirement := exactRequirement(state)
+			tx := transactionForTest(t, requirement, client)
+			extras := make([]solana.PublicKey, tc.extraAccounts)
+			for i := range extras {
+				extras[i] = solana.NewWallet().PublicKey()
+			}
+			var ix solana.CompiledInstruction
+			if tc.extraAccounts == 0 {
+				ix = compiledInstructionForTest(t, tx, lighthouseProgram, tc.data)
+			} else {
+				ix = compiledInstructionWithAccountsForTest(t, tx, solana.MustPublicKeyFromBase58(lighthouseProgram), extras, tc.data)
+			}
+			tx.Message.Instructions = append(
+				tx.Message.Instructions[:3],
+				append([]solana.CompiledInstruction{ix}, tx.Message.Instructions[3:]...)...,
+			)
+			if err := verifyExactTransaction(tx, requirement); err != nil {
+				t.Fatalf("expected spine-parity acceptance for %s, got %v", tc.name, err)
+			}
+		})
 	}
 }
 
