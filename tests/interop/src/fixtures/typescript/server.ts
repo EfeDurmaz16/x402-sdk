@@ -10,6 +10,51 @@ import { registerExactSvmScheme as registerExactServerScheme } from "@solana/x40
 import { interopScenario, localSolanaInteropCapabilities } from "../../contracts";
 import { fixtureSettlementHeader, readInteropEnvironment } from "./shared";
 
+export type InteropAcceptEntry = {
+  scheme: string;
+  network: string;
+  payTo: string;
+  price: { amount: string; asset: string; extra: { decimals: number } };
+};
+
+/**
+ * Build the `accepts` list advertised by the TypeScript interop server.
+ *
+ * The canonical x402 wire shape requires every exact-SVM accept entry to
+ * carry an integer `extra.decimals` so foreign clients (Go, Ruby, etc.)
+ * can build the SPL transfer with the correct base-unit scaling. The
+ * upstream string-price helper resolves `$0.001` to USDC (6 decimals) but
+ * emits `extra: {}`, dropping the field on the wire — we expand the
+ * primary entry into the object form so every accept advertises decimals.
+ *
+ * Extracted from `main` so the wire shape can be asserted in unit tests
+ * without spawning the HTTP server.
+ */
+export function buildInteropAcceptsList(options: {
+  network: string;
+  payTo: string;
+  extraOfferedMints: readonly string[];
+}): InteropAcceptEntry[] {
+  return [
+    {
+      scheme: interopScenario.scheme,
+      network: options.network,
+      payTo: options.payTo,
+      price: {
+        amount: "1000",
+        asset: interopScenario.asset,
+        extra: { decimals: 6 },
+      },
+    },
+    ...options.extraOfferedMints.map(mint => ({
+      scheme: interopScenario.scheme,
+      network: options.network,
+      payTo: options.payTo,
+      price: { amount: "1000", asset: mint, extra: { decimals: 6 } },
+    })),
+  ];
+}
+
 class NodeAdapter implements HTTPAdapter {
   constructor(
     private readonly request: http.IncomingMessage,
@@ -89,25 +134,16 @@ async function main() {
     .split(",")
     .map(entry => entry.trim())
     .filter(Boolean);
-  const acceptsList: Array<{
+  const acceptsList = buildInteropAcceptsList({
+    network: environment.network,
+    payTo: environment.payTo,
+    extraOfferedMints,
+  }) as unknown as Array<{
     scheme: string;
     network: never;
     payTo: string;
-    price: string | { amount: string; asset: string; extra?: { decimals: number } };
-  }> = [
-    {
-      scheme: interopScenario.scheme,
-      network: environment.network as never,
-      payTo: environment.payTo,
-      price: interopScenario.price,
-    },
-    ...extraOfferedMints.map(mint => ({
-      scheme: interopScenario.scheme,
-      network: environment.network as never,
-      payTo: environment.payTo,
-      price: { amount: "1000", asset: mint, extra: { decimals: 6 } },
-    })),
-  ];
+    price: { amount: string; asset: string; extra: { decimals: number } };
+  }>;
 
   const httpServer = new x402HTTPResourceServer(resourceServer, {
     [`GET ${interopScenario.resourcePath}`]: {
@@ -208,4 +244,19 @@ async function main() {
   process.on("SIGINT", shutdown);
 }
 
-void main();
+// Only spawn the HTTP server when this module is executed directly (i.e.
+// by the interop adapter command). Avoid side effects when imported by
+// unit tests that exercise `buildInteropAcceptsList` etc.
+const invokedAsScript = (() => {
+  const entry = process.argv[1];
+  if (!entry) return false;
+  try {
+    return new URL(`file://${entry}`).href === import.meta.url;
+  } catch {
+    return false;
+  }
+})();
+
+if (invokedAsScript) {
+  void main();
+}
