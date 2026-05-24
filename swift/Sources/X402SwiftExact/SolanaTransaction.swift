@@ -110,7 +110,7 @@ public struct ExactTransactionBuilder {
                 destination: destinationATA,
                 authority: signer.address,
                 amount: amount,
-                decimals: requirement.decimals
+                decimals: try requirement.decimals()
             ),
             try memoInstruction(requirement.memo),
         ]

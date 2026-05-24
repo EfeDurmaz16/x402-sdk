@@ -1,6 +1,9 @@
 import Foundation
 import Testing
 @testable import X402SwiftExact
+#if canImport(CryptoKit)
+import CryptoKit
+#endif
 
 private struct FixedSigner: SolanaSigner {
     let address: SolanaPublicKey
@@ -29,8 +32,69 @@ private struct FixedATAResolver: AssociatedTokenAddressResolver {
     let basepoint = try Data(hex: "5866666666666666666666666666666666666666666666666666666666666666")
     #expect(Ed25519CompressedPoint.isOnCurve(basepoint))
 
-    let fieldModulus = try Data(hex: "edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f")
+    // y = p = 2^255 - 19, the smallest non-canonical y-coordinate encoding.
+    // Little-endian: 0xed, 30×0xff, 0x7f (sign bit clear). Exactly 32 bytes.
+    let fieldModulus = try Data(hex: "edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff")
+    #expect(fieldModulus.count == 32)
     #expect(!Ed25519CompressedPoint.isOnCurve(fieldModulus))
+
+    // y = p + 1, also >= p and therefore non-canonical.
+    let fieldModulusPlusOne = try Data(hex: "eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff")
+    #expect(fieldModulusPlusOne.count == 32)
+    #expect(!Ed25519CompressedPoint.isOnCurve(fieldModulusPlusOne))
+}
+
+@Test func challengeRejectsInvalidDecimalsAndDefaultsWhenAbsent() throws {
+    // Out-of-range decimals must throw, not crash via UInt8(value) trap.
+    let bad = PaymentRequirement(
+        scheme: "exact",
+        network: X402SwiftExact.solanaDevnet,
+        amount: "1000",
+        asset: "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU",
+        payTo: "11111111111111111111111111111115",
+        maxTimeoutSeconds: nil,
+        extra: ["decimals": .number(999)]
+    )
+    #expect(throws: X402SwiftExactError.self) {
+        _ = try bad.decimals()
+    }
+
+    let fractional = PaymentRequirement(
+        scheme: "exact",
+        network: X402SwiftExact.solanaDevnet,
+        amount: "1000",
+        asset: "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU",
+        payTo: "11111111111111111111111111111115",
+        maxTimeoutSeconds: nil,
+        extra: ["decimals": .number(6.5)]
+    )
+    #expect(throws: X402SwiftExactError.self) {
+        _ = try fractional.decimals()
+    }
+
+    let negative = PaymentRequirement(
+        scheme: "exact",
+        network: X402SwiftExact.solanaDevnet,
+        amount: "1000",
+        asset: "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU",
+        payTo: "11111111111111111111111111111115",
+        maxTimeoutSeconds: nil,
+        extra: ["decimals": .number(-1)]
+    )
+    #expect(throws: X402SwiftExactError.self) {
+        _ = try negative.decimals()
+    }
+
+    let absent = PaymentRequirement(
+        scheme: "exact",
+        network: X402SwiftExact.solanaDevnet,
+        amount: "1000",
+        asset: "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU",
+        payTo: "11111111111111111111111111111115",
+        maxTimeoutSeconds: nil,
+        extra: nil
+    )
+    #expect(try absent.decimals() == 6)
 }
 
 @Test func defaultATAResolverDerivesCanonicalAssociatedTokenAccounts() throws {
@@ -132,6 +196,24 @@ private struct FixedATAResolver: AssociatedTokenAddressResolver {
     let tx = try #require(payload["transaction"] as? String)
     #expect(Data(base64Encoded: tx) != nil)
 }
+
+#if canImport(CryptoKit)
+@Test func memorySignerRejectsMismatchedEmbeddedPublicKey() throws {
+    let privateKey = Curve25519.Signing.PrivateKey()
+    let seed = [UInt8](privateKey.rawRepresentation)
+    let derivedPublic = [UInt8](privateKey.publicKey.rawRepresentation)
+    // Valid 64-byte construction first: must succeed.
+    let valid = try MemorySolanaSigner(secretKey: seed + derivedPublic)
+    #expect(valid.address.bytes.count == 32)
+
+    // Now tamper the embedded public-key suffix: signer construction MUST reject.
+    var tampered = derivedPublic
+    tampered[0] ^= 0x01
+    #expect(throws: X402SwiftExactError.self) {
+        _ = try MemorySolanaSigner(secretKey: seed + tampered)
+    }
+}
+#endif
 
 private extension Data {
     init(hex: String) throws {

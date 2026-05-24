@@ -31,11 +31,21 @@ public struct PaymentRequirement: Equatable, Codable {
         extra?["tokenProgram"]?.string ?? X402SwiftExact.tokenProgram
     }
 
-    public var decimals: UInt8 {
-        if case .number(let value) = extra?["decimals"] {
-            return UInt8(value)
+    /// Parse the `extra.decimals` field from the payment requirement.
+    /// Throws `X402SwiftExactError.invalidDecimals` if the value is non-integral or outside `0...255`.
+    /// Defaults to `6` when the field is absent (canonical USDC precision).
+    public func decimals() throws -> UInt8 {
+        guard case .number(let value) = extra?["decimals"] else {
+            return 6
         }
-        return 6
+        // Reject NaN, infinity, negatives, fractions, and anything outside UInt8 range.
+        guard value.isFinite,
+              value >= 0,
+              value <= Double(UInt8.max),
+              value.rounded(.towardZero) == value else {
+            throw X402SwiftExactError.invalidDecimals(value)
+        }
+        return UInt8(value)
     }
 }
 

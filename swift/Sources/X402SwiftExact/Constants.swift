@@ -27,6 +27,8 @@ public enum X402SwiftExactError: Error, Equatable, CustomStringConvertible {
     case missingBlockhash
     case missingChallenge
     case memoTooLarge(Int)
+    case invalidDecimals(Double)
+    case publicKeyMismatch(expected: String, derived: String)
     case rpc(String)
 
     public var description: String {
@@ -41,6 +43,8 @@ public enum X402SwiftExactError: Error, Equatable, CustomStringConvertible {
         case .missingBlockhash: return "payment requirement is missing a recent blockhash and no RPC client was provided"
         case .missingChallenge: return "server did not return a supported SVM x402 challenge"
         case .memoTooLarge(let count): return "extra.memo exceeds \(X402SwiftExact.maxMemoBytes) bytes: \(count)"
+        case .invalidDecimals(let value): return "invalid extra.decimals value: \(value) (must be an integer in 0...255)"
+        case .publicKeyMismatch(let expected, let derived): return "secret key public component \(derived) does not match supplied address \(expected)"
         case .rpc(let value): return value
         }
     }
