@@ -43,6 +43,9 @@ export const clientImplementations: ImplementationDefinition[] = [
     enabled: isEnabled("rust", "X402_INTEROP_CLIENTS", true),
   },
   {
+    // NOTE: ImplementationDefinition on this branch requires only id/label/role/command/enabled.
+    // Staging-branch fields (adapterStatus/runtimeSchemes/runtimeIntents) are intentionally absent;
+    // any future addition here must accompany a corresponding type widening above.
     id: "kotlin",
     label: "Kotlin HTTP client scaffold",
     role: "client",
