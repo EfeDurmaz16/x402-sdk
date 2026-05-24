@@ -177,6 +177,382 @@ local function base58_encode(value)
   return luazen.b58encode(value)
 end
 
+-- Pure-Lua 256-bit modular arithmetic over the Ed25519 prime field.
+--
+-- This block exists only to support independent Associated Token Account PDA
+-- derivation, which mirrors the canonical Rust spine in
+-- `rust/src/protocol/schemes/exact/verify.rs::get_associated_token_address`
+-- and the Solana Ed25519 `find_program_address` algorithm. luasodium does not
+-- expose `crypto_core_ed25519_is_valid_point` in our pinned package surface
+-- (see `rockspec` and `luasodium 2.4.x` modules), so we implement Edwards
+-- point decompression directly to perform the off-curve check that
+-- `find_program_address` requires when choosing a bump seed.
+--
+-- Limb layout: ten 26-bit base-2^26 limbs, little-endian. Multiplication of
+-- two limbs is bounded by 2^52, which is safely within Lua 5.4's 63-bit
+-- signed integer arithmetic. The representation tolerates non-canonical
+-- limb values during arithmetic and is normalized via `bn_reduce_mod_p`.
+local BN_LIMB_BITS = 26
+local BN_LIMB_BASE = 1 << BN_LIMB_BITS
+local BN_LIMB_MASK = BN_LIMB_BASE - 1
+local BN_LIMBS = 10
+
+local function bn_zero()
+  local value = {}
+  for index = 1, BN_LIMBS do
+    value[index] = 0
+  end
+  return value
+end
+
+local function bn_clone(a)
+  local copy = {}
+  for index = 1, BN_LIMBS do
+    copy[index] = a[index]
+  end
+  return copy
+end
+
+local function bn_from_uint(uint)
+  local value = bn_zero()
+  local index = 1
+  while uint > 0 do
+    value[index] = uint & BN_LIMB_MASK
+    uint = uint >> BN_LIMB_BITS
+    index = index + 1
+  end
+  return value
+end
+
+local function bn_from_bytes_le(bytes)
+  -- Convert 32-byte little-endian field element into the limb representation.
+  if #bytes ~= 32 then
+    error("bn_from_bytes_le expects 32 bytes")
+  end
+  local value = bn_zero()
+  local bit_position = 0
+  for byte_index = 1, 32 do
+    local byte = bytes:byte(byte_index)
+    local limb_index = (bit_position // BN_LIMB_BITS) + 1
+    local bit_offset = bit_position % BN_LIMB_BITS
+    value[limb_index] = (value[limb_index] or 0) | ((byte << bit_offset) & BN_LIMB_MASK)
+    local remaining = 8 - (BN_LIMB_BITS - bit_offset)
+    if remaining > 0 then
+      value[limb_index + 1] = (value[limb_index + 1] or 0) | (byte >> (8 - remaining))
+    end
+    bit_position = bit_position + 8
+  end
+  return value
+end
+
+-- Ed25519 prime p = 2^255 - 19. We carry an 11th limb during arithmetic and
+-- fold high bits back via the identity 2^255 == 19 mod p. Two reduce passes
+-- guarantee a result strictly below p for inputs up to 2^260.
+local ED25519_P_BYTES = string.char(
+  0xed, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+  0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+  0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+  0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x7f
+)
+local ED25519_P = bn_from_bytes_le(ED25519_P_BYTES)
+
+local function bn_carry_normalize(limbs, limb_count)
+  -- Propagate carries; limbs are not yet reduced mod p.
+  local carry = 0
+  for index = 1, limb_count do
+    local value = (limbs[index] or 0) + carry
+    limbs[index] = value & BN_LIMB_MASK
+    carry = value >> BN_LIMB_BITS
+  end
+  return carry
+end
+
+local function bn_reduce_mod_p(limbs)
+  -- Fold limbs above bit 255 back into the low limbs using 2^255 == 19 mod p.
+  -- After two passes the value is guaranteed to be in [0, p).
+  --
+  -- Limb layout: limb[i] represents value * 2^(26*(i-1)). So limb[10] starts
+  -- at bit 234 and bit `b` of limb[10] is bit (234+b) of the number. Bit 255
+  -- corresponds to bit 21 of limb[10]. limb[11] starts at bit 260 and folds
+  -- via 2^260 ≡ 19 * 2^5 ≡ 608 mod p (each unit of limb[11] folds as
+  -- 19 * 2^5, equivalently 32 units of the "bit 255 fold").
+  for _ = 1, 2 do
+    bn_carry_normalize(limbs, BN_LIMBS + 1)
+    local top = limbs[BN_LIMBS] or 0
+    -- Bits 21..25 of limb[10] represent multiples of 2^255 .. 2^259.
+    -- limbs[11] represents multiples of 2^260; one unit of limb[11] is
+    -- 32 units of the 2^255 fold (since 2^260 = 32 * 2^255).
+    local high = (top >> 21) + ((limbs[BN_LIMBS + 1] or 0) << 5)
+    limbs[BN_LIMBS] = top & 0x001fffff
+    limbs[BN_LIMBS + 1] = 0
+    if high ~= 0 then
+      local carry = high * 19
+      local index = 1
+      while carry ~= 0 do
+        carry = (limbs[index] or 0) + carry
+        limbs[index] = carry & BN_LIMB_MASK
+        carry = carry >> BN_LIMB_BITS
+        index = index + 1
+      end
+    end
+  end
+
+  -- Conditional subtract of p if still >= p.
+  local greater_or_equal = true
+  for index = BN_LIMBS, 1, -1 do
+    local left = limbs[index] or 0
+    local right = ED25519_P[index]
+    if left > right then
+      break
+    elseif left < right then
+      greater_or_equal = false
+      break
+    end
+  end
+  if greater_or_equal then
+    local borrow = 0
+    for index = 1, BN_LIMBS do
+      local diff = (limbs[index] or 0) - ED25519_P[index] - borrow
+      if diff < 0 then
+        diff = diff + BN_LIMB_BASE
+        borrow = 1
+      else
+        borrow = 0
+      end
+      limbs[index] = diff
+    end
+  end
+  return limbs
+end
+
+local function bn_add_mod_p(a, b)
+  local result = {}
+  local carry = 0
+  for index = 1, BN_LIMBS do
+    local sum = a[index] + b[index] + carry
+    result[index] = sum & BN_LIMB_MASK
+    carry = sum >> BN_LIMB_BITS
+  end
+  result[BN_LIMBS + 1] = carry
+  return bn_reduce_mod_p(result)
+end
+
+local function bn_sub_mod_p(a, b)
+  -- Compute a + (p - b) mod p to avoid signed-limb juggling.
+  local complement = {}
+  local borrow = 0
+  for index = 1, BN_LIMBS do
+    local diff = ED25519_P[index] - b[index] - borrow
+    if diff < 0 then
+      diff = diff + BN_LIMB_BASE
+      borrow = 1
+    else
+      borrow = 0
+    end
+    complement[index] = diff
+  end
+  return bn_add_mod_p(a, complement)
+end
+
+local function bn_mul_mod_p(a, b)
+  -- Schoolbook multiplication into a 2*BN_LIMBS buffer, then fold.
+  local product = {}
+  for index = 1, BN_LIMBS * 2 do
+    product[index] = 0
+  end
+  for i = 1, BN_LIMBS do
+    local ai = a[i]
+    if ai ~= 0 then
+      local carry = 0
+      for j = 1, BN_LIMBS do
+        local sum = product[i + j - 1] + ai * b[j] + carry
+        product[i + j - 1] = sum & BN_LIMB_MASK
+        carry = sum >> BN_LIMB_BITS
+      end
+      product[i + BN_LIMBS] = product[i + BN_LIMBS] + carry
+    end
+  end
+  -- Fold limbs [BN_LIMBS+1 .. 2*BN_LIMBS] back into the low half. Each high
+  -- limb at position BN_LIMBS+k represents 2^(26*(BN_LIMBS+k-1)) = 2^(260 + 26*(k-1)).
+  -- Since 2^260 ≡ 608 mod p (= 19 * 2^5; 2^255 ≡ 19), folding adds
+  -- high_limb * 608 at low position k.
+  local FOLD_FACTOR = 608
+  local low = {}
+  for index = 1, BN_LIMBS do
+    low[index] = product[index] or 0
+  end
+  low[BN_LIMBS + 1] = 0
+  for index = 1, BN_LIMBS do
+    local high_limb = product[BN_LIMBS + index] or 0
+    if high_limb ~= 0 then
+      local carry = high_limb * FOLD_FACTOR
+      local target = index
+      while carry ~= 0 do
+        carry = (low[target] or 0) + carry
+        low[target] = carry & BN_LIMB_MASK
+        carry = carry >> BN_LIMB_BITS
+        target = target + 1
+      end
+    end
+  end
+  return bn_reduce_mod_p(low)
+end
+
+local function bn_pow_mod_p(base, exponent_bytes)
+  -- exponent_bytes is little-endian byte string up to 32 bytes representing
+  -- an exponent strictly less than p. Implements square-and-multiply.
+  local result = bn_from_uint(1)
+  local accumulator = bn_clone(base)
+  for byte_index = 1, #exponent_bytes do
+    local byte = exponent_bytes:byte(byte_index)
+    for bit = 0, 7 do
+      if (byte & (1 << bit)) ~= 0 then
+        result = bn_mul_mod_p(result, accumulator)
+      end
+      accumulator = bn_mul_mod_p(accumulator, accumulator)
+    end
+  end
+  return result
+end
+
+local function bn_is_zero(a)
+  for index = 1, BN_LIMBS do
+    if (a[index] or 0) ~= 0 then
+      return false
+    end
+  end
+  return true
+end
+
+local function bn_equals(a, b)
+  for index = 1, BN_LIMBS do
+    if (a[index] or 0) ~= (b[index] or 0) then
+      return false
+    end
+  end
+  return true
+end
+
+local function bn_low_bit(a)
+  return (a[1] or 0) & 1
+end
+
+-- Fermat inverse: a^(p-2) mod p. p-2 little-endian.
+local ED25519_P_MINUS_TWO_BYTES = string.char(
+  0xeb, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+  0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+  0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+  0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x7f
+)
+-- (p+3)/8 little-endian, used for tonelli-style sqrt because p ≡ 5 mod 8.
+local ED25519_SQRT_EXPONENT_BYTES = string.char(
+  0xfe, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+  0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+  0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+  0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x0f
+)
+-- (p-1)/4 little-endian, used to compute I = 2^((p-1)/4) for the sqrt fix-up.
+local ED25519_I_EXPONENT_BYTES = string.char(
+  0xfb, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+  0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+  0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+  0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x1f
+)
+
+local function bn_inv_mod_p(a)
+  return bn_pow_mod_p(a, ED25519_P_MINUS_TWO_BYTES)
+end
+
+local function bn_mod_sqrt(a)
+  -- For p ≡ 5 mod 8, candidate = a^((p+3)/8). Either candidate^2 == a, or
+  -- candidate * I works (where I^2 == -1). Otherwise no square root exists.
+  local candidate = bn_pow_mod_p(a, ED25519_SQRT_EXPONENT_BYTES)
+  local candidate_squared = bn_mul_mod_p(candidate, candidate)
+  if bn_equals(candidate_squared, a) then
+    return candidate
+  end
+  local i_value = bn_pow_mod_p(bn_from_uint(2), ED25519_I_EXPONENT_BYTES)
+  local fixed = bn_mul_mod_p(candidate, i_value)
+  local fixed_squared = bn_mul_mod_p(fixed, fixed)
+  if bn_equals(fixed_squared, a) then
+    return fixed
+  end
+  return nil
+end
+
+-- Ed25519 curve parameter d = -121665/121666 mod p.
+local function compute_ed25519_d()
+  local numerator = bn_sub_mod_p(bn_from_uint(0), bn_from_uint(121665))
+  local denominator_inverse = bn_inv_mod_p(bn_from_uint(121666))
+  return bn_mul_mod_p(numerator, denominator_inverse)
+end
+local ED25519_D = compute_ed25519_d()
+local BN_ONE = bn_from_uint(1)
+
+local function ed25519_on_curve(point_bytes)
+  -- Edwards point decompression mirroring Solana's `is_on_curve` check.
+  -- The sign bit lives in bit 7 of the final byte; the remaining 255 bits
+  -- encode the y coordinate. The point is on-curve iff x^2 (recovered via
+  -- the curve equation) admits a square root in F_p and parity matches.
+  if type(point_bytes) ~= "string" or #point_bytes ~= 32 then
+    return false
+  end
+  local sign_bit = (point_bytes:byte(32) >> 7) & 1
+  local masked = point_bytes:sub(1, 31) .. string.char(point_bytes:byte(32) & 0x7f)
+  local y = bn_from_bytes_le(masked)
+  local y_squared = bn_mul_mod_p(y, y)
+  local numerator = bn_sub_mod_p(y_squared, BN_ONE)
+  local denominator = bn_add_mod_p(bn_mul_mod_p(ED25519_D, y_squared), BN_ONE)
+  if bn_is_zero(denominator) then
+    return false
+  end
+  local x_squared = bn_mul_mod_p(numerator, bn_inv_mod_p(denominator))
+  local x = bn_mod_sqrt(x_squared)
+  if x == nil then
+    return false
+  end
+  if bn_is_zero(x) and sign_bit ~= 0 then
+    return false
+  end
+  if bn_low_bit(x) ~= sign_bit then
+    -- Either choice of x is acceptable for the on-curve check.
+    x = bn_sub_mod_p(bn_from_uint(0), x)
+  end
+  local x_squared_check = bn_mul_mod_p(x, x)
+  return bn_equals(x_squared_check, x_squared)
+end
+
+-- Mirrors Solana's `Pubkey::find_program_address` (and the Rust spine helper
+-- `get_associated_token_address` in `rust/src/protocol/schemes/exact/verify.rs`
+-- at the line that calls `Pubkey::find_program_address(seeds, &ata_program)`).
+-- Iterates bump from 255 downward, hashing
+-- `concat(seeds) || bump || program_id || "ProgramDerivedAddress"`, and
+-- returns the first SHA-256 digest that is off the Ed25519 curve.
+local PDA_MARKER = "ProgramDerivedAddress"
+local function find_program_address(seeds, program_id_bytes)
+  local seed_concat = table.concat(seeds)
+  for bump = 255, 0, -1 do
+    local candidate = sodium.crypto_hash_sha256(
+      seed_concat .. string.char(bump) .. program_id_bytes .. PDA_MARKER
+    )
+    if not ed25519_on_curve(candidate) then
+      return candidate, bump
+    end
+  end
+  error("unable to derive program address")
+end
+
+-- Independently re-derives the expected destination Associated Token Account
+-- for `(payTo, tokenProgram, mint)`. Equivalent to the Rust spine helper
+-- `get_associated_token_address` in `rust/src/protocol/schemes/exact/verify.rs`
+-- which uses seeds `[owner.as_ref(), token_program.as_ref(), mint.as_ref()]`
+-- with the SPL Associated Token Account program id.
+local function derive_associated_token_address(pay_to_bytes, token_program_bytes, mint_bytes, ata_program_bytes)
+  local seeds = { pay_to_bytes, token_program_bytes, mint_bytes }
+  local address = find_program_address(seeds, ata_program_bytes)
+  return address
+end
+
 local function read_short_vec(bytes, offset)
   local value = 0
   local shift = 0
@@ -286,9 +662,6 @@ local function parse_versioned_transaction(transaction)
     instructions = instructions,
   }
 end
-
-local server = assert(socket.bind("127.0.0.1", 0))
-local _, port = server:getsockname()
 
 local default_resource_path = "/protected"
 local default_network = "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1"
@@ -542,7 +915,13 @@ local function verify_optional_instructions(instructions, account_keys, requirem
         error("invalid_exact_svm_payload_transaction_memo")
       end
     elseif program == base58_decode(lighthouse_program) then
-      -- Lighthouse is an allowed optional settlement instruction.
+      -- Intentional spine parity: the Rust spine
+      -- (`rust/src/protocol/schemes/exact/verify.rs:266`) and the TypeScript
+      -- spine (`typescript/packages/x402/src/facilitator/exact/scheme.ts:300`)
+      -- both pass Lighthouse through unconditionally — no discriminator
+      -- allowlist, no account-count cap. Adding one here would reject
+      -- real Phantom/Solflare mainnet payments and break interop. See
+      -- `notes/lighthouse-allowlist-tracking.md` for the parity ledger.
     elseif program == base58_decode(associated_token_program) and valid_destination_ata_create_instruction(instruction, account_keys, requirement, transfer) then
       -- Destination ATA creation may be included before settlement.
     else
@@ -556,6 +935,32 @@ local function verify_optional_instructions(instructions, account_keys, requirem
   end
   if requirement.extra.memo and memo_count ~= 1 then
     error("invalid_exact_svm_payload_transaction_memo")
+  end
+end
+
+-- Mirror the canonical Rust spine sweep in
+-- `rust/src/protocol/schemes/exact/verify.rs::verify_managed_signers_not_instruction_accounts`
+-- (introduced in commit 498a6ed, "fix(exact): reject fee payer instruction accounts").
+-- Every instruction account position across every instruction MUST NOT name
+-- the server's fee-payer. The only legitimate exception is the ATA-create
+-- instruction's funding payer at accounts[1] (1-based), where the fee-payer
+-- is expected to front the rent for the destination token account. The
+-- structural shape of that exception is enforced by
+-- `valid_destination_ata_create_instruction`.
+local function verify_fee_payer_not_instruction_account(instructions, account_keys, requirement, transfer)
+  local fee_payer = base58_decode(requirement.extra.feePayer)
+  local ata_program_bytes = base58_decode(associated_token_program)
+  for _, instruction in ipairs(instructions) do
+    local is_ata_create =
+      instruction_program(instruction, account_keys) == ata_program_bytes
+      and valid_destination_ata_create_instruction(instruction, account_keys, requirement, transfer)
+    for position, account_index in ipairs(instruction.accounts) do
+      if account_key_for_index(account_keys, account_index) == fee_payer then
+        if not (is_ata_create and position == 1) then
+          error("invalid_exact_svm_payload_transaction_fee_payer_in_instruction_accounts")
+        end
+      end
+    end
   end
 end
 
@@ -573,6 +978,7 @@ local function verify_exact_transaction(parsed, requirement)
   if transfer.authority == fee_payer or transfer.source == fee_payer then
     error("invalid_exact_svm_payload_transaction_fee_payer_transferring_funds")
   end
+  verify_fee_payer_not_instruction_account(instructions, parsed.account_keys, requirement, transfer)
   if transfer.mint ~= base58_decode(requirement.asset) then
     error("invalid_exact_svm_payload_transaction_mint")
   end
@@ -585,6 +991,21 @@ local function verify_exact_transaction(parsed, requirement)
   end
   if transfer.decimals ~= tonumber(requirement.extra.decimals) then
     error("invalid_exact_svm_payload_transaction_decimals")
+  end
+  -- Independently re-derive the expected destination ATA from
+  -- (payTo, tokenProgram, mint) and compare against the transaction's
+  -- transferChecked destination. Without this, a malicious client could
+  -- name any writable ATA they control and receive funds despite the
+  -- payTo field matching. Mirrors the Rust spine check at
+  -- `verify_transfer_instruction` → `get_associated_token_address`.
+  local expected_destination = derive_associated_token_address(
+    base58_decode(requirement.payTo),
+    transfer.token_program,
+    transfer.mint,
+    base58_decode(associated_token_program)
+  )
+  if transfer.destination ~= expected_destination then
+    error("invalid_exact_svm_payload_destination_ata_mismatch")
   end
   return transfer
 end
@@ -835,6 +1256,65 @@ local function response_for(path, headers)
     return 404, "Not Found", "", json_object({ { "error", "not_found" } })
   end
 end
+
+-- Introspection probe: when X402_INTEROP_LUA_PROBE=1 the server file exits
+-- before binding a TCP socket and instead acts as a JSON-RPC-style verifier
+-- driven from stdin. Each line is a JSON object describing one verifier
+-- call; each response is a single line of JSON. Used by the runtime
+-- adversarial tests in `tests/interop/test/lua-runtime.test.ts` to exercise
+-- `verify_exact_transaction` against hand-crafted SVM payloads without
+-- standing up the full HTTP server.
+if os.getenv("X402_INTEROP_LUA_PROBE") == "1" then
+  for line in io.lines() do
+    local request = must_json_decode(line, "lua probe request")
+    local response
+    if request.op == "verify_exact_transaction" then
+      local transaction = base64_decode(request.transaction_b64)
+      if not transaction then
+        response = { ok = false, error = "transaction decode failed" }
+      else
+        local ok, result = pcall(function()
+          local parsed = parse_versioned_transaction(transaction)
+          local transfer = verify_exact_transaction(parsed, request.requirement)
+          return {
+            destination = base58_encode(transfer.destination),
+            mint = base58_encode(transfer.mint),
+          }
+        end)
+        if ok then
+          response = { ok = true, result = result }
+        else
+          response = { ok = false, error = tostring(result) }
+        end
+      end
+    elseif request.op == "derive_ata" then
+      local ok, result = pcall(function()
+        return base58_encode(derive_associated_token_address(
+          base58_decode(request.pay_to),
+          base58_decode(request.token_program),
+          base58_decode(request.mint),
+          base58_decode(associated_token_program)
+        ))
+      end)
+      if ok then
+        response = { ok = true, ata = result }
+      else
+        response = { ok = false, error = tostring(result) }
+      end
+    elseif request.op == "on_curve" then
+      local bytes = base64_decode(request.bytes_b64)
+      response = { ok = true, on_curve = ed25519_on_curve(bytes) }
+    else
+      response = { ok = false, error = "unknown op" }
+    end
+    print(must_json_encode(response, "lua probe response"))
+    io.stdout:flush()
+  end
+  os.exit(0)
+end
+
+local server = assert(socket.bind("127.0.0.1", 0))
+local _, port = server:getsockname()
 
 print(json_object({
   { "type", "ready" },

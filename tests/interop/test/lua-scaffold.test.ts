@@ -93,18 +93,35 @@ describe("Lua exact server", () => {
     expect(server).toContain('X402_INTEROP_RPC_INSECURE');
   });
 
-  it("documents the server-only boundary and ATA PDA gap", () => {
+  it("documents the server-only boundary with ATA PDA derivation closed", () => {
     expect(luaExactServerBoundaryDecision).toMatchObject({
       status: "server-only-exact",
       runtimeImplemented: true,
       runtimeProbe: "pnpm run test:probe:lua-server",
     });
-    expect(luaExactServerBoundaryDecision.remainingGaps).toContain(
+    // The PDA-derivation gap closed alongside the P1.2 fix
+    // (`derive_associated_token_address` in lua/bin/interop-server.lua).
+    expect(luaExactServerBoundaryDecision.remainingGaps).not.toContain(
       "Associated Token Account PDA derivation is not independently recomputed in Lua yet.",
     );
     expect(readme).toContain("server-only Lua adapter");
     expect(readme).toContain("Lua exact server runtime is implemented");
-    expect(readme).toContain("Associated Token Account PDA derivation check");
+    expect(readme).toContain("Associated Token Account PDA derivation");
+  });
+
+  it("independently re-derives the destination ATA and sweeps fee-payer from all instructions", () => {
+    expect(server).toContain("derive_associated_token_address");
+    expect(server).toContain("find_program_address");
+    expect(server).toContain("ed25519_on_curve");
+    expect(server).toContain("invalid_exact_svm_payload_destination_ata_mismatch");
+    expect(server).toContain("verify_fee_payer_not_instruction_account");
+    expect(server).toContain("invalid_exact_svm_payload_transaction_fee_payer_in_instruction_accounts");
+  });
+
+  it("documents intentional Lighthouse parity with the Rust and TypeScript spines", () => {
+    expect(server).toContain("Intentional spine parity");
+    expect(server).toContain("rust/src/protocol/schemes/exact/verify.rs:266");
+    expect(server).toContain("typescript/packages/x402/src/facilitator/exact/scheme.ts:300");
   });
 
   it("maps Lua runtime promotion to explicit evidence", () => {
