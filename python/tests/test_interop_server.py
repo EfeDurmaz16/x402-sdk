@@ -420,6 +420,61 @@ class InteropServerTest(unittest.TestCase):
         with patch("x402_sdk.interop.server._send_transaction", return_value="signature-1"):
             self.assertEqual(settle_exact_payment(state, header), "signature-1")
 
+    def test_settle_rejects_token_program_mismatch_spl_required_token2022_used(self):
+        # P1 regression: requirement specifies the SPL Token program but the
+        # transaction's transfer instruction uses Token-2022. The server must
+        # reject this before broadcasting, mirroring the Rust spine binding.
+        requirement = exact_requirement(State())
+        self.assertEqual(requirement["extra"]["tokenProgram"], str(TOKEN_PROGRAM_ID))
+        header = retarget_header_to_server_requirement(
+            build_exact_payment_signature(
+                requirement=requirement,
+                client_keypair=Keypair(),
+                blockhash=str(Hash.default()),
+                decimals=6,
+                token_program=TOKEN_2022_PROGRAM_ID,
+            )
+        )
+
+        with self.assertRaisesRegex(
+            RuntimeError, "invalid_exact_svm_payload_transaction_token_program"
+        ):
+            settle_exact_payment(State(), header)
+
+    def test_settle_rejects_token_program_mismatch_token2022_required_spl_used(self):
+        # Reverse direction: requirement specifies Token-2022 but the
+        # transaction's transfer instruction uses the SPL Token program.
+        state = MultiCurrencyState()
+        requirement = exact_challenge(state)["accepts"][1]
+        self.assertEqual(requirement["extra"]["tokenProgram"], str(TOKEN_2022_PROGRAM_ID))
+        header = build_exact_payment_signature(
+            requirement=requirement,
+            client_keypair=Keypair(),
+            blockhash=str(Hash.default()),
+            decimals=6,
+            token_program=TOKEN_PROGRAM_ID,
+        )
+
+        with self.assertRaisesRegex(
+            RuntimeError, "invalid_exact_svm_payload_transaction_token_program"
+        ):
+            settle_exact_payment(state, header)
+
+    def test_settle_accepts_matching_token_program_positive_control(self):
+        # Positive control: requirement and transfer both declare SPL Token.
+        requirement = exact_requirement(State())
+        self.assertEqual(requirement["extra"]["tokenProgram"], str(TOKEN_PROGRAM_ID))
+        header = build_exact_payment_signature(
+            requirement=requirement,
+            client_keypair=Keypair(),
+            blockhash=str(Hash.default()),
+            decimals=6,
+            token_program=TOKEN_PROGRAM_ID,
+        )
+
+        with patch("x402_sdk.interop.server._send_transaction", return_value="signature-tp-ok"):
+            self.assertEqual(settle_exact_payment(State(), header), "signature-tp-ok")
+
     def test_settle_rejects_missing_transfer_instruction_before_broadcast(self):
         transaction = transaction_from_instructions(
             State.fee_payer.pubkey(),

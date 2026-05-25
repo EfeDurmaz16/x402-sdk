@@ -240,6 +240,20 @@ def _verify_transfer_instruction(
     if len(instruction.accounts) < 4 or len(instruction.data) != 10 or instruction.data[0] != 12:
         raise RuntimeError("invalid_exact_svm_payload_no_transfer_instruction")
 
+    # Strict binding: the on-chain instruction's program MUST match the program
+    # declared in the payment requirement's extra.tokenProgram field. Without
+    # this check, a malicious client could submit a Token-2022 transfer for a
+    # requirement that specifies SPL Token (or vice versa); the destination ATA
+    # check below would still pass because it is derived from the *parsed*
+    # program, providing no binding at all. Mirrors the Rust spine intent.
+    extra = requirement.get("extra")
+    required_token_program_str = extra.get("tokenProgram") if isinstance(extra, dict) else None
+    if required_token_program_str is None:
+        required_token_program_str = DEFAULT_TOKEN_PROGRAM
+    required_token_program = Pubkey.from_string(str(required_token_program_str))
+    if program != required_token_program:
+        raise RuntimeError("invalid_exact_svm_payload_transaction_token_program")
+
     source = _instruction_account(0, instruction, account_keys)
     mint = _instruction_account(1, instruction, account_keys)
     destination = _instruction_account(2, instruction, account_keys)
