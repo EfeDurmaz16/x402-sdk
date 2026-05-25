@@ -43,30 +43,43 @@ positive control:
 For each shape, the positive control uses the same envelope minus the attack
 mutation. Both reject and accept paths are confirmed in one test pass.
 
-## L8 claim-then-broadcast-then-confirm ordering
+## L8 broadcast-then-confirm-then-mark ordering (SVM-specific)
 
-Pull-mode settlement MUST follow this order on every server SDK so a crash
-between any two steps cannot result in a double-broadcast:
+Pull-mode settlement on Solana follows this order on every server SDK,
+mirroring the canonical pattern in MPP `server/charge.rs:535-556`:
 
-1. `claim_signature` in the durable replay store (write the marker / acquire
-   the idempotency slot **before** the network call).
-2. `send_raw_transaction` (broadcast).
-3. `await_confirmation` (poll until confirmed).
-4. On a **definitive failure** (RPC returned an error result, or the
-   transaction's recent blockhash expired without confirmation), release the
-   claim so a legitimate retry can proceed.
+1. `send_raw_transaction` (broadcast).
+2. `await_confirmation` (poll `getSignatureStatuses` until `confirmed` or
+   `finalized`, bounded by a definitive failure: explicit RPC error result,
+   or blockhash window expiry).
+3. `put_if_absent` in the durable replay store keyed by the confirmed signature.
+   Returns `false` ⇒ the signature was already consumed ⇒ surface the
+   canonical `signature_consumed` / `duplicate_settlement` error and do
+   NOT echo a fresh `PAYMENT-RESPONSE`.
 
-**Critical:** confirmation timeout alone is NOT a definitive failure on Solana.
-A timed-out poll can still land in a later slot if the blockhash is still
-valid, so releasing the claim on plain timeout creates a double-pay window
-where a retry broadcasts before the original confirms. Hold the claim until
-either confirmation arrives, the RPC surfaces an explicit error, or the
-blockhash window expires (~150 slots, roughly 60–90s). Only then is it safe
-to release.
+There is **no release-on-failure path** in this ordering, by design. A
+crash or RPC failure before step 3 simply never inserts the key, and
+Solana's own per-signature replay protection (a signed transaction can be
+landed at most once within its blockhash window) prevents a retry from
+double-broadcasting. Two concurrent settlement attempts on the same
+signature collapse to one on-chain effect; the second observes the
+already-consumed signature and reports it.
 
-If broadcast happens before the claim is written and the process crashes
-between broadcast and the marker write, a retry will broadcast the same
-signature again = double-pay. The Rust spine is the canonical reference.
+A claim-first variant ("write the marker before broadcasting, release on
+failure") is valid in principle but adds a release path that has to handle
+partial failures (broadcast succeeded but await timed out — release would
+permit a double-pay if the original confirms later). The broadcast-first
+ordering above sidesteps that race entirely because the on-chain
+signature is the global uniqueness primitive, not the replay-store key.
+
+Replay-store key MUST be scheme-namespaced so x402 schemes do not bleed
+into each other or into MPP's `solana-charge:consumed:<sig>` keyspace:
+
+- `x402-svm-exact:consumed:<base58_signature>`
+- `x402-svm-upto:consumed:<base58_signature>` (when upto lands)
+- `x402-svm-batch:consumed:<base58_signature>` (when batch-settlement lands)
+
+The Rust spine and MPP `server/charge.rs` are the canonical references.
 
 ## Local Codex review (second opinion)
 
