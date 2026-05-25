@@ -567,6 +567,22 @@ $feePayerInMemoPayment = mutate_payment_transaction($validCanonicalPayment, stat
 });
 assert_rejects_payment($unitState, encoded_payment($feePayerInMemoPayment), 'invalid_exact_svm_payload_transaction_fee_payer_in_instruction_accounts');
 
+// Codex PR #19 r3 P1 regression: the optional-instruction allowlist must
+// mirror the Rust + TS spines and accept only Memo + Lighthouse. The
+// Associated Token Account program (used by Create-ATA / idempotent
+// Create-ATA) is NOT allowed at this position. See
+// rust/src/protocol/schemes/exact/verify.rs L260-272 and
+// typescript/packages/x402/src/facilitator/exact/scheme.ts L289-301.
+$ataCreateOptionalPayment = mutate_payment_transaction($validCanonicalPayment, static function (string $transaction): string {
+    $ataProgram = base58_decode_test('ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL');
+    // Swap account index 7 (memo program in the canonical layout) with the
+    // Associated Token Account program -- the 4th instruction's programIndex
+    // still resolves to slot 7, so it now looks like an ATA-program optional
+    // instruction. Spines reject this with the canonical unknown-fourth token.
+    return replace_transaction_account_key_test($transaction, 7, $ataProgram);
+});
+assert_rejects_payment($unitState, encoded_payment($ataCreateOptionalPayment), 'invalid_exact_svm_payload_unknown_fourth_instruction');
+
 $computeLimitPayment = mutate_payment_transaction($validCanonicalPayment, static function (string $transaction): string {
     $instructions = transaction_instruction_offsets($transaction);
     $transaction[$instructions[0]['dataOffset']] = chr(9);

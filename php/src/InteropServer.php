@@ -451,7 +451,7 @@ function verify_exact_transaction(string $transaction, array $requirement, array
     verify_compute_price_instruction($instructions[1], $accountKeys);
     $transfer = verify_transfer_instruction($instructions[2], $accountKeys, $requirement, $managedSigners);
     verify_fee_payer_not_in_instruction_accounts($instructions, $accountKeys, $managedSigners);
-    verify_optional_instructions(array_slice($instructions, 3), $accountKeys, $requirement, $transfer);
+    verify_optional_instructions(array_slice($instructions, 3), $accountKeys, $requirement);
 
     return $transfer;
 }
@@ -550,11 +550,17 @@ function verify_fee_payer_not_in_instruction_accounts(array $instructions, array
     }
 }
 
-function verify_optional_instructions(array $instructions, array $accountKeys, array $requirement, array $transfer): void
+function verify_optional_instructions(array $instructions, array $accountKeys, array $requirement): void
 {
     $memoProgram = public_key_from_base58(MEMO_PROGRAM, 'memo program');
     $lighthouseProgram = public_key_from_base58(LIGHTHOUSE_PROGRAM, 'lighthouse program');
-    $ataProgram = public_key_from_base58(ASSOCIATED_TOKEN_PROGRAM, 'associated token program');
+    // Optional-instruction allowlist mirrors the Rust + TS spines exactly:
+    // only the Memo and Lighthouse programs are permitted. The Associated
+    // Token Account program (including idempotent Create-ATA) is rejected
+    // here -- both spines treat any non-{memo, lighthouse} program as an
+    // unknown optional instruction.
+    //   rust/src/protocol/schemes/exact/verify.rs L260-272
+    //   typescript/packages/x402/src/facilitator/exact/scheme.ts L289-301
     $invalidReasonByIndex = [
         'invalid_exact_svm_payload_unknown_fourth_instruction',
         'invalid_exact_svm_payload_unknown_fifth_instruction',
@@ -573,10 +579,7 @@ function verify_optional_instructions(array $instructions, array $accountKeys, a
         }
         if ($program === $lighthouseProgram) {
             // Pass through by program-id match only, mirroring the spines
-            // (rust verify.rs:266, ts facilitator/exact/scheme.ts:300).
-            continue;
-        }
-        if ($program === $ataProgram && valid_destination_ata_create_instruction($instruction, $accountKeys, $requirement, $transfer)) {
+            // (rust verify.rs:263, ts facilitator/exact/scheme.ts:292).
             continue;
         }
 
@@ -593,24 +596,6 @@ function verify_optional_instructions(array $instructions, array $accountKeys, a
     if ($memoInstructions[0]['data'] !== (string) $expectedMemo) {
         throw new \RuntimeException('invalid_exact_svm_payload_memo_mismatch');
     }
-}
-
-function valid_destination_ata_create_instruction(array $instruction, array $accountKeys, array $requirement, array $transfer): bool
-{
-    $data = $instruction['data'];
-    if (strlen($data) > 1 || (strlen($data) === 1 && !in_array(ord($data[0]), [0, 1], true))) {
-        return false;
-    }
-    $accounts = $instruction['accounts'];
-    if (count($accounts) < 6) {
-        return false;
-    }
-
-    return account_key_for_index($accounts[1], $accountKeys) === $transfer['destination']
-        && account_key_for_index($accounts[2], $accountKeys) === public_key_from_base58((string) $requirement['payTo'], 'payTo')
-        && account_key_for_index($accounts[3], $accountKeys) === $transfer['mint']
-        && account_key_for_index($accounts[4], $accountKeys) === public_key_from_base58(SYSTEM_PROGRAM, 'system program')
-        && account_key_for_index($accounts[5], $accountKeys) === $transfer['tokenProgram'];
 }
 
 function instruction_program(array $instruction, array $accountKeys): string
