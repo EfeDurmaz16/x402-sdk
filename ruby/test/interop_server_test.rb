@@ -90,7 +90,7 @@ class InteropServerTest < Minitest::Test
       X402SDK::Interop::Server.settle_exact_payment(state, payment_header)
     end
 
-    assert_equal "accepted payment requirement does not match server challenge", error.message
+    assert_equal "No matching payment requirements: accepted payment requirement does not match server challenge", error.message
   end
 
   def test_settlement_rejects_accepted_extra_drift
@@ -103,7 +103,7 @@ class InteropServerTest < Minitest::Test
       X402SDK::Interop::Server.settle_exact_payment(state, payment_header)
     end
 
-    assert_equal "accepted payment requirement does not match server challenge", error.message
+    assert_equal "No matching payment requirements: accepted payment requirement does not match server challenge", error.message
   end
 
   def test_settlement_rejects_accepted_max_timeout_drift
@@ -116,7 +116,7 @@ class InteropServerTest < Minitest::Test
       X402SDK::Interop::Server.settle_exact_payment(state, payment_header)
     end
 
-    assert_equal "accepted payment requirement does not match server challenge", error.message
+    assert_equal "No matching payment requirements: accepted payment requirement does not match server challenge", error.message
   end
 
   def test_settlement_rejects_malformed_payment_signature_encoding
@@ -454,7 +454,7 @@ class InteropServerTest < Minitest::Test
 
     assert_equal(
       {
-        error: "payment_error",
+        error: "payment_invalid",
         message: "sendTransaction RPC error: failed",
         invalidReason: "sendTransaction RPC error: failed"
       },
@@ -472,7 +472,7 @@ class InteropServerTest < Minitest::Test
 
     assert_equal 402, status
     assert headers.key?("PAYMENT-REQUIRED")
-    assert_equal "payment_error", body.fetch(:error)
+    assert_equal "payment_invalid", body.fetch(:error)
     assert_equal "invalid payment signature encoding", body.fetch(:message)
     assert_equal "invalid payment signature encoding", body.fetch(:invalidReason)
   end
@@ -603,6 +603,44 @@ class InteropServerTest < Minitest::Test
     assert_equal true, body.fetch(:paid)
     assert_equal "settlement-signature", body.fetch(:settlement).fetch(:transaction)
     assert_equal NETWORK, body.fetch(:settlement).fetch(:network)
+  end
+
+  def test_server_rejects_cross_server_credential_with_canonical_token
+    # Simulate a cross-server replay: a credential built for server A (with a
+    # different payTo) is presented to server B. Server B must reject with a
+    # 4xx response whose body carries one of the canonical reject tokens that
+    # the interop cross-server scenarios harness searches for.
+    server_a = build_state
+    other_pay_to = "11111111111111111111111111111113"
+    server_b_env = {
+      "X402_INTEROP_RPC_URL" => "http://127.0.0.1:8899",
+      "X402_INTEROP_NETWORK" => NETWORK,
+      "X402_INTEROP_MINT" => ASSET,
+      "X402_INTEROP_PAY_TO" => other_pay_to,
+      "X402_INTEROP_FACILITATOR_SECRET_KEY" => JSON.generate(secret(65)),
+      "X402_INTEROP_PRICE" => "$0.001"
+    }
+    server_b = X402SDK::Interop::Server::State.new(
+      env: server_b_env,
+      transaction_sender: ->(_state, _transaction) { "settlement-signature" },
+      account_checker: ->(_state, _account) { true }
+    )
+    payment_header = build_payment_header(server_a, resource: "/protected")
+
+    status, _headers, body = X402SDK::Interop::Server.response_for(
+      "/protected",
+      { "PAYMENT-SIGNATURE" => payment_header },
+      server_b
+    )
+
+    assert status >= 400 && status < 500, "expected 4xx, got #{status}"
+    serialized = JSON.generate(body).downcase
+    canonical_tokens = [
+      "no matching payment requirements",
+      "payment_invalid"
+    ]
+    matched = canonical_tokens.any? { |token| serialized.include?(token) }
+    assert matched, "expected body to include a canonical reject token, got #{serialized}"
   end
 
   def test_protected_route_returns_payment_required_without_signature

@@ -177,7 +177,13 @@ module X402SDK
                         requirements.find { |candidate| payment_requirement_matches?(accepted, candidate) }
                       end
         unless requirement
-          raise "accepted payment requirement does not match server challenge"
+          # Mirrors the Go reference at go/cmd/interop-server/main.go:856 which
+          # responds with `{"error":"payment_invalid"}` for this class of
+          # reject. The canonical token "No matching payment requirements" is
+          # included in the raised message so the cross-server scenarios
+          # harness (tests/interop/test/cross-server-scenarios.test.ts) can
+          # detect it via substring match on the HTTP body.
+          raise "No matching payment requirements: accepted payment requirement does not match server challenge"
         end
 
         payload = decoded["payload"]
@@ -309,8 +315,13 @@ module X402SDK
 
       def payment_error_body(error)
         reason = error.message
+        # Mirrors Go reference at go/cmd/interop-server/main.go:855-858 which
+        # uses {"error":"payment_invalid","message":<reason>}. The canonical
+        # token "payment_invalid" is one of the reject substrings accepted by
+        # the cross-server scenarios harness, so any reject body produced by
+        # this server is recognised without depending on the raised message.
         {
-          error: "payment_error",
+          error: "payment_invalid",
           message: reason,
           invalidReason: reason
         }
