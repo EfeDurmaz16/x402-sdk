@@ -298,7 +298,7 @@ class InteropServerTest(unittest.TestCase):
             )
             with self.assertRaisesRegex(
                 RuntimeError,
-                "accepted payment requirement does not match server challenge",
+                "No matching payment requirements",
             ):
                 settle_exact_payment(State(), missing_accepted)
 
@@ -854,6 +854,65 @@ class InteropServerTest(unittest.TestCase):
         self.assertEqual(write["body"]["invalidReason"], "invalid payment")
         self.assertEqual(write["payment_required"], exact_challenge(State()))
 
+    def test_server_rejects_cross_server_credential_with_canonical_token(self):
+        """Cross-server replay regression: when server B receives a credential
+        whose `accepted` block targets a different server's pay-to / asset /
+        amount, server B must reject (non-2xx) AND the response body must
+        carry one of the canonical tokens recognised by the interop
+        cross-server-scenarios harness (see tests/interop). Mirrors Go's
+        reject body shape (go/cmd/interop-server/main.go ~L856:
+        `{"error": "payment_invalid", "message": ...}`).
+        """
+        canonical_tokens = (
+            "invalid_exact_svm_payload_recipient_mismatch",
+            "recipient_mismatch",
+            "Destination ATA does not belong to expected recipient",
+            "AtaMismatch",
+            "challenge_verification_failed",
+            "verification_failed",
+            "unauthorized",
+            "No matching payment requirements",
+            "does not match any offered payment option",
+            "payment_invalid",
+        )
+
+        # Construct a credential whose `accepted` points at a *different*
+        # server's requirements (different payTo / amount / asset) — i.e. the
+        # exact cross-server replay scenario.
+        foreign_requirement = {
+            "scheme": "exact",
+            "network": "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1",
+            "asset": "So11111111111111111111111111111111111111112",
+            "amount": "99999",
+            "payTo": str(Keypair().pubkey()),
+            "maxTimeoutSeconds": 60,
+            "extra": {
+                "feePayer": str(Keypair().pubkey()),
+                "decimals": 6,
+                "tokenProgram": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+            },
+        }
+        foreign_header = encode_payment_signature(
+            {
+                "x402Version": 2,
+                "accepted": foreign_requirement,
+                "payload": {"transaction": "irrelevant-bytes"},
+            }
+        )
+
+        write = dispatch_get(
+            DEFAULT_RESOURCE_PATH,
+            headers={"payment-signature": foreign_header},
+        )
+
+        self.assertGreaterEqual(write["status"], 400)
+        self.assertLess(write["status"], 600)
+        body_blob = json.dumps(write["body"]).lower()
+        self.assertTrue(
+            any(token.lower() in body_blob for token in canonical_tokens),
+            f"cross-server reject body missing canonical token; got: {write['body']}",
+        )
+
     def test_write_json_sets_content_headers_and_payment_required_header(self):
         handler = object.__new__(InteropHandler)
         sent = []
@@ -924,7 +983,7 @@ class InteropServerTest(unittest.TestCase):
         self.assertEqual(
             body,
             {
-                "error": "payment_error",
+                "error": "payment_invalid",
                 "message": "sendTransaction RPC error: {}",
                 "invalidReason": "sendTransaction RPC error: {}",
             },
@@ -1081,7 +1140,7 @@ class FeePayerAttackRegressionTest(unittest.TestCase):
         )
         with self.assertRaisesRegex(
             RuntimeError,
-            "accepted payment requirement does not match server challenge",
+            "No matching payment requirements",
         ):
             settle_exact_payment(state, header)
 

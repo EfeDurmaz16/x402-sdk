@@ -432,7 +432,17 @@ def settle_exact_payment(state: ServerState, payment_header: str) -> str:
             None,
         )
     if requirement is None:
-        raise RuntimeError("accepted payment requirement does not match server challenge")
+        # Canonical cross-server reject token. Mirrors the Go interop server's
+        # reject-body shape (go/cmd/interop-server/main.go ~L856:
+        # `{"error": "payment_invalid", "message": err.Error()}`) and the
+        # canonical phrase enumerated in tests/interop cross-server-scenarios.
+        # Surfacing "No matching payment requirements" lets cross-server replay
+        # tests detect that a credential issued for a different server's
+        # accepted requirements was correctly rejected by this server.
+        raise RuntimeError(
+            "No matching payment requirements: accepted credential does not"
+            " match any offered payment option for this server"
+        )
     payload = decoded.get("payload")
     if (
         not isinstance(payload, dict)
@@ -471,9 +481,14 @@ def settle_exact_payment(state: ServerState, payment_header: str) -> str:
 class InteropHandler(BaseHTTPRequestHandler):
     @staticmethod
     def payment_error_body(error: Exception) -> dict[str, object]:
+        # Mirrors the Go interop server reject body shape
+        # (go/cmd/interop-server/main.go ~L855-L858): use `payment_invalid` as
+        # the canonical error key so cross-server reject scenarios in
+        # tests/interop can match the body against the canonical token list
+        # (`payment_invalid`, `No matching payment requirements`, ...).
         reason = str(error)
         return {
-            "error": "payment_error",
+            "error": "payment_invalid",
             "message": reason,
             "invalidReason": reason,
         }
